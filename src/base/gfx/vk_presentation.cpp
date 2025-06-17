@@ -1,0 +1,206 @@
+#include "../../../headers/base/gfx/vk_presentation.h"
+
+
+VulkanPresentation::VulkanPresentation(VulkanInstance& instanceObj, VulkanDevice& deviceObj, Window& windowObj) : 
+	_instanceObject{ instanceObj }, _deviceObject{ deviceObj }, _windowObject { windowObj }
+{
+	CreateSwapchain();
+	CreateImageViews();
+}
+
+void VulkanPresentation::RecreateSwapchain()
+{
+	vkDeviceWaitIdle(_deviceObject.GetDevice());
+
+	DestroyStructures();
+	CreateSwapchain();
+	CreateImageViews();
+}
+void VulkanPresentation::CreateSwapchain()
+{
+	const VkPhysicalDevice physDevice = _deviceObject.GetPhysicalDevice();
+	const VkSurfaceKHR surface = _instanceObject.GetSurface();
+
+	VkSurfaceCapabilitiesKHR surfaceCaps;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physDevice, surface, &surfaceCaps);
+
+
+	VkSurfaceFormatKHR surfaceFormat = FindRequiredSurfaceFormat();
+	VkPresentModeKHR presentMode = FindRequiredPresentMode();
+	VkExtent2D swapchainExtent = SelectRequiredSwapchainExtent(surfaceCaps);
+
+	// 4 should be enough
+	const u32 imageCount = std::min(std::max(4u, surfaceCaps.minImageCount), surfaceCaps.maxImageCount);
+
+
+	VkSwapchainCreateInfoKHR createInfo{ VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR };
+	createInfo.pNext = nullptr;
+	createInfo.surface = surface;
+	createInfo.minImageCount = imageCount;
+	createInfo.imageColorSpace = surfaceFormat.colorSpace;
+	createInfo.imageFormat = surfaceFormat.format;
+	createInfo.imageExtent = swapchainExtent;
+	createInfo.imageArrayLayers = 1;
+	createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	// Means that image explicitly should be transferred before using in another queue family
+	createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	createInfo.queueFamilyIndexCount = 0;
+	createInfo.pQueueFamilyIndices = nullptr;
+	// Change it if want to rotate images in the swapchain
+	createInfo.preTransform = surfaceCaps.currentTransform;
+	createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	createInfo.presentMode = presentMode;
+	createInfo.clipped = VK_TRUE;
+	// To do
+	createInfo.oldSwapchain = _swapchainDesc.swapchain;
+
+	VK_CHECK(vkCreateSwapchainKHR(_deviceObject.GetDevice(), &createInfo, nullptr, &_swapchainDesc.swapchain));
+
+	Logger::Log("Vulkan create swapchain", _swapchainDesc.swapchain, LogLevel::Fatal);
+
+	u32 swapImageCount;
+	vkGetSwapchainImagesKHR(_deviceObject.GetDevice(), _swapchainDesc.swapchain, &swapImageCount, nullptr);
+
+	if(_swapchainDesc.images.empty())
+		_swapchainDesc.images.resize(swapImageCount);
+
+	vkGetSwapchainImagesKHR(_deviceObject.GetDevice(), _swapchainDesc.swapchain, &swapImageCount, _swapchainDesc.images.data());
+	_swapchainDesc.imageFormat = surfaceFormat.format;
+	_swapchainDesc.extent = swapchainExtent;
+}
+
+VkSurfaceFormatKHR VulkanPresentation::FindRequiredSurfaceFormat() const
+{
+	const VkPhysicalDevice physDevice = _deviceObject.GetPhysicalDevice();
+	const VkSurfaceKHR surface = _instanceObject.GetSurface();
+
+	u32 formatCount;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, nullptr);
+
+	std::vector<VkSurfaceFormatKHR> formats(formatCount);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, formats.data());
+
+
+	const VkSurfaceFormatKHR requiredFormat{
+	.format {VK_FORMAT_B8G8R8A8_SRGB}, .colorSpace{VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}
+	};
+
+	auto formatIt = std::find_if(formats.begin(), formats.end(), [requiredFormat](VkSurfaceFormatKHR format)
+		{
+			return format.format == requiredFormat.format && format.colorSpace == requiredFormat.colorSpace;
+		});
+
+	Logger::Log("Vulkan surface format selection", formatIt != formats.end(), LogLevel::Debug);
+
+	return *formatIt;
+}
+
+VkPresentModeKHR VulkanPresentation::FindRequiredPresentMode() const
+{
+	VkPhysicalDevice physDevice = _deviceObject.GetPhysicalDevice();
+	VkSurfaceKHR surface = _instanceObject.GetSurface();
+
+	u32 presentModeCount;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physDevice, surface, &presentModeCount, nullptr);
+
+	std::vector<VkPresentModeKHR> availablePresentModes(presentModeCount);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physDevice, surface, &presentModeCount, availablePresentModes.data());
+
+	std::vector<VkPresentModeKHR> desiredPresentModes
+	{
+		VK_PRESENT_MODE_MAILBOX_KHR
+	};
+
+	// FIFO is guaranteed so no need to assert
+	VkPresentModeKHR selectedPresentMode{ VK_PRESENT_MODE_FIFO_KHR };
+	for (VkPresentModeKHR mode : availablePresentModes)
+	{
+		if (std::find(desiredPresentModes.begin(), desiredPresentModes.end(), mode) != desiredPresentModes.end())
+		{
+			selectedPresentMode = mode;
+			break;
+		}
+	}
+
+	Logger::Log("Vulkan present mode", selectedPresentMode);
+
+	return selectedPresentMode;
+}
+
+
+VkExtent2D VulkanPresentation::SelectRequiredSwapchainExtent(const VkSurfaceCapabilitiesKHR& caps) const
+{
+	if (caps.currentExtent.width != std::numeric_limits<u32>::max())
+	{
+		Logger::Log("Vulkan extent 2D", caps.currentExtent);
+		return caps.currentExtent;
+	}
+
+	i32 width;
+	i32 height;
+
+	SDL_GetWindowSizeInPixels(_windowObject.GetWindowPtr(), &width, &height);
+
+	VkExtent2D extent
+	{
+		static_cast<u32>(width),
+		static_cast<u32>(height)
+	};
+
+	extent.width  = std::clamp(extent.width, caps.minImageExtent.width, caps.maxImageExtent.width);
+	extent.height = std::clamp(extent.height, caps.minImageExtent.height, caps.maxImageExtent.height);
+
+	Logger::Log("Vulkan extent 2D", extent);
+	
+
+
+	return extent;
+}
+
+void VulkanPresentation::CreateImageViews()
+{
+	if(_swapchainDesc.imagesView.empty())
+		_swapchainDesc.imagesView.resize(_swapchainDesc.images.size());
+
+	for (size_t i = 0; i < _swapchainDesc.images.size(); ++i)
+	{
+		VkImageViewCreateInfo createInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+		createInfo.image  = _swapchainDesc.images[i];
+		createInfo.format = _swapchainDesc.imageFormat;
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		// Describes image purpose. Default color attachment for now
+		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		createInfo.subresourceRange.baseMipLevel = 0;
+		createInfo.subresourceRange.baseArrayLayer = 0;
+		createInfo.subresourceRange.levelCount = 1;
+		createInfo.subresourceRange.layerCount = 1;
+
+		VK_CHECK(vkCreateImageView(_deviceObject.GetDevice(), &createInfo, nullptr, &_swapchainDesc.imagesView[i]));
+	}
+}
+
+
+void VulkanPresentation::Cleanup()
+{
+	DestroyStructures();
+	DestroySwapchain();
+}
+
+void VulkanPresentation::DestroyStructures()
+{
+	const VkDevice device = _deviceObject.GetDevice();
+	for (VkImageView imageView : _swapchainDesc.imagesView)
+	{
+		vkDestroyImageView(device, imageView, nullptr);
+	}
+}
+
+void VulkanPresentation::DestroySwapchain()
+{
+	vkDestroySwapchainKHR(_deviceObject.GetDevice(), _swapchainDesc.swapchain, nullptr);
+
+}

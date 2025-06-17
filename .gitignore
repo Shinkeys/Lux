@@ -1,0 +1,34 @@
+.cache/
+spirv/*.spv
+
+# Visual Studio specific
+out/
+.vs/*
+
+
+build/
+CMakeFiles/
+CMakeCache.txt
+build.ninja
+.ninja_*
+compile_commands.json
+*.cmake
+
+imgui.ini
+
+
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+
+# Clion
+.idea/*
+
+# Local History for Visual Studio Code
+.history/
+
+# Built Visual Studio Code Extensions
+*.vsix
