@@ -20,15 +20,20 @@ void Application::Run()
 		return;
 	}
 
-
 	_vulkanBackend.Initialize(_window);
 
+	_sceneManager = std::make_unique<SceneManager>(_vulkanBackend, _window);
+
+	Renderer::Initialize(_vulkanBackend);
 
 	while (!_window.WindowShouldClose())
 	{
 		_window.Update();
 		Update();
+		_sceneManager->Update();
 		_vulkanBackend.RenderFrame();
+
+
 		Render();
 	}
 

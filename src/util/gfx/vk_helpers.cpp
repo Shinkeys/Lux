@@ -3,7 +3,7 @@
 
 namespace vkhelpers
 {
-	VkShaderModule ReadShaderFile(const fs::path& shaderPath, VkDevice device)
+	std::optional<VkShaderModule> ReadShaderFile(const fs::path& shaderPath, VkDevice device)
 	{
 		fs::path completePath = "resources\\shaders\\" / shaderPath;
 		completePath = fs::absolute(completePath);
@@ -34,9 +34,6 @@ namespace vkhelpers
 
 		VkShaderModule shaderModule;
 		VK_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
-
-		Logger::Log("[SHADER] Creating shader module by path: " + completePath.string(), shaderModule, LogLevel::Debug);
-
 
 		return shaderModule;
 	}

@@ -80,14 +80,9 @@ VkSurfaceFormatKHR VulkanPresentation::FindRequiredSurfaceFormat() const
 	std::vector<VkSurfaceFormatKHR> formats(formatCount);
 	vkGetPhysicalDeviceSurfaceFormatsKHR(physDevice, surface, &formatCount, formats.data());
 
-
-	const VkSurfaceFormatKHR requiredFormat{
-	.format {VK_FORMAT_B8G8R8A8_SRGB}, .colorSpace{VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}
-	};
-
-	auto formatIt = std::find_if(formats.begin(), formats.end(), [requiredFormat](VkSurfaceFormatKHR format)
+	auto formatIt = std::find_if(formats.begin(), formats.end(), [this](VkSurfaceFormatKHR format)
 		{
-			return format.format == requiredFormat.format && format.colorSpace == requiredFormat.colorSpace;
+			return format.format == ColorFormat.format && format.colorSpace == ColorFormat.colorSpace;
 		});
 
 	Logger::Log("Vulkan surface format selection", formatIt != formats.end(), LogLevel::Debug);

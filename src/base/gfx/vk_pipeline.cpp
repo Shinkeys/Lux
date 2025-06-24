@@ -4,43 +4,70 @@
 VulkanPipeline::VulkanPipeline(VulkanDevice& deviceObj, VulkanPresentation& presentationObj) : 
 				_deviceObject{deviceObj}, _presentationObject{presentationObj}
 {
-	CreatePipeline();
+
+}
+const PipelinePair* VulkanPipeline::GetPipelinePair(const GraphicsPipeline& graphicsPipeline) const
+{
+	auto it = _pipelinesCache.find(graphicsPipeline);
+
+	if (it == _pipelinesCache.end())
+	{
+		Logger::CriticalLog("Can't find pipeline layout by passed graphics pipeline. Check call stack");
+		return nullptr;
+	}
+
+	return &it->second;
 }
 
-
-void VulkanPipeline::CreatePipeline()
+PipelinePair VulkanPipeline::CreatePipeline(const GraphicsPipeline& graphicsPipeline)
 {
+	if (auto it = _pipelinesCache.find(graphicsPipeline); it != _pipelinesCache.end())
+	{
+		return it->second;
+	}
+
 	const VkDevice device = _deviceObject.GetDevice();
 
+	fs::path vertexPath = graphicsPipeline.shaderName;
+	fs::path fragmentPath = graphicsPipeline.shaderName;
 
-	VkShaderModule vertShaderModule = vkhelpers::ReadShaderFile("shading.vert.spv", device);
-	VkShaderModule fragShaderModule = vkhelpers::ReadShaderFile("shading.frag.spv", device);
+	vertexPath += ".vert.spv";
+	fragmentPath += ".frag.spv";
+
+	auto vertShaderModule = vkhelpers::ReadShaderFile(vertexPath, device);
+	auto fragShaderModule = vkhelpers::ReadShaderFile(fragmentPath, device);
+
+	Logger::Log("Cannot create vertex shader module which is required in graphics pipeline", vertShaderModule.has_value(), LogLevel::Fatal);
 
 	// Assign shaders to the specific pipeline stage
 	// Vertex shader
 	VkPipelineShaderStageCreateInfo vertStageInfo{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
 	vertStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertStageInfo.module = vertShaderModule;
+	vertStageInfo.module = vertShaderModule.value();
 	vertStageInfo.pName = "main"; // Entrypoint
 	// Very useful feature - use it later. Allows you to specify
 	// all the constants which would be used in the shader directly
 	// from the CPU so you don't need to synchronize their values,
 	// as well as the driver can optimize them to reduce branching
 	vertStageInfo.pSpecializationInfo = nullptr;
+	
 
-	// Fragment shader
-	VkPipelineShaderStageCreateInfo fragStageInfo{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
-	fragStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragStageInfo.module = fragShaderModule;
-	fragStageInfo.pName = "main";
-	fragStageInfo.pSpecializationInfo = nullptr; // To do
-
-
-	std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages
+	std::vector<VkPipelineShaderStageCreateInfo> shaderStages
 	{
-		vertStageInfo,
-		fragStageInfo
+		vertStageInfo
 	};
+
+	if (fragShaderModule.has_value())
+	{
+		// Fragment shader
+		VkPipelineShaderStageCreateInfo fragStageInfo{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+		fragStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		fragStageInfo.module = fragShaderModule.value();
+		fragStageInfo.pName = "main";
+		fragStageInfo.pSpecializationInfo = nullptr; // To do
+
+		shaderStages.push_back(fragStageInfo);
+	}
 
 
 	// To do
@@ -52,7 +79,7 @@ void VulkanPipeline::CreatePipeline()
 
 	// To do
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo{ VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO };
-	inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	inputAssemblyInfo.topology = graphicsPipeline.topology;
 	inputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
 
 	// To do
@@ -81,14 +108,15 @@ void VulkanPipeline::CreatePipeline()
 	VkPipelineRasterizationStateCreateInfo rasterizationInfo{ VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
 	rasterizationInfo.depthClampEnable = VK_FALSE; // if true values beyond the near and far planes are not discarded
 	rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-	rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizationInfo.cullMode  = VK_CULL_MODE_BACK_BIT;
-	rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	rasterizationInfo.polygonMode = graphicsPipeline.polygonMode;
+	rasterizationInfo.cullMode  = graphicsPipeline.cullMode;
+	rasterizationInfo.frontFace = graphicsPipeline.frontFace;
 	rasterizationInfo.depthBiasEnable = VK_FALSE;
 	rasterizationInfo.depthBiasConstantFactor = 0.0f;
 	rasterizationInfo.depthBiasClamp = 0.0f;
 	rasterizationInfo.depthBiasSlopeFactor = 0.0f;
 	rasterizationInfo.lineWidth = 1.0f;
+
 
 	// To do
 	VkPipelineMultisampleStateCreateInfo multisamplingInfo{ VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
@@ -122,21 +150,32 @@ void VulkanPipeline::CreatePipeline()
 	colorBlendInfo.blendConstants[2] = 0.0f;
 	colorBlendInfo.blendConstants[3] = 0.0f;
 
+	VkPushConstantRange pushConstant;
+	pushConstant.size = graphicsPipeline.pushConstantSizeBytes;
+	pushConstant.offset = graphicsPipeline.pushConstantOffset;
+	pushConstant.stageFlags = VK_SHADER_STAGE_ALL;
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	pipelineLayoutInfo.setLayoutCount = 0;
 	pipelineLayoutInfo.pSetLayouts = nullptr;
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
-	pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
-	VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &_pipelineLayout));
+	if (graphicsPipeline.pushConstantSizeBytes > 0)
+	{
+		pipelineLayoutInfo.pushConstantRangeCount = 1;
+		pipelineLayoutInfo.pPushConstantRanges = &pushConstant;
+	}
 
-	Logger::Log("[PIPELINE] Created pipeline layout", _pipelineLayout, LogLevel::Debug);
+	PipelinePair pipelinePair;
 
-	//CreateRenderpass();
+	VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelinePair.pipelineLayout));
+
+	Logger::Log("[PIPELINE] Created pipeline layout", pipelinePair.pipelineLayout, LogLevel::Debug);
+
 	VkPipelineRenderingCreateInfo pipelineRenderingInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO }; // for dynamic rendering
 	pipelineRenderingInfo.colorAttachmentCount = 1;
-	pipelineRenderingInfo.pColorAttachmentFormats = &_presentationObject.GetSwapchainDesc().imageFormat;
+	pipelineRenderingInfo.pColorAttachmentFormats = &graphicsPipeline.colorFormat;
+
+	// to do: VkPipelineDepthStencilStateCreateInfo 
 
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
@@ -148,21 +187,30 @@ void VulkanPipeline::CreatePipeline()
 	pipelineInfo.pViewportState = &viewportStateInfo;
 	pipelineInfo.pRasterizationState = &rasterizationInfo;
 	pipelineInfo.pMultisampleState = &multisamplingInfo;
-	pipelineInfo.pColorBlendState = &colorBlendInfo;
+	pipelineInfo.pColorBlendState = fragShaderModule.has_value() ? &colorBlendInfo : nullptr;
 	pipelineInfo.pDynamicState = &dynamicStateInfo;
-	pipelineInfo.layout = _pipelineLayout;
-	pipelineInfo.renderPass = VK_NULL_HANDLE;
+	pipelineInfo.layout = pipelinePair.pipelineLayout;
+	pipelineInfo.renderPass = nullptr;
 	pipelineInfo.subpass = 0;
-	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+	pipelineInfo.basePipelineHandle = nullptr;
 	pipelineInfo.basePipelineIndex = -1;
 
-	VK_CHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &_graphicsPipeline));
-
-	Logger::Log("[PIPELINE] Created pipeline object", _graphicsPipeline, LogLevel::Debug);
 
 
-	vkDestroyShaderModule(device, vertShaderModule, nullptr);
-	vkDestroyShaderModule(device, fragShaderModule, nullptr);
+	VK_CHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipelinePair.pipeline));
+
+	Logger::Log("[PIPELINE] Created pipeline object", pipelinePair.pipeline, LogLevel::Debug);
+
+	// Store it in the storage
+	_pipelinesCache.insert({ graphicsPipeline, pipelinePair });
+
+
+	vkDestroyShaderModule(device, vertShaderModule.value(), nullptr);
+
+	if(fragShaderModule.has_value())
+		vkDestroyShaderModule(device, fragShaderModule.value(), nullptr);
+
+	return pipelinePair;
 }
 
 void VulkanPipeline::SetDynamicStates(VkCommandBuffer cmdBuffer) const
@@ -170,9 +218,9 @@ void VulkanPipeline::SetDynamicStates(VkCommandBuffer cmdBuffer) const
 	const VkExtent2D swapchainExtent = _presentationObject.GetSwapchainDesc().extent;
 	VkViewport viewport{};
 	viewport.x = 0.0f;
-	viewport.y = 0.0f;
+	viewport.y = static_cast<float>(swapchainExtent.height);
 	viewport.width  = static_cast<float>(swapchainExtent.width);
-	viewport.height = static_cast<float>(swapchainExtent.height);
+	viewport.height = -static_cast<float>(swapchainExtent.height); // Flipping viewport to change Y positive direction
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 	vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
@@ -187,7 +235,9 @@ void VulkanPipeline::Cleanup()
 {
 	VkDevice device = _deviceObject.GetDevice();
 
-	vkDestroyPipeline(device, _graphicsPipeline, nullptr);
-	//vkDestroyRenderPass(device, _renderPass, nullptr);
-	vkDestroyPipelineLayout(device, _pipelineLayout, nullptr);
+	for (const auto& pipelinePair : _pipelinesCache)
+	{
+		vkDestroyPipeline(device, pipelinePair.second.pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelinePair.second.pipelineLayout, nullptr);
+	}
 }

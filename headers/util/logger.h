@@ -10,6 +10,8 @@ enum class LogLevel : u8
 	Fatal = 3
 };
 
+// Purpose: Logger to log all the incoming data. 
+// To do: some kind of log files and so on.
 class Logger
 {
 private:
@@ -87,6 +89,11 @@ public:
 #ifdef KHRONOS_VALIDATION
 		std::cout <<"[Info] " << message << " --- " << ToString(object) << '\n';
 #endif
+	}
+
+	static void Log(const std::string& message)
+	{
+		std::cout << "[Debug Message] " << message << '\n';
 	}
 
 

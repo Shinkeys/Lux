@@ -1,23 +1,45 @@
 #version 460 core
 #extension GL_KHR_vulkan_glsl : enable
+#extension GL_EXT_buffer_reference2 : require
+#extension GL_EXT_scalar_block_layout : require
 
 // Y is reverted in vulkan
-vec2 positions[3] = vec2[](
-	vec2(-0.5, -0.5),
-	vec2(0.5, -0.5),
-	vec2(0.0, 0.5)
-);
+// Y is reverted in vulkan
+// Y is reverted in vulkan
 
-vec3 colors[3] = vec3[](
-	vec3(0.5, 1.0, 0.0),
-	vec3(0.0, 0.5, 1.0),
-	vec3(1.0, 0.0, 0.5)
-);
+struct Geometry
+{
+	vec3 position;
+	vec3 normals;
+	vec3 tangents;
+	vec2 UVs;
+};
 
-layout (location = 0) out vec3 outColor;
+layout(scalar, buffer_reference, buffer_reference_align = 8) buffer Vertices
+{
+	Geometry geometry[];
+};
+
+layout(scalar, buffer_reference, buffer_reference_align = 8) buffer UniformBuffer
+{
+	mat4 model;
+	mat4 view;
+	mat4 proj;
+};
+
+
+layout(push_constant) uniform buffersPtr
+{
+	Vertices ptr;
+	UniformBuffer uniformPtr;
+};
+
+
 
 void main()
 {
-	gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
-	outColor = colors[gl_VertexIndex];
+	uint index = gl_VertexIndex;
+	vec3 position = ptr.geometry[index].position;
+
+	gl_Position = uniformPtr.proj * uniformPtr.view * uniformPtr.model * vec4(position.xyz, 1.0);
 }

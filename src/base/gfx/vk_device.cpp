@@ -72,10 +72,13 @@ VkBool32 VulkanDevice::FamilySupportsPresentation(VkPhysicalDevice physDevice, u
 
 bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const
 {
+	VkPhysicalDeviceVulkan12Features queryVulkan12Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
 	VkPhysicalDeviceVulkan13Features queryVulkan13Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
 
+	queryVulkan12Features.pNext = &queryVulkan13Features;
+
 	VkPhysicalDeviceFeatures2 features2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-	features2.pNext = &queryVulkan13Features;
+	features2.pNext = &queryVulkan12Features;
 
 	vkGetPhysicalDeviceFeatures2(physDevice, &features2);
 	// Write required features here
@@ -84,6 +87,11 @@ bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const
 	if (!queryVulkan13Features.synchronization2)
 		return false;
 
+	if (!queryVulkan12Features.bufferDeviceAddress)
+		// bufferDeviceAddressCaptureReplay for debug support if would need
+		return false;
+	if (!queryVulkan12Features.scalarBlockLayout)
+		return false;
 
 	return true;
 }
@@ -205,10 +213,17 @@ void VulkanDevice::CreateLogicalDevice()
 
 		qCreateInfos.push_back(qCreateInfo);
 	}
+	VkPhysicalDeviceVulkan12Features vulkan12Features =
+	{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+		.pNext = nullptr,
+		.scalarBlockLayout = VK_TRUE,
+		.bufferDeviceAddress = VK_TRUE
+	};
 
 	VkPhysicalDeviceVulkan13Features vulkan13Features = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-		.pNext = nullptr,
+		.pNext = &vulkan12Features,
 		.synchronization2 = VK_TRUE,
 		.dynamicRendering = VK_TRUE
 	};

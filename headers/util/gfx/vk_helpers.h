@@ -9,7 +9,7 @@ namespace vkhelpers
 	// Purpose: load shader from file and create VkShaderModule
 	// Output: program crash if file couldn't be open.
 	// Pass only shaders' name. Example: shading.vert
-	VkShaderModule ReadShaderFile(const fs::path& shaderPath, VkDevice device);
+	std::optional<VkShaderModule> ReadShaderFile(const fs::path& shaderPath, VkDevice device);
 	VkCommandBufferBeginInfo CmdBufferBeginInfo(VkCommandBufferUsageFlags flags = 0);
 
 

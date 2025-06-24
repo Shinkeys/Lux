@@ -1,4 +1,5 @@
 #include "../../../headers/base/gfx/vk_base.h"
+#include "../../../headers/base/core/renderer.h"
 
 // DEFINE FOR VOLK SHOULD BE PLACED ONLY HERE
 #define VOLK_IMPLEMENTATION
@@ -12,6 +13,7 @@ void VulkanBase::Initialize(Window& windowObj)
 	_presentationObject = std::make_unique<VulkanPresentation>(*_instanceObject, *_deviceObject, windowObj);
 	_pipelineObject = std::make_unique<VulkanPipeline>(*_deviceObject, *_presentationObject);
 	_frameObject = std::make_unique<VulkanFrame>(*_deviceObject, *_presentationObject, *_pipelineObject);
+	_bufferObject = std::make_unique<VulkanBuffer>(*_instanceObject, *_deviceObject);
 }
 
 void VulkanBase::RenderFrame()
@@ -47,7 +49,13 @@ void VulkanBase::RenderFrame()
 	_frameObject->ResetFence();
 
 	VkSemaphore semaphoreRenderFinished = _frameObject->GetRenderFinishedSemaphore(imageIndex);
-	_frameObject->RecordCommandBuffer(imageIndex);
+	_frameObject->BeginFrame(imageIndex);
+
+	// Render all the objects connected to vulkan
+	// It contains smth like: bind pipeline, vkCmdDraw etc	
+	Renderer::RenderScene();
+
+	_frameObject->EndFrame(imageIndex);
 
 	VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
 	
@@ -101,6 +109,7 @@ void VulkanBase::Cleanup()
 {
 	vkDeviceWaitIdle(_deviceObject->GetDevice());
 	// Instance should be destroyed last
+	_bufferObject->Cleanup();
 	_frameObject->Cleanup();
 	_pipelineObject->Cleanup();
 	_presentationObject->Cleanup();

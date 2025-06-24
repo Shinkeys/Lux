@@ -1,5 +1,6 @@
 #include "../../../headers/base/gfx/vk_frame.h"
 #include "../../../headers/util/gfx/vk_helpers.h"
+#include "../../../headers/base/core/renderer.h"
 
 VulkanFrame::VulkanFrame(VulkanDevice& deviceObj, VulkanPresentation& presentationObj, VulkanPipeline& pipelineObj) : 
 				  _deviceObject{ deviceObj }, _presentationObject {presentationObj}, _pipelineObject{ pipelineObj }
@@ -82,7 +83,7 @@ void VulkanFrame::CreateSynchronizationObjects()
 	}
 }
 
-void VulkanFrame::RecordCommandBuffer(u32 imageIndex)
+void VulkanFrame::BeginFrame(u32 imageIndex)
 {
 	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
 	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
@@ -120,22 +121,42 @@ void VulkanFrame::RecordCommandBuffer(u32 imageIndex)
 
 	vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
-	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _pipelineObject.GetVkPipeline());
-
 	_pipelineObject.SetDynamicStates(cmdBuffer);
+}
 
-	vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
+void VulkanFrame::SubmitRenderTask(const VulkanDrawCommand& drawCommand) const
+{
+	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
+
+	Renderer::Submit([=]
+		{
+			VkDeviceAddress pushConstants[]
+			{
+				drawCommand.objectBufferAddress,
+				drawCommand.uniformBufferAddress
+			};
+
+			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipeline);
+			vkCmdBindIndexBuffer(cmdBuffer, drawCommand.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+			vkCmdPushConstants(cmdBuffer, drawCommand.pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants), pushConstants);
+			vkCmdDrawIndexed(cmdBuffer, drawCommand.indexCount, 1, 0, 0, 0);
+		});
+}
+
+
+void VulkanFrame::EndFrame(u32 imageIndex)
+{
+	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
+	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
 
 	vkCmdEndRendering(cmdBuffer);
 
-
-	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0, 
+	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
 
 	VK_CHECK(vkEndCommandBuffer(cmdBuffer));
 }
-
 
 void VulkanFrame::WaitForFence()
 {
