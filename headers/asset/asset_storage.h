@@ -1,30 +1,36 @@
 #pragma once
 #include "../util/util.h"
 #include "../scene/component.h"
+#include "asset_types.h"
 
 #include <glm/glm.hpp>
 
-struct Geometry
+struct StorageDataOffsets
 {
-	glm::vec3 position{glm::vec3(0.0f)};
-	glm::vec3 normals{ glm::vec3(0.0f) };
-	glm::vec3 tangents{ glm::vec3(0.0f) };
-	glm::vec2 UVs{ glm::vec2(0.0f) };
+	i32 startGeometry{ 0 };
+	i32 endGeometry{ 0 };
+	i32 startIndex{ 0 };
+	i32 endIndex{ 0 };
 };
 
-struct Mesh
+struct StoreGeometryResult
 {
-	TranslationComponent* transform;
-	Geometry* geometryPtr;
-	//ptr* materialPtr;
+	GeometryDescription desc;
+	bool shouldUpdateGeometryPtrs{ false };
+	bool shouldUpdateIndicesPtrs{ false };
 };
 
 class AssetStorage
 {
 private:
 	std::vector<Geometry> _allGeometryStorage;
-public:
-	Geometry* GetRawData()  { return _allGeometryStorage.data(); }
+	std::vector<u32> _allIndicesStorage;
+
+	using AssetID = u32;
+	std::unordered_map<AssetID, StorageDataOffsets> _dataOffsets;
+public:	
+	const Geometry* GetRawGeometry(AssetID id) const;
+	const u32* GetRawIndices(AssetID id)       const;
 	size_t GetRawDataSize() const { return _allGeometryStorage.size(); }
-	void StoreGeometry(const std::vector<Geometry>& geometry);
+	StoreGeometryResult StoreGeometry(const LoadedGLTF& loadedGltf, AssetID assetID);
 };

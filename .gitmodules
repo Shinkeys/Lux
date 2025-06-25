@@ -1,6 +1,3 @@
-[submodule "vendor/SDL"]
-	path = vendor/SDL
-	url = https://github.com/libsdl-org/SDL.git
 [submodule "vendor/imgui"]
 	path = vendor/imgui
 	url = https://github.com/ocornut/imgui
@@ -16,3 +13,12 @@
 [submodule "vendor/fastgltf"]
 	path = vendor/fastgltf
 	url = https://github.com/spnda/fastgltf
+[submodule "vendor/stb"]
+	path = vendor/stb
+	url = https://github.com/nothings/stb
+[submodule "vendor/SDL"]
+	path = vendor/SDL
+	url = https://github.com/libsdl-org/SDL
+[submodule "vendor/meshoptimizer"]
+	path = vendor/meshoptimizer
+	url = https://github.com/zeux/meshoptimizer

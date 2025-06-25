@@ -5,6 +5,7 @@
 #include "../util/util.h"
 #include "../base/core/renderer.h"
 #include "../scene/scene_manager.h"
+#include "../asset/asset_manager.h"
 
 #include <iostream>
 

@@ -14,9 +14,11 @@ class SceneRenderer
 {
 private:
 	VulkanBase& _vulkanBackend;
+	AssetManager& _assetManager;
 	PipelinePair _baseShadingPair;
 
 	using EntityID = u32;
+	glm::mat4 GenerateModelMatrix(const TranslationComponent& translationComp);
 public:
 	/**
 	* @brief Pass the objects which would LIVE after the submission
@@ -30,7 +32,7 @@ public:
 
 	SceneRenderer() = delete;
 	~SceneRenderer() = default;
-	SceneRenderer(VulkanBase& vulkanBackend);
+	SceneRenderer(VulkanBase& vulkanBackend, AssetManager& manager);
 	SceneRenderer(const SceneRenderer&) = delete;
 	SceneRenderer(SceneRenderer&&) = delete;
 	SceneRenderer& operator= (const SceneRenderer&) = delete;

@@ -7,7 +7,7 @@
 
 struct MeshVertexBufferCreateDesc
 {
-	Geometry* geometryPtr;
+	const Geometry* geometryPtr;
 	u32 elementsCount;
 
 	VkBufferUsageFlags bufferUsage;
@@ -17,7 +17,7 @@ struct MeshVertexBufferCreateDesc
 
 struct MeshIndexBufferCreateDesc
 {
-	u32* indicesPtr;
+	const u32* indicesPtr;
 	u32 elementsCount;
 
 	VkBufferUsageFlags bufferUsage;

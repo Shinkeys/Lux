@@ -1,7 +1,9 @@
 ﻿#include "../../headers/scene/scene_renderer.h"
 #include "../../headers/scene/entity.h"
 
-SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanBackend}
+#include <glm/gtc/matrix_transform.hpp>
+
+SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, AssetManager& manager) : _vulkanBackend{vulkanBackend}, _assetManager{manager}
 {
 	constexpr i32 pushConstBufferCount = 2; // uniform + vertexBuff
 
@@ -20,48 +22,40 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 {
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 
-	std::vector<Geometry> geometry
-	{
-		Geometry{glm::vec3(-1.0f, -1.0f,  1.0f)}, // front // 0
-		Geometry{glm::vec3(-1.0f,  1.0f,  1.0f)}, // 1
-		Geometry{glm::vec3(1.0f,   1.0f,  1.0f)}, // 2
-		Geometry{glm::vec3(1.0f,  -1.0f,  1.0f)}, // 3
-		 
-
-		Geometry{glm::vec3(-1.0f, -1.0f, -1.0f)}, // back // 4
-		Geometry{glm::vec3(-1.0f,  1.0f, -1.0f)}, // 5
-		Geometry{glm::vec3(1.0f,   1.0f, -1.0f)}, // 6
-		Geometry{glm::vec3(1.0f,  -1.0f, -1.0f)} // 7
-	};
-	// temp
-	std::vector<u32> indices
-	{
-		1, 0, 2, 0, 3, 2,
-		4, 0, 1, 4, 1, 5,
-		6, 2, 3, 3, 7, 6,
-		6, 4, 5, 7, 4, 6,
-		2, 6, 1, 6, 5, 1,
-		7, 3, 0, 4, 7, 0
-	};
-
+	MeshComponent* meshComp = entity.GetComponent<MeshComponent>();
 	// Check if buffer exist
-	if (bufferManager.GetMeshBuffers(entity.GetID()) == nullptr)
+	if (meshComp != nullptr && bufferManager.GetMeshBuffers(entity.GetID()) == nullptr)
 	{
-		MeshVertexBufferCreateDesc vertexDesc;
-		vertexDesc.geometryPtr = geometry.data();
-		vertexDesc.elementsCount = static_cast<u32>(geometry.size());
-		vertexDesc.bufferUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		vertexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		vertexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+		u32 meshIndex = _assetManager.TryToLoadAndStoreMesh(meshComp->folderName);
+		meshComp->meshIndex = meshIndex;
+		if (meshIndex != 0)
+		{
+			const GeometryDescription* desc = _assetManager.GetGeometryDesc(meshIndex);
+			if (desc != nullptr)
+			{
+				MeshVertexBufferCreateDesc vertexDesc;
+				vertexDesc.geometryPtr = desc->geometryPtr;
+				vertexDesc.elementsCount = desc->geometryCount;
+				vertexDesc.bufferUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+				vertexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+				vertexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 
-		MeshIndexBufferCreateDesc indexDesc;
-		indexDesc.indicesPtr = indices.data();
-		indexDesc.elementsCount = (u32)indices.size();
-		indexDesc.bufferUsage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-		indexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		indexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+				MeshIndexBufferCreateDesc indexDesc;
+				indexDesc.indicesPtr = desc->indicesPtr;
+				indexDesc.elementsCount = desc->indexCount;
+				indexDesc.bufferUsage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+				indexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+				indexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 
-		bufferManager.CreateMeshBuffers(vertexDesc, indexDesc, entity.GetID());
+				bufferManager.CreateMeshBuffers(vertexDesc, indexDesc, entity.GetID());
+			}
+
+		}
+		else
+		{
+			std::cout << "Unable to create mesh buffers, asset manager returned index 0\n";
+		}
+
 	}
 
 
@@ -69,44 +63,49 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 	if (isUniformCreated)
 	{
 		const CameraComponent* comp = entity.GetComponent<CameraComponent>();
+		const TranslationComponent* transComp = entity.GetComponent<TranslationComponent>();
 		if (comp && comp->isActive)
 		{
-			UniformData uniform;
+			glm::mat4 model = transComp ? GenerateModelMatrix(*transComp) : glm::mat4(1.0f);
+			UniformData uniform{}	;
 			uniform.view = comp->camera->GetViewMatrix();
 			uniform.proj = comp->camera->GetProjectionMatrix();
+			uniform.model = model;
 			bufferManager.UpdateUniformBuffer(uniform, entity.GetID());
 		}
 	}
 	else // create
 	{
-		UniformData uniform;
+		UniformData uniform{};
 		const CameraComponent* comp = entity.GetComponent<CameraComponent>();
+		const TranslationComponent* transComp = entity.GetComponent<TranslationComponent>();
 		if (comp && comp->isActive)
 		{
+			glm::mat4 model = transComp ? GenerateModelMatrix(*transComp) : glm::mat4(1.0f);
 			uniform.view = comp->camera->GetViewMatrix();
 			uniform.proj = comp->camera->GetProjectionMatrix();
+			uniform.model = model;
 		}
 
 		bufferManager.CreateUniformBuffer(uniform, entity.GetID());
 	}
 }
 
+// Return value: NRVO would return it so no copy needed.
+glm::mat4 SceneRenderer::GenerateModelMatrix(const TranslationComponent& translationComp)
+{
+	glm::mat4 model(1.0f);
+	model = glm::scale(model, translationComp.scale);
+	model = translationComp.rotation * model;
+	model = glm::translate(model, translationComp.translation);
+
+	return model;
+}
+
 void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 {
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
-
-	// temp
-	// temp
-	std::vector<u32> indices
-	{
-		0, 1, 2, 0, 3, 2,
-		0, 4, 1, 4, 1, 5,
-		3, 2, 6, 3, 7, 6,
-		5, 4, 6, 7, 4, 6,
-		2, 6, 1, 6, 5, 1,
-		3, 7, 0, 7, 4, 0
-	};
 
 	UpdateBuffers(entity);
 
@@ -117,12 +116,26 @@ void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 	assert(meshBuffers && "Uniform buffer for entity is empty");
 
 
-	VulkanDrawCommand command;
-	command.pipeline = _baseShadingPair.pipeline;
-	command.pipelineLayout = _baseShadingPair.pipelineLayout;
-	command.objectBufferAddress = meshBuffers->GetDeviceAddress();
-	command.uniformBufferAddress = uniformBuffer->GetDeviceAddress();
-	command.indexCount = static_cast<u32>(indices.size());
-	command.indexBuffer = bufferManager.GetMeshBuffers(entity.GetID())->GetVkIndexBuffer();
-	frameManager.SubmitRenderTask(command); // Example. TO DO
+	const MeshComponent* meshComp = entity.GetComponent<MeshComponent>();
+	if (meshComp != nullptr)
+	{
+		const u32 meshAssetIndex = meshComp->meshIndex;
+		if (meshAssetIndex == 0)
+			return;
+
+		const GeometryDescription* geometryDesc =  _assetManager.GetGeometryDesc(meshAssetIndex);
+		if (geometryDesc == nullptr)
+			return;
+
+		VulkanDrawCommand command;
+		command.pipeline = _baseShadingPair.pipeline;
+		command.pipelineLayout = _baseShadingPair.pipelineLayout;
+		command.objectBufferAddress = meshBuffers->GetDeviceAddress();
+		command.uniformBufferAddress = uniformBuffer->GetDeviceAddress();
+		command.indexCount = geometryDesc->indexCount;
+		command.indexBuffer = bufferManager.GetMeshBuffers(entity.GetID())->GetVkIndexBuffer();
+		frameManager.SubmitRenderTask(command); // Example. TO DO
+
+	}
+
 }

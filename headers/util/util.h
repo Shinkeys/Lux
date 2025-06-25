@@ -7,6 +7,7 @@
 #include <functional>
 #include <filesystem>
 #include <unordered_map>
+#include <expected>
 #include <map>
 #include <unordered_set>
 #include <optional>

@@ -11,6 +11,7 @@ class SceneManager
 private:
 	VulkanBase& _vulkanBackend;
 	Window& _window;
+	AssetManager _assetManager;
 
 	std::unique_ptr<SceneRenderer> _rendererInstance;
 	std::unique_ptr<SceneBase> _sceneInstance;

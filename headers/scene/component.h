@@ -41,7 +41,14 @@ struct CameraComponent
 	}
 };
 
+struct MeshComponent
+{
+	std::string folderName = "";
 
+	u32 meshIndex{ 0 };
+	//u32 materialIndex{ 0 };
+
+};
 
 class ComponentList
 {
@@ -49,6 +56,7 @@ private:
 	std::optional<TagComponent> _tagComponent;
 	std::optional<TranslationComponent> _translationComponent;
 	std::optional<CameraComponent> _cameraComponent;
+	std::optional<MeshComponent> _meshComponent;
 public:
 	template<typename Component, typename... Args>
 	Component& Emplace(Args&&... args)
@@ -65,16 +73,20 @@ public:
 		{
 			return _cameraComponent.emplace(args...);
 		}
+		else if constexpr (std::is_same<Component, MeshComponent>::value)
+		{
+			return _meshComponent.emplace(args...);
+		}
 		else static_assert(false, "Unexcepted type passed to the function Emplace() of ComponentList class");
 	}
 
 	template<typename Component>
-	const Component* Get() const
+	Component* Get()
 	{
 		if constexpr (std::is_same<Component, TagComponent>::value)
 		{
 			if (_tagComponent.has_value())
-				return &_tagComponent.value();
+				return &(*_tagComponent);
 
 
 			Logger::Log("Trying to get some component which is not initialized! Nullptr returned\n");
@@ -83,7 +95,7 @@ public:
 		else if constexpr (std::is_same<Component, TranslationComponent>::value)
 		{
 			if (_translationComponent.has_value())
-				return &_translationComponent.value();
+				return &(*_translationComponent);
 
 			Logger::Log("Trying to get some component which is not initialized! Nullptr returned\n");
 			return nullptr;
@@ -91,14 +103,20 @@ public:
 		else if constexpr (std::is_same<Component, CameraComponent>::value)
 		{
 			if (_cameraComponent.has_value())
-				return &_cameraComponent.value();
+				return &(*_cameraComponent);
+
+			Logger::Log("Trying to get some component which is not initialized! Nullptr returned\n");
+			return nullptr;
+		}
+		else if constexpr (std::is_same<Component, MeshComponent>::value)
+		{
+			if (_meshComponent.has_value())
+				return &(*_meshComponent);
 
 			Logger::Log("Trying to get some component which is not initialized! Nullptr returned\n");
 			return nullptr;
 		}
 		else static_assert(false, "Unexcepted type passed to the function Get() of ComponentList class");
 	}
-
-
 
 };

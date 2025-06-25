@@ -29,7 +29,7 @@ public:
 
 
 	template<typename Component>
-	const Component* GetComponent() const 
+	Component* GetComponent() const 
 	{
 		assert(_scene&& _id != -1 && "Cannot get component for the object, scenePtr or id is null");
 		auto entityComponentList = _scene->GetComponentListByEntity(*this);
@@ -50,7 +50,9 @@ public:
 		return entityComponentList->Emplace<Component>(std::forward<Args>(args)...);
 	}
 
+
 };
+
 
 // Maybe in the future engine would need multiple scenes.
 template <>
