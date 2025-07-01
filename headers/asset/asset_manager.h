@@ -23,6 +23,7 @@ private:
 	AssetStorage _storage;
 	ModelImporter _importer;
 
+	inline static AssetManager* s_Instance;
 
 	using AssetID = u32;
 	using MaterialID = u32;
@@ -37,6 +38,19 @@ private:
 	void UpdateDataPointers();
 	void UpdateMaterialPointers();
 public:
+
+	static void Initialize();
+	static void Cleanup();
+
+	AssetManager() = default;
+	AssetManager(const AssetManager&) = delete;
+	AssetManager(AssetManager&&) = delete;
+	AssetManager& operator= (const AssetManager&) = delete;
+	AssetManager& operator= (AssetManager&&) = delete;
+
+	static AssetManager* Get() { return s_Instance; }
+
+
 	size_t GetAllSceneSize();
 
 	const VertexDescription* GetVertexDesc(AssetID id) const;

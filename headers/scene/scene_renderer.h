@@ -9,12 +9,17 @@ struct UniformData
 	glm::mat4 proj  = glm::mat4(1.0f);
 };
 
+struct RenderData
+{
+	const VertexDescription* meshDesc{ nullptr };
+	const MaterialDescription* materialDesc{ nullptr };
+};
+
 class Entity;
 class SceneRenderer
 {
 private:
 	VulkanBase& _vulkanBackend;
-	AssetManager& _assetManager;
 	PipelinePair _baseShadingPair;
 	std::vector<DescriptorSet> _baseShadingDescriptorSets;
 	SSBOPair _baseMaterialsSSBO;
@@ -38,7 +43,7 @@ public:
 
 	SceneRenderer() = delete;
 	~SceneRenderer() = default;
-	SceneRenderer(VulkanBase& vulkanBackend, AssetManager& manager);
+	SceneRenderer(VulkanBase& vulkanBackend);
 	SceneRenderer(const SceneRenderer&) = delete;
 	SceneRenderer(SceneRenderer&&) = delete;
 	SceneRenderer& operator= (const SceneRenderer&) = delete;

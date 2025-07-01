@@ -5,7 +5,7 @@
 class SceneStorage
 {	
 private:
-	i32 _currentAvailableID{ 0 };
+	u32 _currentAvailableID{ 1 };
 	std::unordered_map<Entity, ComponentList> _entityRegistry;
 public:
 	const Entity& CreateEntityInRegistry(SceneBase* scene);

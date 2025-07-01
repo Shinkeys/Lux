@@ -24,6 +24,8 @@ void Application::Run()
 
 	_sceneManager = std::make_unique<SceneManager>(_vulkanBackend, _window);
 
+	AssetManager::Initialize();
+
 	Renderer::Initialize(_vulkanBackend);
 
 	while (!_window.WindowShouldClose())
@@ -39,6 +41,7 @@ void Application::Run()
 
 
 	// Application closed, cleanup everything.
+	AssetManager::Cleanup();
 	Cleanup();
 }
 

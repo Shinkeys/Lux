@@ -5,7 +5,7 @@
 #include "../../headers/scene/entity.h"
 
 
-SceneBase::SceneBase(SceneRenderer& renderer, SceneStorage& storage) : _rendererInstance{ renderer }, _storageInstance{storage}
+SceneBase::SceneBase(SceneRenderer& renderer, SceneStorage& storage) : _rendererInstance{renderer}, _storageInstance{storage}
 {
 	_camera = std::make_shared<Camera>();
 	Initialize();
@@ -28,8 +28,7 @@ void SceneBase::Initialize()
 	sponza.AddComponent<CameraComponent>(_camera, cameraIsActive);
 	sponza.AddComponent<MeshComponent>();
 	sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f), glm::vec3(0.0f), glm::vec3(0.01f));
-	MeshComponent* sponzaMeshComp = sponza.GetComponent<MeshComponent>();
-	sponzaMeshComp->folderName = "Sponza";
+	sponza.GetComponent<MeshComponent>()->folderName = "Sponza";
 }
 
 
@@ -38,7 +37,7 @@ void SceneBase::Update()
 	for (const auto& [ett, comps] : _storageInstance.GetRegistry())
 	{
 		_rendererInstance.SubmitEntityToDraw(ett);
-	}
+	}	
 }
 
 void SceneBase::UpdateWithKeys(const Window& window)

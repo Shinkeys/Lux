@@ -8,12 +8,12 @@ class Entity
 {
 private:
 	SceneBase* _scene{ nullptr };
-	i32 _id{-1};
+	u32 _id{0};
 
 	// Mesh* _mesh;
 public:
 	Entity() = delete;
-	Entity(i32 id, SceneBase* scene) : _id{ id }, _scene{ scene }
+	Entity(u32 id, SceneBase* scene) : _id{ id }, _scene{ scene }
 	{
 
 	}
@@ -24,7 +24,7 @@ public:
 	}
 
 
-	i32 GetID() const { return _id; }
+	u32 GetID() const { return _id; }
 	const SceneBase* GetScenePtr() const { return _scene; }
 
 

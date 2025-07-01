@@ -3,7 +3,21 @@
 #include "../../headers/util/helpers.h"
 
 
+
+
 // Purpose: used to create vertex buffer for example.
+void AssetManager::Initialize()
+{
+	s_Instance = new AssetManager;
+}
+
+
+void AssetManager::Cleanup()
+{
+	delete s_Instance;
+}
+
+
 
 size_t AssetManager::GetAllSceneSize()
 {

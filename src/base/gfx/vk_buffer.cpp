@@ -4,7 +4,12 @@
 
 // For volk compatibility 
 
-
+/*
+ ___ ___         __ __                     __           ___   ___
+|   |   |.--.--.|  |  |--.---.-.-----.    |  |--.--.--.'  _|.'  _|.-----.----.
+|   |   ||  |  ||  |    <|  _  |     |    |  _  |  |  |   _||   _||  -__|   _|
+ \_____/ |_____||__|__|__|___._|__|__|    |_____|_____|__|  |__|  |_____|__| 
+ */
 VulkanBuffer::VulkanBuffer(VulkanInstance& instanceObj, VulkanDevice& deviceObj, VulkanAllocator& allocator) : _instanceObj{instanceObj}, _deviceObj{deviceObj}, _allocatorObj{allocator}
 {
 	VmaAllocatorCreateInfo createInfo{};
@@ -38,7 +43,8 @@ StagingPair VulkanBuffer::CreateStagingBuffer(void* data, size_t size)
 {
 	StorageBuffer stagingBuffer(_allocatorObj.GetAllocatorHandle());
 
-	stagingBuffer.CreateBuffer(_deviceObj.GetDevice(), data, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	stagingBuffer.CreateBuffer(_deviceObj.GetDevice(), size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+	stagingBuffer.UpdateBuffer(data, size);
 
 	const i32 availableIndex = _stagingBufferAvailableIndex;
 	++_stagingBufferAvailableIndex;
@@ -117,4 +123,151 @@ void VulkanBuffer::Cleanup()
 	{
 		stagingBuffer.Cleanup();
 	}
+}
+
+StorageBuffer& VulkanBuffer::CreateUniformBuffer(size_t size, EntityIndex handleIndex)
+{
+	StorageBuffer uniformBuffers(_allocatorObj.GetAllocatorHandle());
+
+	uniformBuffers.CreateBuffer(_deviceObj.GetDevice(), size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+	// Copy constructors are not allowed in mesh buffers
+	auto it = _uniformBuffers.emplace(handleIndex, std::move(uniformBuffers));
+
+	return it.first->second;
+}
+
+
+SSBOPair VulkanBuffer::CreateSSBOBuffer(size_t size)
+{
+	StorageBuffer ssboBuffer(_allocatorObj.GetAllocatorHandle());
+
+	ssboBuffer.CreateBuffer(_deviceObj.GetDevice(), size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+	// Copy constructors are not allowed in mesh buffers
+
+	const i32 availableIndex = _ssboBufferAvailableIndex;
+	++_ssboBufferAvailableIndex;
+
+	auto it = _ssboBuffers.emplace(availableIndex, std::move(ssboBuffer));
+
+	SSBOPair pair;
+	pair.address = it.first->second.GetDeviceAddress();
+	pair.index = availableIndex;
+
+	return pair;
+}
+
+
+/*
+_______               __         ______         ___   ___
+|   |   |.-----.-----.|  |--.    |   __ \.--.--.'  _|.'  _|.-----.----.-----.
+|       ||  -__|__ --||     |    |   __ <|  |  |   _||   _||  -__|   _|__ --|
+|__|_|__||_____|_____||__|__|    |______/|_____|__|  |__|  |_____|__| |_____|
+																			 */
+
+
+void MeshBuffers::FillBuffers(const Vertex* vertexData, const u32* indexData, size_t vertexDataSize, size_t indexDataSize)
+{
+	if (vertexData)
+	{
+		void* mappedData = nullptr;
+		const void* passedData = static_cast<const void*>(vertexData);
+		VK_CHECK(vmaMapMemory(_allocator, _vertexAllocation, &mappedData));
+		memcpy(mappedData, passedData, (vertexDataSize * sizeof(Vertex)));
+		vmaUnmapMemory(_allocator, _vertexAllocation);
+	}
+	if (indexData)
+	{
+		void* mappedData = nullptr;
+		const void* passedData = static_cast<const void*>(indexData);
+		VK_CHECK(vmaMapMemory(_allocator, _indexAllocation, &mappedData));
+		memcpy(mappedData, passedData, (indexDataSize * sizeof(u32)));
+		vmaUnmapMemory(_allocator, _indexAllocation);
+	}
+}
+
+void MeshBuffers::CreateBuffers(VkDevice device, const MeshVertexBufferCreateDesc& vertexDesc, const MeshIndexBufferCreateDesc& indexDesc)
+{
+	VkBufferCreateInfo vertexBufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	vertexBufferInfo.size = vertexDesc.elementsCount * sizeof(Vertex);
+	vertexBufferInfo.usage = vertexDesc.bufferUsage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT; // FOR BDA
+	vertexBufferInfo.sharingMode = vertexDesc.bufferSharingMode;
+
+	VmaAllocationCreateInfo vertexAllocInfo{};
+	vertexAllocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	vertexAllocInfo.requiredFlags = vertexDesc.bufferMemoryPropertyFlags;
+	vertexAllocInfo.priority = 1.0f;
+	vertexAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+
+	VK_CHECK(vmaCreateBuffer(_allocator, &vertexBufferInfo, &vertexAllocInfo, &_vertexBuffer, &_vertexAllocation, nullptr));
+	FillVertexBufferAddress(device);
+
+	// Index buffer
+	VkBufferCreateInfo indexBufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	indexBufferInfo.size = indexDesc.elementsCount * sizeof(u32);
+	indexBufferInfo.usage = indexDesc.bufferUsage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT; // FOR BDA
+	indexBufferInfo.sharingMode = indexDesc.bufferSharingMode;
+
+	VmaAllocationCreateInfo indexAllocInfo{};
+	indexAllocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	indexAllocInfo.requiredFlags = indexDesc.bufferMemoryPropertyFlags;
+	indexAllocInfo.priority = 1.0f;
+	indexAllocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+
+	VK_CHECK(vmaCreateBuffer(_allocator, &indexBufferInfo, &indexAllocInfo, &_indexBuffer, &_indexAllocation, nullptr));
+
+	FillBuffers(vertexDesc.vertexPtr, indexDesc.indicesPtr, static_cast<size_t>(vertexDesc.elementsCount), static_cast<size_t>(indexDesc.elementsCount));
+}
+
+void MeshBuffers::FillVertexBufferAddress(VkDevice device)
+{
+	VkBufferDeviceAddressInfo addressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+	addressInfo.buffer = _vertexBuffer;
+	_bufferAddress = vkGetBufferDeviceAddress(device, &addressInfo);
+}
+
+void MeshBuffers::Cleanup()
+{
+	vmaDestroyBuffer(_allocator, _vertexBuffer, _vertexAllocation);
+	vmaDestroyBuffer(_allocator, _indexBuffer, _indexAllocation);
+}
+
+
+
+/*
+ _______ __                                     ______         ___   ___
+|     __|  |_.-----.----.---.-.-----.-----.    |   __ \.--.--.'  _|.'  _|.-----.----.
+|__     |   _|  _  |   _|  _  |  _  |  -__|    |   __ <|  |  |   _||   _||  -__|   _|
+|_______|____|_____|__| |___._|___  |_____|    |______/|_____|__|  |__|  |_____|__|
+							  |_____|                                               */
+
+void StorageBuffer::FillBufferAddress(VkDevice device)
+{
+	VkBufferDeviceAddressInfo addressInfo{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+	addressInfo.buffer = _buffer;
+	_bufferAddress = vkGetBufferDeviceAddress(device, &addressInfo);
+}
+
+
+void StorageBuffer::CreateBuffer(VkDevice device, size_t size, VkBufferUsageFlags usage)
+{
+	VkBufferCreateInfo uniformBufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	uniformBufferInfo.usage = usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+	uniformBufferInfo.size = size;
+	uniformBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo allocInfo{};
+	allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	allocInfo.requiredFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+	allocInfo.priority = 1.0f;
+	allocInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+
+	VK_CHECK(vmaCreateBuffer(_allocator, &uniformBufferInfo, &allocInfo, &_buffer, &_allocation, nullptr));
+
+	FillBufferAddress(device);
+}
+
+void StorageBuffer::Cleanup()
+{
+	vmaUnmapMemory(_allocator, _allocation);
+	vmaDestroyBuffer(_allocator, _buffer, _allocation);
 }

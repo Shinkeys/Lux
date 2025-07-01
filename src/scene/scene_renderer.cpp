@@ -3,7 +3,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
-SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, AssetManager& manager) : _vulkanBackend{vulkanBackend}, _assetManager{manager}
+SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanBackend}
 {
 	// Descriptor
 	// Create descriptor for every frame
@@ -33,7 +33,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, AssetManager& manager) :
 
 	_baseShadingPair = _vulkanBackend.GetPipelineObj().CreatePipeline(baseShadingPipeline);
 
-
+	
 
 	// Create sampler
 	VkFilter minFiltering{ VK_FILTER_LINEAR };
@@ -55,6 +55,10 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, AssetManager& manager) :
 
 
 	_samplerLinear = _vulkanBackend.GetImageObj().CreateSampler(samplerSpec);
+
+	// Materials buffer
+	constexpr size_t baseMaterialsBuffersSize = 1024;
+	_baseMaterialsSSBO = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(baseMaterialsBuffersSize);
 }
 
 
@@ -67,7 +71,7 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 	// Check if buffer exist
 	if (meshComp != nullptr && bufferManager.GetMeshBuffers(entity.GetID()) == nullptr)
 	{
-		auto loadingResult = _assetManager.TryToLoadAndStoreMesh(meshComp->folderName);
+		auto loadingResult = AssetManager::Get()->TryToLoadAndStoreMesh(meshComp->folderName);
 		if (!loadingResult.has_value())
 			return;
 
@@ -75,7 +79,7 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 		meshComp->meshIndex = meshIndex;
 		if (meshIndex != 0)
 		{
-			const VertexDescription* desc = _assetManager.GetVertexDesc(meshIndex);
+			const VertexDescription* desc = AssetManager::Get()->GetVertexDesc(meshIndex);
 			if (desc != nullptr)
 			{
 				MeshVertexBufferCreateDesc vertexDesc;
@@ -104,10 +108,10 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 		std::vector<MaterialTexturesDesc> allMeshMaterials;
 		for (const auto& material : loadingResult->unloadedMaterials)
 		{
-			allMeshMaterials.push_back(_assetManager.TryToLoadMaterial(imageManager, material));
+			allMeshMaterials.push_back(AssetManager::Get()->TryToLoadMaterial(imageManager, material));
 		}
 
-		const auto materialsStoreResult = 	_assetManager.StoreLoadedMaterials(allMeshMaterials);
+		const auto materialsStoreResult = AssetManager::Get()->StoreLoadedMaterials(allMeshMaterials);
 		meshComp->materialIndex = materialsStoreResult.materialID;
 	}
 
@@ -123,7 +127,7 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 			uniform.view = comp->camera->GetViewMatrix();
 			uniform.proj = comp->camera->GetProjectionMatrix();
 			uniform.model = model;
-			bufferManager.UpdateUniformBuffer(uniform, sizeof(UniformData), entity.GetID());
+			bufferManager.UpdateUniformBuffer(&uniform, sizeof(UniformData), entity.GetID());
 		}
 	}
 	else // create
@@ -139,7 +143,8 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 			uniform.model = model;
 		}
 
-		bufferManager.CreateUniformBuffer(uniform, sizeof(UniformData), entity.GetID());
+		bufferManager.CreateUniformBuffer(static_cast<size_t>(sizeof(UniformData)), entity.GetID());
+		bufferManager.UpdateUniformBuffer(&uniform, static_cast<size_t>(sizeof(UniformData)), entity.GetID());
 	}
 }
 
@@ -161,6 +166,9 @@ void SceneRenderer::Update() const
 	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
 	VulkanDescriptor& descriptorManager = _vulkanBackend.GetDescriptorObj();
 
+
+	const std::vector<MaterialTexturesDesc>& allMaterials = AssetManager::Get()->GetAllSceneMaterialsDesc();
+	bufferManager.UpdateSSBOBuffer(allMaterials.data(), allMaterials.size() * sizeof(MaterialTexturesDesc), _baseMaterialsSSBO.index);
 
 	for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
 	{
@@ -185,13 +193,28 @@ void SceneRenderer::Draw()
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 
+
 	while (!_drawCommands.empty())
 	{
-		const auto& command = _drawCommands.front();
+		auto& command = _drawCommands.front();
+		command.buffersAddresses.push_back(_baseMaterialsSSBO.address);
 		frameManager.SubmitRenderTask(command); // Example. TO DO
 		_drawCommands.pop();
 	}
 }
+
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+
 
 void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 {
@@ -206,16 +229,6 @@ void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 	const StorageBuffer* uniformBuffer = bufferManager.GetUniformBuffer(entity.GetID());
 	assert(meshBuffers && "Uniform buffer for entity is empty");
 
-
-	if (_baseMaterialsSSBO.address == 0)
-	{
-		const auto& materials = _assetManager.GetAllSceneMaterialsDesc();
-
-		_baseMaterialsSSBO = bufferManager.CreateSSBOBuffer(materials);
-
-		std::cout << "Address on creation: " << static_cast<u64>(_baseMaterialsSSBO.address) << '\n';
-	}
-
 	const MeshComponent* meshComp = entity.GetComponent<MeshComponent>();
 	if (meshComp != nullptr)
 	{
@@ -223,7 +236,7 @@ void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 		if (meshAssetIndex == 0)
 			return;
 
-		const VertexDescription* vertexDesc =  _assetManager.GetVertexDesc(meshAssetIndex);
+		const VertexDescription* vertexDesc =  AssetManager::Get()->GetVertexDesc(meshAssetIndex);
 		if (vertexDesc == nullptr)
 			return;
 
@@ -231,7 +244,7 @@ void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 		command.pipeline = _baseShadingPair.pipeline;
 		command.pipelineLayout = _baseShadingPair.pipelineLayout;
 		command.descriptorSet = _baseShadingDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
-		command.buffersAddresses = { meshBuffers->GetDeviceAddress(), uniformBuffer->GetDeviceAddress(), _baseMaterialsSSBO.address };
+		command.buffersAddresses = { meshBuffers->GetDeviceAddress(), uniformBuffer->GetDeviceAddress() };
 		command.indexCount = vertexDesc->indexCount;
 		command.indexBuffer = bufferManager.GetMeshBuffers(entity.GetID())->GetVkIndexBuffer();
 		command.type = RenderJobType::GEOMETRY_PASS;
