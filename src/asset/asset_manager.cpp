@@ -1,6 +1,8 @@
 #include "../../headers/asset/asset_manager.h"
-
+#include "../../headers/base/gfx/vk_image.h"
 #include "../../headers/util/helpers.h"
+
+
 // Purpose: used to create vertex buffer for example.
 
 size_t AssetManager::GetAllSceneSize()
@@ -9,7 +11,7 @@ size_t AssetManager::GetAllSceneSize()
 }
 
 // WORKS ONLY WITH GLTF
-AssetManager::AssetID AssetManager::TryToLoadAndStoreMesh(const fs::path& folder)
+std::optional<MeshStorageBackData> AssetManager::TryToLoadAndStoreMesh(const fs::path& folder)
 {
 	fs::path pathToLoad = ConvertToPath(folder);
 	fs::path finalPath = FindGLTFByPath(pathToLoad);
@@ -18,20 +20,107 @@ AssetManager::AssetID AssetManager::TryToLoadAndStoreMesh(const fs::path& folder
 	if (!loadedGLTF.isLoaded)
 	{
 		std::cout << "Unable to load model by provided folder: " << folder << '\n';
-		return 0;
+		return std::nullopt;
 	}
 
-	StoreGeometryResult result = _storage.StoreGeometry(loadedGLTF, 1);
-	if (result.shouldUpdateGeometryPtrs || result.shouldUpdateIndicesPtrs) // update em both at once. doesnt affect performance anyway
+	AssetID index = _currentAvailableIndex;
+	StoreVertexResult result = _storage.StoreVertex(loadedGLTF, index);
+	if (result.shouldUpdateVertexPtrs || result.shouldUpdateIndicesPtrs) // update em both at once. doesnt affect performance anyway
 		UpdateDataPointers();
 	
-	assert(result.desc.geometryCount > 0 && result.desc.indexCount > 0 && "Geometry or index count is 0 in TryToLoadAndStoreMesh(). Check the logic");
-	assert(result.desc.geometryPtr != nullptr && result.desc.indicesPtr != nullptr && "Geometry ptr or indices ptr is nullptr in TryToLoadAndStoreMesh(). Check the logic");
+	assert(result.desc.vertexCount > 0 && result.desc.indexCount > 0 && "Vertex or index count is 0 in TryToLoadAndStoreMesh(). Check the logic");
+	assert(result.desc.vertexPtr != nullptr && result.desc.indicesPtr != nullptr && "Vertex ptr or indices ptr is nullptr in TryToLoadAndStoreMesh(). Check the logic");
 
-	AssetID index = _currentAvailableIndex;
-	_geometryDescription.insert({ _currentAvailableIndex++, result.desc });
+	ConvertMaterialsPathToAbsolute(folder, loadedGLTF);
 
-	return index;
+	_vertexDescription.insert({ index, result.desc });
+
+	++_currentAvailableIndex;
+
+	MeshStorageBackData backData;
+	backData.assetID = index;
+	backData.unloadedMaterials = std::move(loadedGLTF.materials);
+
+	return backData;
+}
+
+MaterialStorageBackData AssetManager::StoreLoadedMaterials(const std::vector<MaterialTexturesDesc>& materialsDesc)
+{
+	const u32 availableIndex = _availableMaterialIndex;
+	++_availableMaterialIndex;
+	StoreMaterialResult storeResult = _storage.StoreMeshMaterials(materialsDesc, availableIndex);
+
+	if (storeResult.shouldUpdatePtrs)
+		UpdateMaterialPointers();
+
+	MaterialStorageBackData backData;
+	backData.materialID = availableIndex;
+	backData.materials = storeResult.desc;
+
+	return backData;
+}
+
+MaterialTexturesDesc AssetManager::TryToLoadMaterial(VulkanImage& imageManager, const MeshMaterial& material)
+{
+	MaterialTexturesDesc description;
+	for (auto& texture : material.materialTextures)
+	{
+		switch (texture.dataType)
+		{
+		case TexturesData::Type::URI:
+		{
+			if (texture.textureType == TextureType::TEXTURE_ALBEDO)
+			{
+				auto res = imageManager.LoadAndStoreImageFromFile(texture.path);
+				description.albedoID = res ? res->index : 0;
+			}
+			else if (texture.textureType == TextureType::TEXTURE_NORMAL)
+			{
+				auto res = imageManager.LoadAndStoreImageFromFile(texture.path);
+				description.normalID = res ? res->index : 0;
+
+			}
+			else if (texture.textureType == TextureType::TEXTURE_METALLICROUGHNESS)
+			{
+				auto res = imageManager.LoadAndStoreImageFromFile(texture.path);
+				description.metalRoughnessID = res ? res->index : 0;
+			}
+
+			break;
+		}
+
+		case TexturesData::Type::EMBEDDED:
+		{
+			// to do;
+			break;
+		}
+
+		default: std::cout << "Unknown data type of texture\n";
+			break;
+		}
+	}
+
+	return description;
+}
+
+
+// Just a helper function to make it more approachable in the code
+// When storing mesh textures need to convert all texture paths
+// to the absolute to load later.
+void AssetManager::ConvertMaterialsPathToAbsolute(const fs::path& modelFolderName, LoadedGLTF& loadedGLTF)
+{
+	for (auto& material : loadedGLTF.materials)
+	{
+		for (auto& texture : material.materialTextures)
+		{
+			texture.path = ConvertToPath(modelFolderName / texture.path);
+		}
+	}
+}
+
+const std::vector<MaterialTexturesDesc>& AssetManager::GetAllSceneMaterialsDesc() const
+{
+	return _storage.GetAllSceneMaterials();
 }
 
 fs::path AssetManager::ConvertToPath(const fs::path& folder)
@@ -67,17 +156,25 @@ fs::path AssetManager::FindGLTFByPath(const fs::path& path)
 
 void AssetManager::UpdateDataPointers()
 {
-	for (auto& assetDesc : _geometryDescription)
+	for (auto& assetDesc : _vertexDescription)
 	{
-		assetDesc.second.geometryPtr = _storage.GetRawGeometry(assetDesc.first);
+		assetDesc.second.vertexPtr = _storage.GetRawVertex(assetDesc.first);
 		assetDesc.second.indicesPtr = _storage.GetRawIndices(assetDesc.first);
 	}
 }
 
-const GeometryDescription* AssetManager::GetGeometryDesc(AssetID id) const
+void AssetManager::UpdateMaterialPointers()
 {
-	auto it = _geometryDescription.find(id);
-	if (it == _geometryDescription.end())
+	for (auto& materialDesc : _materialDescription)
+	{
+		materialDesc.second.materialTexturesPtr = _storage.GetRawMaterials(materialDesc.first);
+	}
+}
+
+const VertexDescription* AssetManager::GetVertexDesc(AssetID id) const
+{
+	auto it = _vertexDescription.find(id);
+	if (it == _vertexDescription.end())
 	{
 		std::cout << "Unable to get geometry desc by id, the data is not stored previously, important error - check call stack! " << id << '\n';
 		return nullptr;

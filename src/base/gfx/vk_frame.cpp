@@ -1,4 +1,5 @@
 #include "../../../headers/base/gfx/vk_frame.h"
+#include "../../../headers/base/gfx/vk_image.h"
 #include "../../../headers/util/gfx/vk_helpers.h"
 #include "../../../headers/base/core/renderer.h"
 
@@ -83,21 +84,16 @@ void VulkanFrame::CreateSynchronizationObjects()
 	}
 }
 
-void VulkanFrame::BeginFrame(u32 imageIndex)
+void VulkanFrame::BeginRendering(u32 imageIndex)
 {
 	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
 	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
 
-	vkResetCommandBuffer(cmdBuffer, 0);
-
-	VkCommandBufferBeginInfo beginInfo = vkhelpers::CmdBufferBeginInfo();
-	
-	VK_CHECK(vkBeginCommandBuffer(cmdBuffer, &beginInfo));
-	
 	// Dynamic rendering requires layout transitions. access mask is the first layer of synchronization while stage is the second layer.
-	// looks like the first one is what you need to protect in the memory and the second one when to finish this, in this case fragment shader output
+// looks like the first one is what you need to protect in the memory and the second one when to finish this, in this case fragment shader output
 	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+
 
 	VkClearValue clearColor{ {0.0f, 0.0f, 0.0f, 1.0f} };
 
@@ -124,32 +120,70 @@ void VulkanFrame::BeginFrame(u32 imageIndex)
 	_pipelineObject.SetDynamicStates(cmdBuffer);
 }
 
+void VulkanFrame::EndRendering(u32 imageIndex)
+{
+	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
+
+	vkCmdEndRendering(cmdBuffer);
+}
+
+void VulkanFrame::BeginFrame(u32 imageIndex)
+{
+	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
+	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
+
+	vkResetCommandBuffer(cmdBuffer, 0);
+
+	VkCommandBufferBeginInfo beginInfo = vkhelpers::CmdBufferBeginInfo();
+	
+	VK_CHECK(vkBeginCommandBuffer(cmdBuffer, &beginInfo));
+
+}
+
 void VulkanFrame::SubmitRenderTask(const VulkanDrawCommand& drawCommand) const
 {
 	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
 
-	Renderer::Submit([=]
-		{
-			VkDeviceAddress pushConstants[]
-			{
-				drawCommand.objectBufferAddress,
-				drawCommand.uniformBufferAddress
-			};
+	const bool areObjectsInitialized = drawCommand.pipeline != VK_NULL_HANDLE && drawCommand.pipelineLayout != VK_NULL_HANDLE && drawCommand.descriptorSet != VK_NULL_HANDLE &&
+		drawCommand.indexBuffer != VK_NULL_HANDLE;
 
+	assert(areObjectsInitialized && "Vulkan draw command is dispatched with some NULL object");
+	// To DO: compute tasks when would need
+	Renderer::SubmitDrawJob([=]
+		{
 			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipeline);
 			vkCmdBindIndexBuffer(cmdBuffer, drawCommand.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdPushConstants(cmdBuffer, drawCommand.pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(pushConstants), pushConstants);
+			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipelineLayout, 0, 1, &drawCommand.descriptorSet, 0, nullptr);
+			if(!drawCommand.buffersAddresses.empty())
+				vkCmdPushConstants(cmdBuffer, drawCommand.pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(VkDeviceAddress) * drawCommand.buffersAddresses.size(), 
+					drawCommand.buffersAddresses.data());
 			vkCmdDrawIndexed(cmdBuffer, drawCommand.indexCount, 1, 0, 0, 0);
-		});
+		}, drawCommand.type);
 }
 
+void VulkanFrame::SubmitBindingOfCommonResources(const VulkanBindCommonResources& resources) const
+{
+	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
+
+
+	const bool areObjectsInitialized = resources.pipelineLayout != VK_NULL_HANDLE;
+	assert(areObjectsInitialized && "Vulkan bind command is dispatched with some NULL object");
+
+	Renderer::SubmitBindingJob([=]
+		{
+			if (!resources.buffersAddresses.empty())
+			{
+				vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, resources.pipeline);
+				vkCmdPushConstants(cmdBuffer, resources.pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(VkDeviceAddress) * resources.buffersAddresses.size(),
+					resources.buffersAddresses.data());
+			}
+		}, resources.type);
+}
 
 void VulkanFrame::EndFrame(u32 imageIndex)
 {
 	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
 	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
-
-	vkCmdEndRendering(cmdBuffer);
 
 	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
@@ -160,12 +194,12 @@ void VulkanFrame::EndFrame(u32 imageIndex)
 
 void VulkanFrame::WaitForFence()
 {
-	vkWaitForFences(_deviceObject.GetDevice(), 1, &_syncCPUFences[_currentFrame], VK_TRUE, UINT64_MAX);
+	VK_CHECK(vkWaitForFences(_deviceObject.GetDevice(), 1, &_syncCPUFences[_currentFrame], VK_TRUE, UINT64_MAX));
 }
 
 void VulkanFrame::ResetFence()
 {
-	vkResetFences(_deviceObject.GetDevice(), 1, &_syncCPUFences[_currentFrame]);
+	VK_CHECK(vkResetFences(_deviceObject.GetDevice(), 1, &_syncCPUFences[_currentFrame]));
 }
 
 void VulkanFrame::Cleanup()

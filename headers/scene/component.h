@@ -46,7 +46,7 @@ struct MeshComponent
 	std::string folderName = "";
 
 	u32 meshIndex{ 0 };
-	//u32 materialIndex{ 0 };
+	u32 materialIndex{ 0 };
 
 };
 

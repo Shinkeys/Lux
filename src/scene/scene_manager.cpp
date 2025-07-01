@@ -14,4 +14,6 @@ void SceneManager::Update()
 {
 	_sceneInstance->Update();
 	_sceneInstance->UpdateWithKeys(_window);
+	_rendererInstance->Update();
+	_rendererInstance->Draw();
 }

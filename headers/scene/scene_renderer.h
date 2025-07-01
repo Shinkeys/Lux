@@ -16,9 +16,14 @@ private:
 	VulkanBase& _vulkanBackend;
 	AssetManager& _assetManager;
 	PipelinePair _baseShadingPair;
+	std::vector<DescriptorSet> _baseShadingDescriptorSets;
+	SSBOPair _baseMaterialsSSBO;
+	VkSampler _samplerLinear{ VK_NULL_HANDLE };
 
 	using EntityID = u32;
 	glm::mat4 GenerateModelMatrix(const TranslationComponent& translationComp);
+
+	std::queue<VulkanDrawCommand> _drawCommands;
 public:
 	/**
 	* @brief Pass the objects which would LIVE after the submission
@@ -28,7 +33,8 @@ public:
 	void UpdateBuffers(const Entity& entity);
 	//template<typename T>
 	//void SubmitDataToBind();
-
+	void Update() const;
+	void Draw();
 
 	SceneRenderer() = delete;
 	~SceneRenderer() = default;

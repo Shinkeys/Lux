@@ -1,4 +1,4 @@
-#include "../../../headers/base/gfx/vk_base.h"
+﻿#include "../../../headers/base/gfx/vk_base.h"
 #include "../../../headers/base/core/renderer.h"
 
 // DEFINE FOR VOLK SHOULD BE PLACED ONLY HERE
@@ -13,7 +13,10 @@ void VulkanBase::Initialize(Window& windowObj)
 	_presentationObject = std::make_unique<VulkanPresentation>(*_instanceObject, *_deviceObject, windowObj);
 	_pipelineObject = std::make_unique<VulkanPipeline>(*_deviceObject, *_presentationObject);
 	_frameObject = std::make_unique<VulkanFrame>(*_deviceObject, *_presentationObject, *_pipelineObject);
-	_bufferObject = std::make_unique<VulkanBuffer>(*_instanceObject, *_deviceObject);
+	_descriptorObject = std::make_unique<VulkanDescriptor>(*_deviceObject);
+	_allocatorObject = std::make_unique<VulkanAllocator>(*_instanceObject, *_deviceObject);
+	_bufferObject = std::make_unique<VulkanBuffer>(*_instanceObject, *_deviceObject, *_allocatorObject);
+	_imageObject = std::make_unique<VulkanImage>(*_deviceObject, *_bufferObject, *_frameObject, *_allocatorObject);
 }
 
 void VulkanBase::RenderFrame()
@@ -49,11 +52,15 @@ void VulkanBase::RenderFrame()
 	_frameObject->ResetFence();
 
 	VkSemaphore semaphoreRenderFinished = _frameObject->GetRenderFinishedSemaphore(imageIndex);
-	_frameObject->BeginFrame(imageIndex);
 
+	_frameObject->BeginFrame(imageIndex);
+	_imageObject->UpdateLayoutsToCopyData();
+	_descriptorObject->UpdateSets();
 	// Render all the objects connected to vulkan
 	// It contains smth like: bind pipeline, vkCmdDraw etc	
+	_frameObject->BeginRendering(imageIndex);
 	Renderer::RenderScene();
+	_frameObject->EndRendering(imageIndex);
 
 	_frameObject->EndFrame(imageIndex);
 
@@ -109,7 +116,10 @@ void VulkanBase::Cleanup()
 {
 	vkDeviceWaitIdle(_deviceObject->GetDevice());
 	// Instance should be destroyed last
+	_descriptorObject->Cleanup();
+	_imageObject->Cleanup();
 	_bufferObject->Cleanup();
+	_allocatorObject->Cleanup();
 	_frameObject->Cleanup();
 	_pipelineObject->Cleanup();
 	_presentationObject->Cleanup();

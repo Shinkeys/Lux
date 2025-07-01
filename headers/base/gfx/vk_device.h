@@ -19,6 +19,8 @@ private:
 	VkPhysicalDevice _physDevice{ VK_NULL_HANDLE };
 	VkDevice _device{ VK_NULL_HANDLE };
 
+	float _maxAnisotropy{ 0.0f };
+
 	// Physical device
 	VkPhysicalDevice SelectAppropriatePhysDevice(std::vector<VkPhysicalDevice>& physDevices) const;
 	void CreatePhysicalDevice();
@@ -32,6 +34,7 @@ private:
 	std::optional<u32> GetPresentationFamilyIndex() const;
 
 	bool QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const;
+	void QueryAnisotropyLevel();
 
 	// Logical device
 	void CreateLogicalDevice();
@@ -41,6 +44,8 @@ private:
 	std::array<std::optional<u32>, static_cast<size_t>(QueueType::VULKAN_QUEUE_COUNT)> _queueFamIndexStorage;
 	std::array<std::optional<VkQueue>, static_cast<size_t>(QueueType::VULKAN_QUEUE_COUNT)> _queuesStorage;
 public:
+	float GetMaxAnisotropyLevel() const { return _maxAnisotropy; }
+
 	std::vector<u32> GetGraphicsFamilyIndices(VkPhysicalDevice physDevice, VkQueueFlagBits flagBits) const;
 	void Cleanup();
 	VkPhysicalDevice GetPhysicalDevice() const { return _physDevice; }

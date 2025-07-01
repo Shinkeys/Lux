@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <deque>
+#include <queue>
 #include <functional>
 #include <filesystem>
 #include <unordered_map>

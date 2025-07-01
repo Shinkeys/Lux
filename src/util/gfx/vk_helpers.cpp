@@ -80,4 +80,20 @@ namespace vkhelpers
 
 		vkCmdPipelineBarrier2(cmd, &dependencyInfo);
 	}
+
+
+	VkImageCreateInfo CreateImageInfo(VkFormat imgFormat, VkExtent3D imgExtent, u32 mipLevels, VkImageUsageFlags usageFlags)
+	{
+		VkImageCreateInfo imgCreateInfo{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+		imgCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		imgCreateInfo.format = imgFormat;
+		imgCreateInfo.mipLevels = mipLevels;
+		imgCreateInfo.arrayLayers = 1;
+		imgCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT; // msaa
+		imgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imgCreateInfo.usage = usageFlags;
+		imgCreateInfo.extent = imgExtent;
+
+		return imgCreateInfo;
+	}
 }

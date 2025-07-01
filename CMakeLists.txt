@@ -70,7 +70,7 @@ target_link_libraries(imgui PUBLIC volk SDL3::SDL3)
 
 
 # Include directories
-target_include_directories(Lux PRIVATE "vendor/imgui" "vendor/glm" "vendor/VulkanMemoryAllocator/include" "vendor/fastgltf/include")
+target_include_directories(Lux PRIVATE "vendor/imgui" "vendor/glm" "vendor/VulkanMemoryAllocator/include" "vendor/fastgltf/include" "vendor/stb")
 
 # Compile definitions
 target_compile_definitions(Lux PRIVATE 

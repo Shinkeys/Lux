@@ -40,26 +40,46 @@ LoadedGLTF ModelImporter::LoadGltf(const fs::path& path)
 		return gltfData;
 	}
 
-	if (!LoadMeshes(asset.get(), asset->meshes, gltfData))
+	if (!LoadMeshes(asset.get(), gltfData))
 		return gltfData;
-
 	
 	gltfData.isLoaded = true;
 	return gltfData;
 }
 
-
-bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, std::vector<fastgltf::Mesh>& meshes, LoadedGLTF& gltfData)
+void ModelImporter::StoreTextureData(const fastgltf::Image& image, TexturesData& InTexture)
 {
-	gltfData.meshes.resize(meshes.size());
+	std::visit(fastgltf::visitor{
+	[](auto& arg) {},
+		[&](fastgltf::sources::URI filePath)
+			{
+				assert(filePath.uri.isLocalPath());
+				// index is 0. change later
+				InTexture.path = fs::path(filePath.uri.path().begin(), filePath.uri.path().end());
+				InTexture.dataType = TexturesData::Type::URI;
+			},
+		[&](fastgltf::sources::Array array)
+			{
+				std::cout << "IT WORKS\n";
+				/*gltfData.textures.push_back(LoadedTexture{LoadedTexture::Type::EMBEDDED, 0, "", array.bytes});*/
+			},
+		[&](fastgltf::sources::BufferView view)
+			{
+				std::cout << "IT WORKS\n";
+			}	
+	}, image.data);
+}
 
-	for (u32 i = 0; i < meshes.size(); ++i)
+bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfData)
+{
+	gltfData.meshes.resize(asset.meshes.size());
+
+	for (u32 i = 0; i < asset.meshes.size(); ++i)
 	{
-		auto& meshGeometry = gltfData.meshes[i].geometry;
+		auto& meshVertex = gltfData.meshes[i].vertex;
 		auto& meshIndices  = gltfData.meshes[i].indices;
 
-
-		for (auto it = meshes[i].primitives.begin(); it != meshes[i].primitives.end(); ++it)
+		for (auto it = asset.meshes[i].primitives.begin(); it != asset.meshes[i].primitives.end(); ++it)
 		{
 			auto* positionIt = it->findAttribute("POSITION");
 			assert(positionIt != it->attributes.end());
@@ -70,15 +90,125 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, std::vector<fastglt
 				continue;
 
 			// IMPORTANT
-			meshGeometry.resize(positionAccessor.count);
+			const size_t vertexOffset = meshVertex.size();
+			meshVertex.resize(vertexOffset + positionAccessor.count);
 
+			const u32 materialIndex = it->materialIndex.has_value() ? it->materialIndex.value() : 0;
 			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(asset, positionAccessor, [&](fastgltf::math::fvec3 pos, size_t index)
 				{
-					meshGeometry[index].position = glm::vec3(pos.x(), pos.y(), pos.z());
-					meshGeometry[index].normal = glm::vec3();    
-					meshGeometry[index].tangent = glm::vec3();   // left it empty in case it doesn't present
-					meshGeometry[index].UV = glm::vec2();	 
+					meshVertex[index + vertexOffset].position = glm::vec3(pos.x(), pos.y(), pos.z());
+					meshVertex[index + vertexOffset].normal = glm::vec3();    
+					meshVertex[index + vertexOffset].tangent = glm::vec3();   // left it empty in case it doesn't present
+					meshVertex[index + vertexOffset].UV = glm::vec2();
+
+					// Offset those indices later 
+					meshVertex[index + vertexOffset].materialIndex = materialIndex;
 				});
+
+			size_t baseColorTexCoordIdx = 0;
+
+			if (it->materialIndex.has_value())
+			{
+				auto& material = asset.materials[it->materialIndex.value()];
+
+				// Albedo
+				auto& baseColorTex = material.pbrData.baseColorTexture;
+				if (baseColorTex.has_value())
+				{
+					auto& texture = asset.textures[baseColorTex->textureIndex];
+					if (!texture.imageIndex.has_value())
+						return false;
+
+					if (baseColorTex->transform && baseColorTex->transform->texCoordIndex.has_value()) {
+						baseColorTexCoordIdx = baseColorTex->transform->texCoordIndex.value();
+					}
+					else {
+						baseColorTexCoordIdx = material.pbrData.baseColorTexture->texCoordIndex;
+					}
+				}
+
+				bool isMaterialAlreadyStored = false;
+				for (const auto& material : gltfData.materials)
+				{
+					if (material.materialIndex == materialIndex)
+						isMaterialAlreadyStored = true;
+				}
+
+				if (!isMaterialAlreadyStored)
+				{
+					// Normal
+					auto& normalTex = material.normalTexture;
+					// MetallicRoughness
+					auto& metallicRoughnessTex = material.pbrData.metallicRoughnessTexture;
+
+					MeshMaterial meshMaterial;
+					// To verify it. Basically retrieve a path or data for texture and load it later in the asset manager
+					if (baseColorTex.has_value())
+					{
+						auto& baseColorTexture = asset.textures[baseColorTex->textureIndex];
+
+						if (baseColorTexture.imageIndex.has_value())
+						{
+							const auto& image = asset.images[baseColorTexture.imageIndex.value()];
+							TexturesData baseTexReference;
+							baseTexReference.textureType = TextureType::TEXTURE_ALBEDO;
+
+							StoreTextureData(image, baseTexReference);
+
+							meshMaterial.materialTextures.emplace_back(std::move(baseTexReference));
+						}
+					}
+
+					if (normalTex.has_value())
+					{
+						auto& normalTexture = asset.textures[normalTex->textureIndex];
+						if (normalTexture.imageIndex.has_value())
+						{
+							const auto& image = asset.images[normalTexture.imageIndex.value()];
+							TexturesData normalTexReference;
+							normalTexReference.textureType = TextureType::TEXTURE_NORMAL;
+
+							StoreTextureData(image, normalTexReference);
+
+							meshMaterial.materialTextures.emplace_back(std::move(normalTexReference));
+
+						}
+					}
+
+					if (metallicRoughnessTex.has_value())
+					{
+						auto& metallicRoughnessTexture = asset.textures[metallicRoughnessTex->textureIndex];
+
+						if (metallicRoughnessTexture.imageIndex.has_value())
+						{
+							const auto& image = asset.images[metallicRoughnessTexture.imageIndex.value()];
+							TexturesData metallicRoughnessTexReference;
+							metallicRoughnessTexReference.textureType = TextureType::TEXTURE_METALLICROUGHNESS;
+
+							StoreTextureData(image, metallicRoughnessTexReference);
+
+							meshMaterial.materialTextures.emplace_back(std::move(metallicRoughnessTexReference));
+
+						}
+					}
+
+					gltfData.materials.emplace_back(std::move(meshMaterial));
+				}
+			}
+			
+
+			auto texCoordAttribute = std::string("TEXCOORD_") + std::to_string(baseColorTexCoordIdx);
+			if (const auto* texCoordIt = it->findAttribute(texCoordAttribute); texCoordIt != it->attributes.end())
+			{
+				auto& texCoordAccessor = asset.accessors[texCoordIt->accessorIndex];
+
+				if (!texCoordAccessor.bufferViewIndex.has_value())
+					continue;
+
+				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(asset, texCoordAccessor, [&](fastgltf::math::fvec2 uv, std::size_t index) {
+						meshVertex[index + vertexOffset].UV = glm::vec2(uv.x(), uv.y());
+					});
+			}
 
 
 			// Iterate for normals
@@ -91,13 +221,10 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, std::vector<fastglt
 
 			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(asset, normalAccesor, [&](fastgltf::math::fvec3 normal, size_t index)
 				{
-					meshGeometry[index].normal = glm::vec3(normal.x(), normal.y(), normal.z());
+					meshVertex[index + vertexOffset].normal = glm::vec3(normal.x(), normal.y(), normal.z());
 				});
 
-
-			//  to do: UVs
-
-
+	
 			auto& indicesAccessor = asset.accessors[it->indicesAccessor.value()];
 			if (!indicesAccessor.bufferViewIndex.has_value())
 				return false;
@@ -105,11 +232,12 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, std::vector<fastglt
 			std::vector<u32> tempIndices(indicesAccessor.count);
 
 			fastgltf::copyFromAccessor<u32>(asset, indicesAccessor, tempIndices.data());
+			for (u32& index : tempIndices)
+			{
+				index += static_cast<u32>(vertexOffset);
+			}
 			meshIndices.insert(meshIndices.end(), std::make_move_iterator(tempIndices.begin()), std::make_move_iterator(tempIndices.end()));
 		}
-
 	}
-
-
 	return true;
 }

@@ -11,3 +11,18 @@ struct VulkanSwapchain
 	VkFormat imageFormat{ VK_FORMAT_UNDEFINED };
 	VkExtent2D extent{ 0,0 };
 };
+
+
+
+struct SSBOPair
+{
+	VkDeviceAddress address{ 0 };
+	i32 index{ -1 };
+};
+
+class StorageBuffer;
+struct StagingPair
+{
+	StorageBuffer* buffer{ nullptr };
+	i32 index{ -1 };
+};

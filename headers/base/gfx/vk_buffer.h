@@ -1,13 +1,12 @@
 #pragma once
 #include "vk_frame.h"
+#include "vk_allocator.h"
 #include "../../asset/asset_manager.h"
-
-#include <vk_mem_alloc.h>
 
 
 struct MeshVertexBufferCreateDesc
 {
-	const Geometry* geometryPtr;
+	const Vertex* vertexPtr;
 	u32 elementsCount;
 
 	VkBufferUsageFlags bufferUsage;
@@ -53,14 +52,14 @@ private:
 	* @param index  data size
 	* size NOT in bytes
 	*/
-	void FillBuffers(const Geometry* vertexData, const u32* indexData, size_t vertexDataSize, size_t indexDataSize)
+	void FillBuffers(const Vertex* vertexData, const u32* indexData, size_t vertexDataSize, size_t indexDataSize)
 	{
 		if (vertexData)
 		{
 			void* mappedData = nullptr;
 			const void* passedData = static_cast<const void*>(vertexData);
 			VK_CHECK(vmaMapMemory(_allocator, _vertexAllocation, &mappedData));
-			memcpy(mappedData, passedData, (vertexDataSize * sizeof(Geometry)));
+			memcpy(mappedData, passedData, (vertexDataSize * sizeof(Vertex)));
 			vmaUnmapMemory(_allocator, _vertexAllocation);
 		}
 		if (indexData)
@@ -126,7 +125,7 @@ public:
 	void CreateBuffers(VkDevice device, const MeshVertexBufferCreateDesc& vertexDesc, const MeshIndexBufferCreateDesc& indexDesc)
 	{
 		VkBufferCreateInfo vertexBufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-		vertexBufferInfo.size = vertexDesc.elementsCount * sizeof(Geometry);
+		vertexBufferInfo.size = vertexDesc.elementsCount * sizeof(Vertex);
 		vertexBufferInfo.usage = vertexDesc.bufferUsage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT; // FOR BDA
 		vertexBufferInfo.sharingMode = vertexDesc.bufferSharingMode;
 
@@ -153,7 +152,7 @@ public:
 
 		VK_CHECK(vmaCreateBuffer(_allocator, &indexBufferInfo, &indexAllocInfo, &_indexBuffer, &_indexAllocation, nullptr));
 
-		FillBuffers(vertexDesc.geometryPtr, indexDesc.indicesPtr, static_cast<size_t>(vertexDesc.elementsCount), static_cast<size_t>(indexDesc.elementsCount));
+		FillBuffers(vertexDesc.vertexPtr, indexDesc.indicesPtr, static_cast<size_t>(vertexDesc.elementsCount), static_cast<size_t>(indexDesc.elementsCount));
 	}
 	// Can't use destructor as need to ensure that the object would be destroyed earlier than allocator
 	/**
@@ -166,7 +165,7 @@ public:
 	}
 };
 
-class UniformBuffer
+class StorageBuffer
 {
 private:
 	const VmaAllocator& _allocator;
@@ -184,15 +183,16 @@ private:
 	}
 public:
 	VkDeviceAddress GetDeviceAddress() const { return _bufferAddress; }
-	VkBuffer GetVkUniformBuffer()	   const { return _buffer; }
+	VkBuffer GetVkBuffer()	           const { return _buffer; }
+	VmaAllocation GetAllocation()      const { return _allocation; }
 
-	UniformBuffer() = delete;
-	UniformBuffer(VmaAllocator& allocator) : _allocator{ allocator } {}
-	~UniformBuffer() = default;
-	UniformBuffer(const UniformBuffer& other) = delete;
-	UniformBuffer& operator=(const UniformBuffer& other) = delete;
+	StorageBuffer() = delete;
+	StorageBuffer(VmaAllocator& allocator) : _allocator{ allocator } {}
+	~StorageBuffer() = default;
+	StorageBuffer(const StorageBuffer& other) = delete;
+	StorageBuffer& operator=(const StorageBuffer& other) = delete;
 
-	UniformBuffer(UniformBuffer&& other) noexcept : _allocator{ other._allocator }
+	StorageBuffer(StorageBuffer&& other) noexcept : _allocator{ other._allocator }
 	{
 		_allocation = other._allocation;
 		_buffer = other._buffer;
@@ -205,7 +205,7 @@ public:
 		other._mappedData = nullptr;
 	}
 
-	UniformBuffer& operator=(UniformBuffer&& other) noexcept
+	StorageBuffer& operator=(StorageBuffer&& other) noexcept
 	{
 		if (this != &other)
 		{
@@ -222,24 +222,24 @@ public:
 	}
 	
 	template<typename T>
-	void UpdateBuffer(const T* data)
+	void UpdateBuffer(const T* data, size_t size)
 	{
 		if (_mappedData == nullptr)
 		{
 			VK_CHECK(vmaMapMemory(_allocator, _allocation, &_mappedData));
 		}
 		const void* passedData = static_cast<const void*>(data);
-		memcpy(_mappedData, passedData, sizeof(T));
+		memcpy(_mappedData, passedData, size);
 
 		// UNMAP LATER!!!!!!
 	}
 
 	template<typename T>
-	void CreateBuffer(VkDevice device, const T& data)
+	void CreateBuffer(VkDevice device, const T* data, size_t size, VkBufferUsageFlags usage)
 	{
 		VkBufferCreateInfo uniformBufferInfo{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-		uniformBufferInfo.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		uniformBufferInfo.size = sizeof(T);
+		uniformBufferInfo.usage = usage | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		uniformBufferInfo.size = size;
 		uniformBufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 		VmaAllocationCreateInfo allocInfo{};
@@ -251,8 +251,8 @@ public:
 		VK_CHECK(vmaCreateBuffer(_allocator, &uniformBufferInfo, &allocInfo, &_buffer, &_allocation, nullptr));
 
 		FillBufferAddress(device);
-		UpdateBuffer(&data);
-	}
+		UpdateBuffer(data, size);
+	}	
 
 	void Cleanup()
 	{
@@ -267,28 +267,45 @@ class VulkanBuffer
 private:
 	VulkanInstance& _instanceObj;
 	VulkanDevice& _deviceObj;
-
-	VmaAllocator _allocator;
+	VulkanAllocator& _allocatorObj;
 
 	using EntityIndex = u32;
+	using BufferIndex = i32;
+	// TO REFACTOR
 	std::unordered_map<EntityIndex, MeshBuffers> _meshBuffers;
-	std::unordered_map<EntityIndex, UniformBuffer> _uniformBuffers;
+	std::unordered_map<EntityIndex, StorageBuffer> _uniformBuffers;
+
+	i32 _stagingBufferAvailableIndex{ 1 };
+	i32 _ssboBufferAvailableIndex{ 1 };
+	std::unordered_map<BufferIndex, StorageBuffer> _ssboBuffers;
+	std::unordered_map<BufferIndex, StorageBuffer> _stagingBuffers;
 public:
 	void Cleanup();
-
+	// Mesh
 	MeshBuffers& CreateMeshBuffers(const MeshVertexBufferCreateDesc& vertexDesc, const MeshIndexBufferCreateDesc& indexDesc, EntityIndex handleIndex);
 	const MeshBuffers* GetMeshBuffers(EntityIndex handleIndex) const;
 	
+	// Uniform
 	template<typename T>
-	UniformBuffer& CreateUniformBuffer(const T& data, EntityIndex handleIndex);
+	StorageBuffer& CreateUniformBuffer(const T& data, size_t size, EntityIndex handleIndex);
 	template<typename T>
-	void UpdateUniformBuffer(const T& data, EntityIndex handleIndex);
-	const UniformBuffer* GetUniformBuffer(EntityIndex handleIndex) const;
+	void UpdateUniformBuffer(const T& data, size_t size, EntityIndex handleIndex);
+	const StorageBuffer* GetUniformBuffer(EntityIndex handleIndex) const;
 
+	// SSBO
+	const StorageBuffer* GetSsboBuffer(BufferIndex handleIndex) const;
+	/*template<typename T>
+	SSBOPair CreateSSBOBuffer(const T& data, size_t size);*/
+	template<typename T>
+	SSBOPair CreateSSBOBuffer(const std::vector<T>& vector);
+
+	// Staging
+	StagingPair CreateStagingBuffer(void* data, size_t size);
+	void DeleteStagingBuffer(BufferIndex handleIndex);
 
 	VulkanBuffer() = delete;
 	~VulkanBuffer() = default;
-	VulkanBuffer(VulkanInstance& instanceObj, VulkanDevice& deviceObj);
+	VulkanBuffer(VulkanInstance& instanceObj, VulkanDevice& deviceObj, VulkanAllocator& allocator);
 
 
 	VulkanBuffer(const VulkanBuffer&) = delete;
@@ -298,19 +315,58 @@ public:
 };
 
 template<typename T>
-UniformBuffer& VulkanBuffer::CreateUniformBuffer(const T& data, EntityIndex handleIndex)
+StorageBuffer& VulkanBuffer::CreateUniformBuffer(const T& data, size_t size, EntityIndex handleIndex)
 {
-	UniformBuffer uniformBuffers(_allocator);
+	StorageBuffer uniformBuffers(_allocatorObj.GetAllocatorHandle());
 
-	uniformBuffers.CreateBuffer(_deviceObj.GetDevice(), data);
+	uniformBuffers.CreateBuffer(_deviceObj.GetDevice(), &data, size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 	// Copy constructors are not allowed in mesh buffers
 	auto it = _uniformBuffers.emplace(handleIndex, std::move(uniformBuffers));
 
 	return it.first->second;
 }
 
+//template<typename T>
+//SSBOPair VulkanBuffer::CreateSSBOBuffer(const T& data, size_t size)
+//{
+//	StorageBuffer ssboBuffer(_allocatorObj.GetAllocatorHandle());
+//
+//	ssboBuffer.CreateBuffer(_deviceObj.GetDevice(), &data, size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+//	// Copy constructors are not allowed in mesh buffers
+//	
+//	const i32 availableIndex = _ssboBufferAvailableIndex;
+//	++_ssboBufferAvailableIndex;
+//
+//	auto it = _ssboBuffers.emplace(availableIndex, std::move(ssboBuffer));
+//	
+//	SSBOPair pair;
+//	pair.address = it.first->second.GetDeviceAddress();
+//	pair.index = availableIndex;
+//
+//	return pair;
+//}
+
 template<typename T>
-void VulkanBuffer::UpdateUniformBuffer(const T& data, EntityIndex handleIndex)
+SSBOPair VulkanBuffer::CreateSSBOBuffer(const std::vector<T>& vector)
+{
+	StorageBuffer ssboBuffer(_allocatorObj.GetAllocatorHandle());
+
+	ssboBuffer.CreateBuffer(_deviceObj.GetDevice(), vector.data(), vector.size() * sizeof(T), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+	const i32 availableIndex = _ssboBufferAvailableIndex;
+	++_ssboBufferAvailableIndex;
+
+	auto it = _ssboBuffers.emplace(availableIndex, std::move(ssboBuffer));
+
+	SSBOPair pair;
+	pair.address = it.first->second.GetDeviceAddress();
+	pair.index = availableIndex;
+
+	return pair;
+}
+
+template<typename T>
+void VulkanBuffer::UpdateUniformBuffer(const T& data, size_t size, EntityIndex handleIndex)
 {
 	auto it = _uniformBuffers.find(handleIndex);
 
@@ -320,5 +376,5 @@ void VulkanBuffer::UpdateUniformBuffer(const T& data, EntityIndex handleIndex)
 		return;
 	}
 
-	it->second.UpdateBuffer(&data);
+	it->second.UpdateBuffer(&data, size);
 }

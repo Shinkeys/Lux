@@ -17,6 +17,8 @@ struct GraphicsPipeline
 	VkCompareOp depthCompare{ VK_COMPARE_OP_GREATER };
 	VkFormat colorFormat{ VulkanPresentation::ColorFormat.format };
 
+	std::vector<VkDescriptorSetLayout> descriptorLayouts;
+
 	u32 pushConstantSizeBytes{ 0 };
 	u32 pushConstantOffset{ 0 };
 

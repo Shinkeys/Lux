@@ -1,18 +1,38 @@
 #pragma once
 #include "vk_pipeline.h"
 
+enum class RenderJobType : u8
+{
+	GEOMETRY_PASS,
+};
 
-
+// Vulkan draw COMMAND entity based. all those resources should be binded on ENTITY basis. Other resources independent of entity, but
+// dependent of scene should be bound with VulkanBindCommonResources
 struct VulkanDrawCommand
 {
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
-	VkDeviceAddress objectBufferAddress{ 0 };
-	VkDeviceAddress uniformBufferAddress{ 0 };
+	VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
+	std::vector<VkDeviceAddress> buffersAddresses;
 	VkBuffer indexBuffer{ VK_NULL_HANDLE };
 	u32 indexCount{ 0 };
+
+	RenderJobType type{ RenderJobType::GEOMETRY_PASS };
 };
 
+
+struct VulkanBindCommonResources
+{
+	std::vector<VkDeviceAddress> buffersAddresses;
+	VkPipeline pipeline{ VK_NULL_HANDLE };
+	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
+
+	// TO DO SMTH ELSE IF WOULD NEED LIKE TEXTURES, UNIFORMS ETC. 
+
+	RenderJobType type{ RenderJobType::GEOMETRY_PASS };
+};
+
+class VulkanImage;
 class VulkanFrame
 {
 private:
@@ -29,8 +49,7 @@ private:
 	std::vector<VkSemaphore> _renderFinishedSemaphores;
 	std::vector<VkFence> _syncCPUFences;
 
-	// Variables
-	static constexpr i32 FramesInFlight{ 2 };
+
 	i32 _currentFrame{ 0 };
 
 	void CreateCommandPool();
@@ -47,17 +66,20 @@ public:
 	VulkanFrame& operator= (const VulkanFrame&) = delete;
 	VulkanFrame& operator= (VulkanFrame&&) = delete;
 
+	// Variables
+	static constexpr i32 FramesInFlight{ 2 };
 	void BeginFrame(u32 imageIndex);
 	void EndFrame(u32 imageIndex);
+	void BeginRendering(u32 imageIndex);
+	void EndRendering(u32 imageIndex);
 	void WaitForFence();
 	void ResetFence();
 	void Cleanup();
 	void SubmitRenderTask(const VulkanDrawCommand& drawCommand) const;
+	void SubmitBindingOfCommonResources(const VulkanBindCommonResources& resources) const;
+
 	void UpdateCurrentFrameIndex() { _currentFrame = (_currentFrame + 1) % FramesInFlight; }
 	i32 GetCurrentFrameIndex()							   const { return _currentFrame; }
-
-	template<typename T>
-	void SubmitUniformBuffer(const T& buffer) const;
 
 	VkSemaphore GetImageAvailableSemaphore()			   const;
 	VkSemaphore GetRenderFinishedSemaphore(u32 imageIndex) const;
@@ -65,9 +87,3 @@ public:
 	VkCommandBuffer GetCommandBuffer()                     const;
 };
 
-
-template<typename T>
-void VulkanFrame::SubmitUniformBuffer(const T& buffer) const
-{
-
-}

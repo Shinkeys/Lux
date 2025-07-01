@@ -80,6 +80,7 @@ bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const
 	VkPhysicalDeviceFeatures2 features2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
 	features2.pNext = &queryVulkan12Features;
 
+
 	vkGetPhysicalDeviceFeatures2(physDevice, &features2);
 	// Write required features here
 	if (!queryVulkan13Features.dynamicRendering)
@@ -91,6 +92,13 @@ bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const
 		// bufferDeviceAddressCaptureReplay for debug support if would need
 		return false;
 	if (!queryVulkan12Features.scalarBlockLayout)
+		return false;
+
+	if (!queryVulkan12Features.descriptorIndexing ||
+		!queryVulkan12Features.shaderSampledImageArrayNonUniformIndexing ||
+		!queryVulkan12Features.descriptorBindingSampledImageUpdateAfterBind ||
+		!queryVulkan12Features.descriptorBindingPartiallyBound ||
+		!queryVulkan12Features.runtimeDescriptorArray)
 		return false;
 
 	return true;
@@ -187,6 +195,14 @@ void VulkanDevice::CreatePhysicalDevice()
 	_physDevice = SelectAppropriatePhysDevice(physDevices);
 }
 
+void VulkanDevice::QueryAnisotropyLevel()
+{
+	VkPhysicalDeviceProperties props{};
+	vkGetPhysicalDeviceProperties(_physDevice, &props);
+
+	_maxAnisotropy = props.limits.maxSamplerAnisotropy;
+}
+
 void VulkanDevice::CreateLogicalDevice()
 {
 	auto graphicsFamIndex = GetGraphicsFamilyIndex(_physDevice, VK_QUEUE_GRAPHICS_BIT);
@@ -213,22 +229,28 @@ void VulkanDevice::CreateLogicalDevice()
 
 		qCreateInfos.push_back(qCreateInfo);
 	}
+
 	VkPhysicalDeviceVulkan12Features vulkan12Features =
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = nullptr,
+		.descriptorIndexing = VK_TRUE, // BINDLESS
+		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
+		.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
+		.descriptorBindingPartiallyBound = VK_TRUE,
+		.runtimeDescriptorArray = VK_TRUE,
+
 		.scalarBlockLayout = VK_TRUE,
-		.bufferDeviceAddress = VK_TRUE
+		.bufferDeviceAddress = VK_TRUE,
 	};
 
 	VkPhysicalDeviceVulkan13Features vulkan13Features = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
 		.pNext = &vulkan12Features,
 		.synchronization2 = VK_TRUE,
-		.dynamicRendering = VK_TRUE
+		.dynamicRendering = VK_TRUE,
 	};
 
-	// To do, don't need now
 	VkPhysicalDeviceFeatures2 deviceFeatures2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
 	deviceFeatures2.pNext = &vulkan13Features;
 
@@ -243,6 +265,8 @@ void VulkanDevice::CreateLogicalDevice()
 	VK_CHECK(vkCreateDevice(_physDevice, &deviceCreateInfo, nullptr, &_device));
 
 	volkLoadDevice(_device);
+
+	QueryAnisotropyLevel();
 
 
 	// Adding all the queues

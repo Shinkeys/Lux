@@ -156,8 +156,8 @@ PipelinePair VulkanPipeline::CreatePipeline(const GraphicsPipeline& graphicsPipe
 	pushConstant.stageFlags = VK_SHADER_STAGE_ALL;
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-	pipelineLayoutInfo.setLayoutCount = 0;
-	pipelineLayoutInfo.pSetLayouts = nullptr;
+	pipelineLayoutInfo.setLayoutCount = static_cast<u32>(graphicsPipeline.descriptorLayouts.size());
+	pipelineLayoutInfo.pSetLayouts = graphicsPipeline.descriptorLayouts.size() > 0 ? graphicsPipeline.descriptorLayouts.data() : nullptr;
 
 	if (graphicsPipeline.pushConstantSizeBytes > 0)
 	{

@@ -7,6 +7,7 @@ namespace fastgltf
 {
 	class Asset;
 	class Mesh;
+	class Image;
 }
 
 class ModelImporter
@@ -14,9 +15,8 @@ class ModelImporter
 private:
 	using EntityIndex = u32;
 
-	bool LoadMeshes(const fastgltf::Asset& asset, std::vector<fastgltf::Mesh>& meshes, LoadedGLTF& gltfData);
-
-
+	bool LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfData);
+	void StoreTextureData(const fastgltf::Image& image, TexturesData& InTexture);
 public:
 	LoadedGLTF LoadGltf(const fs::path& path);
 
