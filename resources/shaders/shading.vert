@@ -44,16 +44,34 @@ layout(scalar, buffer_reference, buffer_reference_align = 4) buffer Materials
 };
 
 
+struct PointLight
+{
+	vec3 position;
+	vec3 color;
+	float intenstity;
+	float radius;
+};
+
+layout(scalar, buffer_reference, buffer_reference_align = 4) buffer PointLights
+{
+	PointLight pointLights[];
+};
+
+
+
 layout(push_constant) uniform buffersPtr
 {
 	Vertices ptr;
 	UniformBuffer uniformPtr;
 	Materials materialsPtr;
+	PointLights lightsPtr;
+	uint pointLightsCount;
 };
 
 
 layout(location = 0) out vec2 outUV;
 layout(location = 1) out flat uint outMaterialIndex;
+layout(location = 2) out vec3 outFragPos;
 
 void main()
 { 
@@ -66,4 +84,5 @@ void main()
 
 	outUV = ptr.vertex[index].UV;
 	outMaterialIndex = ptr.vertex[index].materialIndex;
+	outFragPos = vec3(uniformPtr.model * vec4(position, 1.0));
 }

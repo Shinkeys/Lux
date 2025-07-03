@@ -171,9 +171,7 @@ void VulkanFrame::SubmitRenderTask(const VulkanDrawCommand& drawCommand) const
 			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipeline);
 			vkCmdBindIndexBuffer(cmdBuffer, drawCommand.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipelineLayout, 0, 1, &drawCommand.descriptorSet, 0, nullptr);
-			if(!drawCommand.buffersAddresses.empty())
-				vkCmdPushConstants(cmdBuffer, drawCommand.pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(VkDeviceAddress) * drawCommand.buffersAddresses.size(), 
-					drawCommand.buffersAddresses.data());
+			vkCmdPushConstants(cmdBuffer, drawCommand.pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(LightPushConsts), &drawCommand.lightPushConstants);
 			vkCmdDrawIndexed(cmdBuffer, drawCommand.indexCount, 1, 0, 0, 0);
 		}, drawCommand.type);
 }

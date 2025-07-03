@@ -8,18 +8,28 @@ enum class RenderJobType : u8
 
 // Vulkan draw COMMAND entity based. all those resources should be binded on ENTITY basis. Other resources independent of entity, but
 // dependent of scene should be bound with VulkanBindCommonResources
+struct LightPushConsts
+{
+	VkDeviceAddress verticesAddress{ 0 };
+	VkDeviceAddress uniformAddress{ 0 };
+	VkDeviceAddress materialAddress{ 0 };
+	VkDeviceAddress lightsAddress{ 0 };
+	u32 pointLightCount{ 0 };
+};
+
+
+
 struct VulkanDrawCommand
 {
 	VkPipeline pipeline{ VK_NULL_HANDLE };
 	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
 	VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
-	std::vector<VkDeviceAddress> buffersAddresses;
+	LightPushConsts lightPushConstants{};
 	VkBuffer indexBuffer{ VK_NULL_HANDLE };
 	u32 indexCount{ 0 };
 
 	RenderJobType type{ RenderJobType::GEOMETRY_PASS };
 };
-
 
 struct VulkanBindCommonResources
 {

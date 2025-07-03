@@ -1,5 +1,6 @@
 #pragma once
 #include "../base/core/renderer.h"
+#include "lights.h"
 
 // TO replace
 struct UniformData
@@ -31,6 +32,9 @@ private:
 	std::queue<VulkanDrawCommand> _drawCommands;
 
 	std::vector<std::shared_ptr<ImageHandle>> _depthAttachments;
+
+	std::vector<PointLight> _pointLights;
+	SSBOPair _pointLightsBuffer;
 public:
 	/**
 	* @brief Pass the objects which would LIVE after the submission
@@ -42,8 +46,6 @@ public:
 	//void SubmitDataToBind();
 	void Update() const;
 	void Draw();
-
-	std::shared_ptr<ImageHandle> GetDepthAttachment(u32 imageIndex) const;
 
 	SceneRenderer() = delete;
 	~SceneRenderer() = default;

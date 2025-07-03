@@ -21,7 +21,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanB
 
 	
 	 
-	constexpr i32 pushConstBufferCount = 3; // uniform + vertexBuff + ssbo
+	constexpr i32 pushConstBufferCount = 10; // uniform + vertexBuff + ssbo
 
 	GraphicsPipeline baseShadingPipeline;
 	baseShadingPipeline.shaderName = "shading";
@@ -76,13 +76,17 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanB
 	// Materials buffer
 	constexpr size_t baseMaterialsBuffersSize = 1024 * 4; // 4096 bytes
 	_baseMaterialsSSBO = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(baseMaterialsBuffersSize);
-}
 
-std::shared_ptr<ImageHandle> SceneRenderer::GetDepthAttachment(u32 imageIndex) const
-{
-	assert(!_depthAttachments.empty() && imageIndex < _depthAttachments.size());
-
-	return _depthAttachments[imageIndex];
+	// Temporary initialize 5 point lights, would be enough for now
+	PointLight pointLight;
+	pointLight.position = glm::vec3(0.0f, 0.0f, 0.0f);
+	pointLight.radius = 10.0f;
+	pointLight.intenstity = 1.5f;
+	_pointLights.push_back(pointLight);
+	pointLight.position = glm::vec3(0.0f, 0.0f, -25.0f);
+	_pointLights.push_back(pointLight);
+	_pointLightsBuffer = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(sizeof(PointLight) * _pointLights.size());
+	_vulkanBackend.GetBufferObj().UpdateSSBOBuffer(_pointLights.data(), sizeof(PointLight) * _pointLights.size(), _pointLightsBuffer.index);
 }
 
 
@@ -194,27 +198,21 @@ void SceneRenderer::Update() const
 	const std::vector<MaterialTexturesDesc>& allMaterials = AssetManager::Get()->GetAllSceneMaterialsDesc();
 	bufferManager.UpdateSSBOBuffer(allMaterials.data(), allMaterials.size() * sizeof(MaterialTexturesDesc), _baseMaterialsSSBO.index);
 
-
-	static bool isUpd = false;
-	if (!isUpd)
+	for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
 	{
-		for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
+		const std::vector<ImageHandle>& images = imageManager.GetAllLoadedImages(); // TEMPORARY SOLUTION. TO REWORK
+		for (u32 i = 0; i < images.size(); ++i)
 		{
-			const std::vector<ImageHandle>& images = imageManager.GetAllLoadedImages(); // TEMPORARY SOLUTION. TO REWORK
-			for (u32 i = 0; i < images.size(); ++i)
-			{
-				DescriptorUpdate updateData;
-				updateData.set = _baseShadingDescriptorSets[descInd]; // to replace
-				updateData.imgView = images[i].imageView;
-				updateData.dstBinding = 0;
-				updateData.dstArrayElem = images[i].index; // starting from 1, zero is null
+			DescriptorUpdate updateData;
+			updateData.set = _baseShadingDescriptorSets[descInd];
+			updateData.imgView = images[i].imageView;
+			updateData.dstBinding = 0;
+			updateData.dstArrayElem = images[i].index; // starting from 1, zero is null
 
-				updateData.sampler = _samplerLinear;
+			updateData.sampler = _samplerLinear;
 
-				descriptorManager.UpdateBindlessDescriptorSet(updateData);
-			}
+			descriptorManager.UpdateBindlessDescriptorSet(updateData);
 		}
-		isUpd = true;
 	}
 	
 }
@@ -228,7 +226,7 @@ void SceneRenderer::Draw()
 	while (!_drawCommands.empty())
 	{
 		auto& command = _drawCommands.front();
-		command.buffersAddresses.push_back(_baseMaterialsSSBO.address);
+		command.lightPushConstants.materialAddress = _baseMaterialsSSBO.address;
 		frameManager.SubmitRenderTask(command); // Example. TO DO
 		_drawCommands.pop();
 	}
@@ -275,7 +273,10 @@ void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 		command.pipeline = _baseShadingPair.pipeline;
 		command.pipelineLayout = _baseShadingPair.pipelineLayout;
 		command.descriptorSet = _baseShadingDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
-		command.buffersAddresses = { meshBuffers->GetDeviceAddress(), uniformBuffer->GetDeviceAddress() };
+		command.lightPushConstants.verticesAddress = meshBuffers->GetDeviceAddress();
+		command.lightPushConstants.uniformAddress = uniformBuffer->GetDeviceAddress();
+		command.lightPushConstants.lightsAddress = _pointLightsBuffer.address;
+		command.lightPushConstants.pointLightCount = _pointLights.size();
 		command.indexCount = vertexDesc->indexCount;
 		command.indexBuffer = bufferManager.GetMeshBuffers(entity.GetID())->GetVkIndexBuffer();
 		command.type = RenderJobType::GEOMETRY_PASS;
