@@ -16,8 +16,8 @@ struct Mouse
 class Window
 {
 private:
-	i32 _width { 0 };
-	i32 _height{ 0 };
+	static i32 _width;
+	static i32 _height;
 	SDL_Window* _window = nullptr;
 	const char* _title = "Lux";
 	Mouse _mouse;
@@ -28,7 +28,9 @@ private:
 
 	static float _deltaTime;
 public:
-	static float GetDeltaTime() { return _deltaTime; }
+	static float GetDeltaTime()  { return _deltaTime; }
+	static i32 GetWindowWidth()  { return _width; }
+	static i32 GetWindowHeight() { return _height; }
 
 	bool Initialize();
 	void Cleanup();

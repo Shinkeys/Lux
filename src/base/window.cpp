@@ -1,6 +1,8 @@
 #include "../../headers/base/window.h"
 
 float Window::_deltaTime{ 0.0f };
+i32 Window::_width{ 0 };
+i32 Window::_height{ 0 };
 
 bool Window::Initialize()
 {

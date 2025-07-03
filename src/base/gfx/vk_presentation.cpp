@@ -1,5 +1,6 @@
 #include "../../../headers/base/gfx/vk_presentation.h"
 
+u32 VulkanPresentation::PresentationImagesCount{ 0 };
 
 VulkanPresentation::VulkanPresentation(VulkanInstance& instanceObj, VulkanDevice& deviceObj, Window& windowObj) : 
 	_instanceObject{ instanceObj }, _deviceObject{ deviceObj }, _windowObject { windowObj }
@@ -30,13 +31,13 @@ void VulkanPresentation::CreateSwapchain()
 	VkExtent2D swapchainExtent = SelectRequiredSwapchainExtent(surfaceCaps);
 
 	// 4 should be enough
-	const u32 imageCount = std::min(std::max(4u, surfaceCaps.minImageCount), surfaceCaps.maxImageCount);
+	PresentationImagesCount = std::min(std::max(4u, surfaceCaps.minImageCount), surfaceCaps.maxImageCount);
 
 
 	VkSwapchainCreateInfoKHR createInfo{ VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR };
 	createInfo.pNext = nullptr;
 	createInfo.surface = surface;
-	createInfo.minImageCount = imageCount;
+	createInfo.minImageCount = PresentationImagesCount;
 	createInfo.imageColorSpace = surfaceFormat.colorSpace;
 	createInfo.imageFormat = surfaceFormat.format;
 	createInfo.imageExtent = swapchainExtent;

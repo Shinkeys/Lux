@@ -70,6 +70,10 @@ void ModelImporter::StoreTextureData(const fastgltf::Image& image, TexturesData&
 	}, image.data);
 }
 
+
+
+// This system works only for one mesh for now. To add a support of multiple meshes need to account some kind of indices.
+// It's good for the purpose of this engine for now: to learn graphics techniques
 bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfData)
 {
 	gltfData.meshes.resize(asset.meshes.size());
@@ -134,6 +138,7 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 						isMaterialAlreadyStored = true;
 				}
 
+				static int cnt = 0;
 				if (!isMaterialAlreadyStored)
 				{
 					// Normal
@@ -191,7 +196,6 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 
 						}
 					}
-
 					gltfData.materials.emplace_back(std::move(meshMaterial));
 				}
 			}

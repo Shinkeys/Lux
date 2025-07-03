@@ -9,6 +9,15 @@ VulkanFrame::VulkanFrame(VulkanDevice& deviceObj, VulkanPresentation& presentati
 	CreateCommandPool();
 	CreateCommandBuffers();
 	CreateSynchronizationObjects();
+
+}
+
+void VulkanFrame::SubmitDepthAttachments(const std::vector<std::shared_ptr<ImageHandle>>& attachments)
+{
+	assert(!attachments.empty());
+	_depthAttachments.resize(attachments.size());
+	for (u32 i = 0; i < attachments.size(); ++i)
+		_depthAttachments[i] = attachments[i];
 }
 
 VkSemaphore VulkanFrame::GetImageAvailableSemaphore() const
@@ -92,7 +101,7 @@ void VulkanFrame::BeginRendering(u32 imageIndex)
 	// Dynamic rendering requires layout transitions. access mask is the first layer of synchronization while stage is the second layer.
 // looks like the first one is what you need to protect in the memory and the second one when to finish this, in this case fragment shader output
 	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT);
+		0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
 
 	VkClearValue clearColor{ {0.0f, 0.0f, 0.0f, 1.0f} };
@@ -104,6 +113,13 @@ void VulkanFrame::BeginRendering(u32 imageIndex)
 	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 	colorAttachment.clearValue = clearColor;
 
+	VkRenderingAttachmentInfo depthAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
+	depthAttachment.imageView = _depthAttachments.size() > imageIndex ? _depthAttachments[imageIndex]->imageView : VK_NULL_HANDLE;
+	depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	depthAttachment.clearValue = { .depthStencil{1.0f, 0} };
+
 	// Begin rendering
 	VkRenderingInfo renderingInfo{ VK_STRUCTURE_TYPE_RENDERING_INFO };
 	renderingInfo.renderArea =
@@ -114,6 +130,7 @@ void VulkanFrame::BeginRendering(u32 imageIndex)
 	renderingInfo.layerCount = 1;
 	renderingInfo.colorAttachmentCount = 1;
 	renderingInfo.pColorAttachments = &colorAttachment;
+	renderingInfo.pDepthAttachment = _depthAttachments.empty() ? nullptr : &depthAttachment;
 
 	vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 
@@ -187,7 +204,7 @@ void VulkanFrame::EndFrame(u32 imageIndex)
 
 	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
-		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT);
+		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
 	VK_CHECK(vkEndCommandBuffer(cmdBuffer));
 }

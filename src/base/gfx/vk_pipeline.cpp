@@ -174,9 +174,15 @@ PipelinePair VulkanPipeline::CreatePipeline(const GraphicsPipeline& graphicsPipe
 	VkPipelineRenderingCreateInfo pipelineRenderingInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO }; // for dynamic rendering
 	pipelineRenderingInfo.colorAttachmentCount = 1;
 	pipelineRenderingInfo.pColorAttachmentFormats = &graphicsPipeline.colorFormat;
+	pipelineRenderingInfo.depthAttachmentFormat = graphicsPipeline.depthFormat;
 
 	// to do: VkPipelineDepthStencilStateCreateInfo 
-
+	VkPipelineDepthStencilStateCreateInfo depthState{ VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
+	depthState.depthTestEnable = graphicsPipeline.depthTestEnable;
+	depthState.depthWriteEnable = graphicsPipeline.depthWriteEnable;
+	depthState.depthCompareOp = graphicsPipeline.depthCompare;
+	depthState.depthBoundsTestEnable = VK_FALSE;
+	depthState.stencilTestEnable = VK_FALSE;
 
 	VkGraphicsPipelineCreateInfo pipelineInfo{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
 	pipelineInfo.pNext = &pipelineRenderingInfo;
@@ -187,6 +193,7 @@ PipelinePair VulkanPipeline::CreatePipeline(const GraphicsPipeline& graphicsPipe
 	pipelineInfo.pViewportState = &viewportStateInfo;
 	pipelineInfo.pRasterizationState = &rasterizationInfo;
 	pipelineInfo.pMultisampleState = &multisamplingInfo;
+	pipelineInfo.pDepthStencilState = &depthState;
 	pipelineInfo.pColorBlendState = fragShaderModule.has_value() ? &colorBlendInfo : nullptr;
 	pipelineInfo.pDynamicState = &dynamicStateInfo;
 	pipelineInfo.layout = pipelinePair.pipelineLayout;

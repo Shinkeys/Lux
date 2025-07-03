@@ -14,6 +14,7 @@ private:
 	VulkanSwapchain _swapchainDesc;
 
 
+
 	VkSurfaceFormatKHR FindRequiredSurfaceFormat()									   const;
 	VkPresentModeKHR FindRequiredPresentMode()										   const;
 	VkExtent2D SelectRequiredSwapchainExtent(const VkSurfaceCapabilitiesKHR& caps)     const;
@@ -22,6 +23,8 @@ private:
 	void DestroySwapchain();
 	void DestroyStructures();
 public:
+	static u32 PresentationImagesCount;
+
 	const VulkanSwapchain& GetSwapchainDesc() const { return _swapchainDesc; }
 	void RecreateSwapchain();
 

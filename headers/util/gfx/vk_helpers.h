@@ -25,7 +25,8 @@ namespace vkhelpers
 * @param dstStage The pipeline stage that must happen after the transition.
 */
 	void TransitionImageLayout(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout,
-		VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask);
+		VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
+		VkImageAspectFlags aspectFlags);
 
 	VkImageCreateInfo CreateImageInfo(VkFormat imgFormat, VkExtent3D imgExtent, u32 mipLevels, VkImageUsageFlags usageFlags);
 }

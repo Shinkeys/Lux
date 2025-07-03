@@ -1,43 +1,18 @@
 #pragma once
+#include "vk_presentation.h"
 #include "../../util/gfx/vk_types.h"
 #include "../../asset/asset_types.h"
 
-#include <vk_mem_alloc.h>
-
-struct ImageHandle
+struct ImageSpecification
 {
-	u32 index{ 0 };
-	VkImage image{ VK_NULL_HANDLE };
-	VkImageView imageView{ VK_NULL_HANDLE };
-	VmaAllocation allocation{ nullptr };
+	VkFormat format{ VulkanPresentation::ColorFormat.format };
+	VkExtent3D extent{ 0, 0 };
+	VkImageUsageFlags usage{ VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT };
+	VkImageLayout newLayout{ VK_IMAGE_LAYOUT_UNDEFINED };
+	VkImageAspectFlags aspect{ VK_IMAGE_ASPECT_COLOR_BIT };
+	u32 mipLevels{ 1 };
 };
-
-//struct MaterialVkHandle
-//{
-//	u32 index{ 0 };
-//	ImageHandle albedoTexture;
-//	ImageHandle normalTexture;
-//	ImageHandle metallicRoughnessTexture;
-//};
-
-struct LayoutsUpdateDesc
-{
-	StagingPair stagingPair{};	
-	ImageHandle imgHandle{};
-	VkExtent3D imgExtent{0, 0, 0};
-};
-
-struct CreateSamplerSpec
-{
-	VkFilter minFiltering{ VK_FILTER_LINEAR };
-	VkFilter magFiltering{ VK_FILTER_LINEAR };
-	VkSamplerMipmapMode mipmapFiltering{ VK_SAMPLER_MIPMAP_MODE_LINEAR };
-	VkSamplerAddressMode addressMode{ VK_SAMPLER_ADDRESS_MODE_REPEAT };
-	float minLod{ 0.0f };
-	float maxLod{ 100.0f };
-	float lodBias{ 0.0f };
-};
-
+// 
 
 
 class VulkanBuffer;
@@ -56,7 +31,8 @@ private:
 
 	std::vector<VkSampler> _allSamplersStorage;
 
-	std::vector<ImageHandle> _allImagesStorage; // global storage of all images
+	std::vector<ImageHandle> _allLoadedImagesStorage; // global storage of all loaded images
+	std::vector<ImageHandle> _allCreatedImagesStorage; // global storage for all created images
 	using HandleIndex = u32;
 	HandleIndex _imageAvailableIndex{ 1 };
 
@@ -65,6 +41,7 @@ private:
 	/**
 	* @brief Change images layout when cmd buffer would start recording. ITS impossible to do it when image is created
 	*/
+	void CreateImageView(ImageHandle& imgHandle, VkFormat format, VkImageAspectFlags aspectMask);
 public:
 	void Cleanup();
 	void UpdateLayoutsToCopyData();
@@ -80,5 +57,6 @@ public:
 
 	VkSampler CreateSampler(const CreateSamplerSpec& spec);
 	ImageHandle* LoadAndStoreImageFromFile(const fs::path& path);
-	const std::vector<ImageHandle>& GetAllImages() const { return _allImagesStorage; }
+	ImageHandle& CreateEmptyImage(const ImageSpecification& spec);
+	const std::vector<ImageHandle>& GetAllLoadedImages() const { return _allLoadedImagesStorage; }
 };

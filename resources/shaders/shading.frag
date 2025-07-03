@@ -60,20 +60,27 @@ void main()
 {
 	Material material = materialsPtr.materials[inMaterialIndex];
 
+	vec2 UV = inUV;
+	UV.y = -UV.y;
+
 	vec3 albedoColor = vec3(0.5, 0.5, 0.5);
 	if(material.albedoID > 0)
 	{
-		albedoColor = texture(textures[material.albedoID],  inUV).xyz;
+		albedoColor = texture(textures[material.albedoID],  UV).xyz;
+	}
+
+	vec3 normal = vec3(0.0, 0.0, 0.0);
+	if(material.normalID > 0)
+	{
+		normal = texture(textures[material.normalID], UV).xyz;
 	}
 	
 	vec3 metallicRoughnessColor = vec3(0.5, 0.5, 0.5);
 	if(material.metalRoughnessID > 0)
 	{
-		metallicRoughnessColor = texture(textures[material.metalRoughnessID],  inUV).xyz;
+		metallicRoughnessColor = texture(textures[material.metalRoughnessID],  UV).xyz;
 	}
 	
 	vec3 finalColor = albedoColor + metallicRoughnessColor;
 	FragColor = vec4(albedoColor, 1.0);
-
-	// FragColor = vec4(vec3(1.0), 1.0);
 }

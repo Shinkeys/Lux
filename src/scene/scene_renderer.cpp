@@ -28,12 +28,29 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanB
 	baseShadingPipeline.cullMode = VK_CULL_MODE_BACK_BIT;
 	baseShadingPipeline.pushConstantSizeBytes = sizeof(VkDeviceAddress) * pushConstBufferCount;
 	baseShadingPipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() }; // Now only one descriptor layout, to DO
+	baseShadingPipeline.depthCompare = VK_COMPARE_OP_LESS; 
+	baseShadingPipeline.depthWriteEnable = VK_TRUE;
+	baseShadingPipeline.depthTestEnable = VK_TRUE;
 
 	// other data is aight
 
 	_baseShadingPair = _vulkanBackend.GetPipelineObj().CreatePipeline(baseShadingPipeline);
+	_depthAttachments.resize(VulkanPresentation::PresentationImagesCount);
+	for (u32 i = 0; i < VulkanPresentation::PresentationImagesCount; ++i)
+	{
+		ImageSpecification spec;
+		spec.mipLevels = 1;
+		spec.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		spec.aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+		spec.format = VK_FORMAT_D32_SFLOAT;
+		spec.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+		spec.extent = VkExtent3D{ static_cast<u32>(Window::GetWindowWidth()), static_cast<u32>(Window::GetWindowHeight()), 1 };
+		spec.aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
 
-	
+		_depthAttachments[i] = std::make_shared<ImageHandle>(_vulkanBackend.GetImageObj().CreateEmptyImage(spec));
+	}
+
+	_vulkanBackend.GetFrameObj().SubmitDepthAttachments(_depthAttachments);
 
 	// Create sampler
 	VkFilter minFiltering{ VK_FILTER_LINEAR };
@@ -57,8 +74,15 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanB
 	_samplerLinear = _vulkanBackend.GetImageObj().CreateSampler(samplerSpec);
 
 	// Materials buffer
-	constexpr size_t baseMaterialsBuffersSize = 1024;
+	constexpr size_t baseMaterialsBuffersSize = 1024 * 4; // 4096 bytes
 	_baseMaterialsSSBO = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(baseMaterialsBuffersSize);
+}
+
+std::shared_ptr<ImageHandle> SceneRenderer::GetDepthAttachment(u32 imageIndex) const
+{
+	assert(!_depthAttachments.empty() && imageIndex < _depthAttachments.size());
+
+	return _depthAttachments[imageIndex];
 }
 
 
@@ -170,22 +194,29 @@ void SceneRenderer::Update() const
 	const std::vector<MaterialTexturesDesc>& allMaterials = AssetManager::Get()->GetAllSceneMaterialsDesc();
 	bufferManager.UpdateSSBOBuffer(allMaterials.data(), allMaterials.size() * sizeof(MaterialTexturesDesc), _baseMaterialsSSBO.index);
 
-	for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
+
+	static bool isUpd = false;
+	if (!isUpd)
 	{
-		const std::vector<ImageHandle>& images = imageManager.GetAllImages(); // TEMPORARY SOLUTION. TO REWORK
-		for (u32 i = 0; i < images.size(); ++i)
+		for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
 		{
-			DescriptorUpdate updateData;
-			updateData.set = _baseShadingDescriptorSets[descInd]; // to replace
-			updateData.imgView = images[i].imageView;
-			updateData.dstBinding = 0;
-			updateData.dstArrayElem = images[i].index; // starting from 1, zero is null
+			const std::vector<ImageHandle>& images = imageManager.GetAllLoadedImages(); // TEMPORARY SOLUTION. TO REWORK
+			for (u32 i = 0; i < images.size(); ++i)
+			{
+				DescriptorUpdate updateData;
+				updateData.set = _baseShadingDescriptorSets[descInd]; // to replace
+				updateData.imgView = images[i].imageView;
+				updateData.dstBinding = 0;
+				updateData.dstArrayElem = images[i].index; // starting from 1, zero is null
 
-			updateData.sampler = _samplerLinear;
+				updateData.sampler = _samplerLinear;
 
-			descriptorManager.UpdateBindlessDescriptorSet(updateData);
+				descriptorManager.UpdateBindlessDescriptorSet(updateData);
+			}
 		}
+		isUpd = true;
 	}
+	
 }
 
 void SceneRenderer::Draw()

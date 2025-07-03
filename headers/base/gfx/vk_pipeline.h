@@ -16,6 +16,7 @@ struct GraphicsPipeline
 	VkBool32 depthWriteEnable{ VK_TRUE };
 	VkCompareOp depthCompare{ VK_COMPARE_OP_GREATER };
 	VkFormat colorFormat{ VulkanPresentation::ColorFormat.format };
+	VkFormat depthFormat{ VK_FORMAT_D32_SFLOAT };
 
 	std::vector<VkDescriptorSetLayout> descriptorLayouts;
 

@@ -40,6 +40,25 @@ VkSampler VulkanImage::CreateSampler(const CreateSamplerSpec& spec)
 	return sampler;
 }
 
+void VulkanImage::CreateImageView(ImageHandle& imgHandle, VkFormat format, VkImageAspectFlags aspectMask)
+{
+	VkImageViewCreateInfo imgViewCreateInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+	imgViewCreateInfo.image = imgHandle.image;
+	imgViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	imgViewCreateInfo.format = format;
+	imgViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imgViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imgViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imgViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	imgViewCreateInfo.subresourceRange.aspectMask = aspectMask;
+	imgViewCreateInfo.subresourceRange.baseMipLevel = 0;
+	imgViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+	imgViewCreateInfo.subresourceRange.layerCount = 1;
+	imgViewCreateInfo.subresourceRange.levelCount = 1;
+
+	VK_CHECK(vkCreateImageView(_deviceObject.GetDevice(), &imgViewCreateInfo, nullptr, &imgHandle.imageView));
+}
+
 ImageHandle* VulkanImage::LoadAndStoreImageFromFile(const fs::path& path)
 {
 	stbi_set_flip_vertically_on_load(true);
@@ -74,6 +93,7 @@ ImageHandle* VulkanImage::LoadAndStoreImageFromFile(const fs::path& path)
 
 	VkFormat imgFormat = VK_FORMAT_R8G8B8A8_SRGB; // SURFACE FORMAT IS BGRA BUT WOULD USE THAT, COULD JUST BLIT IMAGE LATER BEFORE PRESENTATION
 	// FOR MORE CONVENIENT APPOACH
+	VkImageAspectFlags aspect = VK_IMAGE_ASPECT_COLOR_BIT;
 
 	VkImageCreateInfo createInfo = vkhelpers::CreateImageInfo(imgFormat, imageExtent, mipLevels, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
 
@@ -85,36 +105,52 @@ ImageHandle* VulkanImage::LoadAndStoreImageFromFile(const fs::path& path)
 	VK_CHECK(vmaCreateImage(_allocatorObject.GetAllocatorHandle(), &createInfo, &allocInfo, &imgHandle.image, &imgHandle.allocation, nullptr));
 
 	// TO DO: destroy staging buffer
+	CreateImageView(imgHandle, imgFormat, aspect);
 
-	VkImageViewCreateInfo imgViewCreateInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-	imgViewCreateInfo.image = imgHandle.image;
-	imgViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	imgViewCreateInfo.format = imgFormat;
-	imgViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-	imgViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-	imgViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-	imgViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-	imgViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	imgViewCreateInfo.subresourceRange.baseMipLevel = 0;
-	imgViewCreateInfo.subresourceRange.baseArrayLayer = 0;
-	imgViewCreateInfo.subresourceRange.layerCount = 1;
-	imgViewCreateInfo.subresourceRange.levelCount = 1;
+	imgHandle.index = _allLoadedImagesStorage.size() + 1; // starting from 1, zero is empty texture
 
-	VK_CHECK(vkCreateImageView(_deviceObject.GetDevice(), &imgViewCreateInfo, nullptr, &imgHandle.imageView));
-
-	imgHandle.index = _allImagesStorage.size() + 1; // starting from 1, zero is empty texture
-
+	_allLoadedImagesStorage.push_back(imgHandle);
 
 	LayoutsUpdateDesc layoutsUpdateDesc;
 	layoutsUpdateDesc.stagingPair = stagingPair;
 	layoutsUpdateDesc.imgExtent = imageExtent;
 	layoutsUpdateDesc.imgHandle = imgHandle;
+	layoutsUpdateDesc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+
 
 	_queueToChangeLayouts.push(layoutsUpdateDesc);
-
-	_allImagesStorage.push_back(imgHandle);
 	
-	return &_allImagesStorage.back();
+	return &_allLoadedImagesStorage.back();
+}
+
+// Create image without data
+ImageHandle& VulkanImage::CreateEmptyImage(const ImageSpecification& spec)
+{
+	VkImageCreateInfo createInfo = vkhelpers::CreateImageInfo(spec.format, spec.extent, spec.mipLevels, 
+		spec.usage);
+
+	VmaAllocationCreateInfo allocInfo{};
+	allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+	ImageHandle imgHandle;
+
+	VK_CHECK(vmaCreateImage(_allocatorObject.GetAllocatorHandle(), &createInfo, &allocInfo, &imgHandle.image, &imgHandle.allocation, nullptr));
+
+	CreateImageView(imgHandle, spec.format, spec.aspect);
+
+	if (spec.newLayout != VK_IMAGE_LAYOUT_UNDEFINED)
+	{
+		LayoutsUpdateDesc layoutUpdate;
+		layoutUpdate.imgHandle = imgHandle;
+		layoutUpdate.imgExtent = spec.extent;
+		layoutUpdate.newLayout = spec.newLayout;
+		layoutUpdate.aspect = spec.aspect;
+		_queueToChangeLayouts.push(layoutUpdate);
+	}
+
+	_allCreatedImagesStorage.push_back(imgHandle);
+
+	return _allCreatedImagesStorage.back();
 }
 
 void VulkanImage::UpdateLayoutsToCopyData()
@@ -123,32 +159,34 @@ void VulkanImage::UpdateLayoutsToCopyData()
 	{
 		const auto& queueFront = _queueToChangeLayouts.front();
 
-		assert(queueFront.stagingPair.buffer && "Trying to change images layout when staging buffer is nullptr");
 		// image initially created with undefined layout
-		vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle.image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			0, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT);
-
-		VkBufferImageCopy copyRegion{};
-		copyRegion.bufferOffset = 0;
-		copyRegion.bufferRowLength = 0;
-		copyRegion.bufferImageHeight = 0;
+		vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle.image, VK_IMAGE_LAYOUT_UNDEFINED, 
+			queueFront.newLayout, 0, VK_ACCESS_2_TRANSFER_WRITE_BIT, 
+			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, queueFront.aspect);
 
 
+		if (queueFront.stagingPair.has_value())
+		{
+			VkBufferImageCopy copyRegion{};
+			copyRegion.bufferOffset = 0;
+			copyRegion.bufferRowLength = 0;
+			copyRegion.bufferImageHeight = 0;
 
-		copyRegion.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		copyRegion.imageSubresource.mipLevel = 0;
-		copyRegion.imageSubresource.baseArrayLayer = 0;
-		copyRegion.imageSubresource.layerCount = 1;
-		copyRegion.imageExtent = queueFront.imgExtent;
+			copyRegion.imageSubresource.aspectMask = queueFront.aspect;
+			copyRegion.imageSubresource.mipLevel = 0;
+			copyRegion.imageSubresource.baseArrayLayer = 0;
+			copyRegion.imageSubresource.layerCount = 1;
+			copyRegion.imageExtent = queueFront.imgExtent;
 
 
-		vkCmdCopyBufferToImage(_frameObject.GetCommandBuffer(), queueFront.stagingPair.buffer->GetVkBuffer(), queueFront.imgHandle.image,
-			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+			vkCmdCopyBufferToImage(_frameObject.GetCommandBuffer(), queueFront.stagingPair.value().buffer->GetVkBuffer(), 
+				queueFront.imgHandle.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
-		// Transit image again to make it readable for the shader
-		vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT,
-			VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT);
+			// Transit image again to make it readable for the shader
+			vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT,
+				VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, queueFront.aspect);
+		}
 
 		_queueToChangeLayouts.pop();
 	}
@@ -159,7 +197,12 @@ void VulkanImage::UpdateLayoutsToCopyData()
 
 void VulkanImage::Cleanup()
 {
-	for (auto& image : _allImagesStorage)
+	for (auto& image : _allLoadedImagesStorage)
+	{
+		vkDestroyImageView(_deviceObject.GetDevice(), image.imageView, nullptr);
+		vmaDestroyImage(_allocatorObject.GetAllocatorHandle(), image.image, image.allocation);
+	}
+	for (auto& image : _allCreatedImagesStorage)
 	{
 		vkDestroyImageView(_deviceObject.GetDevice(), image.imageView, nullptr);
 		vmaDestroyImage(_allocatorObject.GetAllocatorHandle(), image.image, image.allocation);

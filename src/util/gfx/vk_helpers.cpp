@@ -49,7 +49,8 @@ namespace vkhelpers
 	}
 
 	void TransitionImageLayout(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout,
-			VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask)
+			VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
+			VkImageAspectFlags aspectFlags)
 	{
 		VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
 		barrier.oldLayout = currentLayout;
@@ -66,7 +67,7 @@ namespace vkhelpers
 
 		barrier.subresourceRange =
 		{
-			.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+			.aspectMask = aspectFlags,
 			.baseMipLevel = 0,
 			.levelCount = 1,
 			.baseArrayLayer = 0,
@@ -93,6 +94,7 @@ namespace vkhelpers
 		imgCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 		imgCreateInfo.usage = usageFlags;
 		imgCreateInfo.extent = imgExtent;
+		
 
 		return imgCreateInfo;
 	}

@@ -29,7 +29,6 @@ void VulkanBase::RenderFrame()
 	VkSemaphore semaphoreImageAvailable = _frameObject->GetImageAvailableSemaphore();
 	VkFence syncCPUFence = _frameObject->GetFence();
 
-
 	if (!graphicsQueue.has_value())
 	{
 		std::cout << "Critical error, graphics queue is nullptr";

@@ -32,6 +32,12 @@ struct VulkanBindCommonResources
 	RenderJobType type{ RenderJobType::GEOMETRY_PASS };
 };
 
+struct Attachments
+{
+	std::vector<VkImage> images;
+	std::vector<VkImageView> imagesView;
+};
+
 class VulkanImage;
 class VulkanFrame
 {
@@ -48,7 +54,8 @@ private:
 	std::vector<VkSemaphore> _imageAvailableSemaphores;
 	std::vector<VkSemaphore> _renderFinishedSemaphores;
 	std::vector<VkFence> _syncCPUFences;
-
+	
+	std::vector<std::shared_ptr<ImageHandle>> _depthAttachments;
 
 	i32 _currentFrame{ 0 };
 
@@ -77,6 +84,7 @@ public:
 	void Cleanup();
 	void SubmitRenderTask(const VulkanDrawCommand& drawCommand) const;
 	void SubmitBindingOfCommonResources(const VulkanBindCommonResources& resources) const;
+	void SubmitDepthAttachments(const std::vector<std::shared_ptr<ImageHandle>>& attachments);
 
 	void UpdateCurrentFrameIndex() { _currentFrame = (_currentFrame + 1) % FramesInFlight; }
 	i32 GetCurrentFrameIndex()							   const { return _currentFrame; }
