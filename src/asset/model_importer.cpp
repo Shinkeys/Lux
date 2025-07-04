@@ -214,7 +214,6 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 					});
 			}
 
-
 			// Iterate for normals
 			auto* normalIt = it->findAttribute("NORMAL");
 			assert(normalIt != it->attributes.end()); // Mesh must have normals

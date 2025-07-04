@@ -62,10 +62,22 @@ void VulkanPresentation::CreateSwapchain()
 	u32 swapImageCount;
 	vkGetSwapchainImagesKHR(_deviceObject.GetDevice(), _swapchainDesc.swapchain, &swapImageCount, nullptr);
 
-	if(_swapchainDesc.images.empty())
+	if (_swapchainDesc.images.empty())
 		_swapchainDesc.images.resize(swapImageCount);
 
-	vkGetSwapchainImagesKHR(_deviceObject.GetDevice(), _swapchainDesc.swapchain, &swapImageCount, _swapchainDesc.images.data());
+	// Need to do it like that because ImageHandle is a shared pointers
+	std::vector<VkImage> images(_swapchainDesc.images.size());
+
+	vkGetSwapchainImagesKHR(_deviceObject.GetDevice(), _swapchainDesc.swapchain, &swapImageCount, images.data());
+
+	for (u32 i = 0; i < _swapchainDesc.images.size(); ++i)
+	{
+		if (_swapchainDesc.images[i] == nullptr)
+			_swapchainDesc.images[i] = std::make_shared<ImageHandle>();
+
+		_swapchainDesc.images[i]->image = images[i];
+	}
+
 	_swapchainDesc.imageFormat = surfaceFormat.format;
 	_swapchainDesc.extent = swapchainExtent;
 }
@@ -155,13 +167,10 @@ VkExtent2D VulkanPresentation::SelectRequiredSwapchainExtent(const VkSurfaceCapa
 
 void VulkanPresentation::CreateImageViews()
 {
-	if(_swapchainDesc.imagesView.empty())
-		_swapchainDesc.imagesView.resize(_swapchainDesc.images.size());
-
 	for (size_t i = 0; i < _swapchainDesc.images.size(); ++i)
 	{
 		VkImageViewCreateInfo createInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-		createInfo.image  = _swapchainDesc.images[i];
+		createInfo.image  = _swapchainDesc.images[i]->image;
 		createInfo.format = _swapchainDesc.imageFormat;
 		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
 		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -175,7 +184,7 @@ void VulkanPresentation::CreateImageViews()
 		createInfo.subresourceRange.levelCount = 1;
 		createInfo.subresourceRange.layerCount = 1;
 
-		VK_CHECK(vkCreateImageView(_deviceObject.GetDevice(), &createInfo, nullptr, &_swapchainDesc.imagesView[i]));
+		VK_CHECK(vkCreateImageView(_deviceObject.GetDevice(), &createInfo, nullptr, &_swapchainDesc.images[i]->imageView));
 	}
 }
 
@@ -189,14 +198,16 @@ void VulkanPresentation::Cleanup()
 void VulkanPresentation::DestroyStructures()
 {
 	const VkDevice device = _deviceObject.GetDevice();
-	for (VkImageView imageView : _swapchainDesc.imagesView)
+	for (auto& imageHandle : _swapchainDesc.images)
 	{
-		vkDestroyImageView(device, imageView, nullptr);
+		if (imageHandle != nullptr)
+		{
+			vkDestroyImageView(device, imageHandle->imageView, nullptr);
+		}
 	}
 }
 
 void VulkanPresentation::DestroySwapchain()
 {
 	vkDestroySwapchainKHR(_deviceObject.GetDevice(), _swapchainDesc.swapchain, nullptr);
-
 }

@@ -59,7 +59,7 @@ void VulkanImage::CreateImageView(ImageHandle& imgHandle, VkFormat format, VkIma
 	VK_CHECK(vkCreateImageView(_deviceObject.GetDevice(), &imgViewCreateInfo, nullptr, &imgHandle.imageView));
 }
 
-ImageHandle* VulkanImage::LoadAndStoreImageFromFile(const fs::path& path)
+std::shared_ptr<ImageHandle> VulkanImage::LoadAndStoreImageFromFile(const fs::path& path)
 {
 	stbi_set_flip_vertically_on_load(true);
 
@@ -100,14 +100,14 @@ ImageHandle* VulkanImage::LoadAndStoreImageFromFile(const fs::path& path)
 	VmaAllocationCreateInfo allocInfo{};
 	allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-	ImageHandle imgHandle;
+	std::shared_ptr<ImageHandle> imgHandle = std::make_shared<ImageHandle>();
 
-	VK_CHECK(vmaCreateImage(_allocatorObject.GetAllocatorHandle(), &createInfo, &allocInfo, &imgHandle.image, &imgHandle.allocation, nullptr));
+	VK_CHECK(vmaCreateImage(_allocatorObject.GetAllocatorHandle(), &createInfo, &allocInfo, &imgHandle->image, &imgHandle->allocation, nullptr));
 
 	// TO DO: destroy staging buffer
-	CreateImageView(imgHandle, imgFormat, aspect);
+	CreateImageView(*imgHandle, imgFormat, aspect);
 
-	imgHandle.index = _allLoadedImagesStorage.size() + 1; // starting from 1, zero is empty texture
+	imgHandle->index = _allLoadedImagesStorage.size() + 1; // starting from 1, zero is empty texture
 
 	_allLoadedImagesStorage.push_back(imgHandle);
 
@@ -120,11 +120,13 @@ ImageHandle* VulkanImage::LoadAndStoreImageFromFile(const fs::path& path)
 
 	_queueToChangeLayouts.push(layoutsUpdateDesc);
 	
-	return &_allLoadedImagesStorage.back();
+	return _allLoadedImagesStorage.back();
 }
 
+
+// TO REWORK THIS CLASS TO RETURN SHARED PTRS WITH CUSTOM ALLOCATOR
 // Create image without data
-ImageHandle& VulkanImage::CreateEmptyImage(const ImageSpecification& spec)
+std::shared_ptr<ImageHandle> VulkanImage::CreateEmptyImage(const ImageSpecification& spec)
 {
 	VkImageCreateInfo createInfo = vkhelpers::CreateImageInfo(spec.format, spec.extent, spec.mipLevels, 
 		spec.usage);
@@ -132,11 +134,11 @@ ImageHandle& VulkanImage::CreateEmptyImage(const ImageSpecification& spec)
 	VmaAllocationCreateInfo allocInfo{};
 	allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
 
-	ImageHandle imgHandle;
+	std::shared_ptr<ImageHandle> imgHandle = std::make_shared<ImageHandle>();
 
-	VK_CHECK(vmaCreateImage(_allocatorObject.GetAllocatorHandle(), &createInfo, &allocInfo, &imgHandle.image, &imgHandle.allocation, nullptr));
+	VK_CHECK(vmaCreateImage(_allocatorObject.GetAllocatorHandle(), &createInfo, &allocInfo, &imgHandle->image, &imgHandle->allocation, nullptr));
 
-	CreateImageView(imgHandle, spec.format, spec.aspect);
+	CreateImageView(*imgHandle, spec.format, spec.aspect);
 
 	if (spec.newLayout != VK_IMAGE_LAYOUT_UNDEFINED)
 	{
@@ -148,7 +150,15 @@ ImageHandle& VulkanImage::CreateEmptyImage(const ImageSpecification& spec)
 		_queueToChangeLayouts.push(layoutUpdate);
 	}
 
+	if (spec.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+		imgHandle->usage = ImageUsage::USAGE_RENDER_TARGET;
+	else if (spec.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+		imgHandle->usage = ImageUsage::USAGE_DEPTH_TARGET;
+	else assert(false && "Implement other types of image usage in it's creation");
+
+
 	_allCreatedImagesStorage.push_back(imgHandle);
+	imgHandle->index = _allCreatedImagesStorage.size() + 1;
 
 	return _allCreatedImagesStorage.back();
 }
@@ -160,7 +170,7 @@ void VulkanImage::UpdateLayoutsToCopyData()
 		const auto& queueFront = _queueToChangeLayouts.front();
 
 		// image initially created with undefined layout
-		vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle.image, VK_IMAGE_LAYOUT_UNDEFINED, 
+		vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle->image, VK_IMAGE_LAYOUT_UNDEFINED, 
 			queueFront.newLayout, 0, VK_ACCESS_2_TRANSFER_WRITE_BIT, 
 			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, queueFront.aspect);
 
@@ -180,10 +190,10 @@ void VulkanImage::UpdateLayoutsToCopyData()
 
 
 			vkCmdCopyBufferToImage(_frameObject.GetCommandBuffer(), queueFront.stagingPair.value().buffer->GetVkBuffer(), 
-				queueFront.imgHandle.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+				queueFront.imgHandle->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 			// Transit image again to make it readable for the shader
-			vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT,
 				VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, queueFront.aspect);
 		}
@@ -199,13 +209,19 @@ void VulkanImage::Cleanup()
 {
 	for (auto& image : _allLoadedImagesStorage)
 	{
-		vkDestroyImageView(_deviceObject.GetDevice(), image.imageView, nullptr);
-		vmaDestroyImage(_allocatorObject.GetAllocatorHandle(), image.image, image.allocation);
+		if (image != nullptr)
+		{
+			vkDestroyImageView(_deviceObject.GetDevice(), image->imageView, nullptr);
+			vmaDestroyImage(_allocatorObject.GetAllocatorHandle(), image->image, image->allocation);
+		}
 	}
 	for (auto& image : _allCreatedImagesStorage)
 	{
-		vkDestroyImageView(_deviceObject.GetDevice(), image.imageView, nullptr);
-		vmaDestroyImage(_allocatorObject.GetAllocatorHandle(), image.image, image.allocation);
+		if (image != nullptr)
+		{
+			vkDestroyImageView(_deviceObject.GetDevice(), image->imageView, nullptr);
+			vmaDestroyImage(_allocatorObject.GetAllocatorHandle(), image->image, image->allocation);
+		}
 	}
 
 	for (auto& sampler : _allSamplersStorage)

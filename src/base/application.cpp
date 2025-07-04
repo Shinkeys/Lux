@@ -25,18 +25,17 @@ void Application::Run()
 	_sceneManager = std::make_unique<SceneManager>(_vulkanBackend, _window);
 
 	AssetManager::Initialize();
-
 	Renderer::Initialize(_vulkanBackend);
 
 	while (!_window.WindowShouldClose())
 	{
 		_window.Update();
 		Update();
-		_sceneManager->Update();
-		_vulkanBackend.RenderFrame();
+		Renderer::BeginFrame();
 
+		this->Render();
 
-		Render();
+		Renderer::EndFrame();
 	}
 
 
@@ -49,6 +48,7 @@ void Application::Render()
 {
 	// Call every render method here
 	_core.Render();
+	_sceneManager->Update();
 }
 
 

@@ -1,10 +1,6 @@
 #pragma once
 #include "vk_pipeline.h"
 
-enum class RenderJobType : u8
-{
-	GEOMETRY_PASS,
-};
 
 // Vulkan draw COMMAND entity based. all those resources should be binded on ENTITY basis. Other resources independent of entity, but
 // dependent of scene should be bound with VulkanBindCommonResources
@@ -17,30 +13,6 @@ struct LightPushConsts
 	u32 pointLightCount{ 0 };
 };
 
-
-
-struct VulkanDrawCommand
-{
-	VkPipeline pipeline{ VK_NULL_HANDLE };
-	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
-	VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
-	LightPushConsts lightPushConstants{};
-	VkBuffer indexBuffer{ VK_NULL_HANDLE };
-	u32 indexCount{ 0 };
-
-	RenderJobType type{ RenderJobType::GEOMETRY_PASS };
-};
-
-struct VulkanBindCommonResources
-{
-	std::vector<VkDeviceAddress> buffersAddresses;
-	VkPipeline pipeline{ VK_NULL_HANDLE };
-	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
-
-	// TO DO SMTH ELSE IF WOULD NEED LIKE TEXTURES, UNIFORMS ETC. 
-
-	RenderJobType type{ RenderJobType::GEOMETRY_PASS };
-};
 
 struct Attachments
 {
@@ -65,9 +37,9 @@ private:
 	std::vector<VkSemaphore> _renderFinishedSemaphores;
 	std::vector<VkFence> _syncCPUFences;
 	
-	std::vector<std::shared_ptr<ImageHandle>> _depthAttachments;
 
 	i32 _currentFrame{ 0 };
+	u32 _currentImage{ 0 };
 
 	void CreateCommandPool();
 	void CreateCommandBuffers();
@@ -85,22 +57,20 @@ public:
 
 	// Variables
 	static constexpr i32 FramesInFlight{ 2 };
-	void BeginFrame(u32 imageIndex);
-	void EndFrame(u32 imageIndex);
-	void BeginRendering(u32 imageIndex);
-	void EndRendering(u32 imageIndex);
+	void BeginFrame();
+	void EndFrame();
+	void BeginCommandRecord();
+	void EndCommandRecord();
 	void WaitForFence();
 	void ResetFence();
 	void Cleanup();
-	void SubmitRenderTask(const VulkanDrawCommand& drawCommand) const;
-	void SubmitBindingOfCommonResources(const VulkanBindCommonResources& resources) const;
-	void SubmitDepthAttachments(const std::vector<std::shared_ptr<ImageHandle>>& attachments);
 
 	void UpdateCurrentFrameIndex() { _currentFrame = (_currentFrame + 1) % FramesInFlight; }
 	i32 GetCurrentFrameIndex()							   const { return _currentFrame; }
+	u32 GetCurrentImageIndex()							   const { return _currentImage; }
 
 	VkSemaphore GetImageAvailableSemaphore()			   const;
-	VkSemaphore GetRenderFinishedSemaphore(u32 imageIndex) const;
+	VkSemaphore GetRenderFinishedSemaphore()		       const;
 	VkFence GetFence()                                     const;
 	VkCommandBuffer GetCommandBuffer()                     const;
 };

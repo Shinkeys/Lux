@@ -1,5 +1,6 @@
 #pragma once
 #include "../base/core/renderer.h"
+#include "../base/core/rendererAPI.h"
 #include "lights.h"
 
 // TO replace
@@ -16,6 +17,15 @@ struct RenderData
 	const MaterialDescription* materialDesc{ nullptr };
 };
 
+struct GBuffer
+{
+	// To rework image class
+	std::shared_ptr<ImageHandle> positions;
+	std::shared_ptr<ImageHandle> normals;
+	std::shared_ptr<ImageHandle> baseColor;
+	std::shared_ptr<ImageHandle> metallicRoughness;
+};
+
 class Entity;
 class SceneRenderer
 {
@@ -29,12 +39,20 @@ private:
 	using EntityID = u32;
 	glm::mat4 GenerateModelMatrix(const TranslationComponent& translationComp);
 
-	std::queue<VulkanDrawCommand> _drawCommands;
+	std::vector<DrawCommand> _drawCommands;
 
+	// To rework image class
 	std::vector<std::shared_ptr<ImageHandle>> _depthAttachments;
+
+	std::shared_ptr<ImageHandle> _currentDepthAttachment;
+	std::shared_ptr<ImageHandle> _currentColorAttachment;
+
 
 	std::vector<PointLight> _pointLights;
 	SSBOPair _pointLightsBuffer;
+
+	GBuffer _gBuffer;
+
 public:
 	/**
 	* @brief Pass the objects which would LIVE after the submission
@@ -44,7 +62,7 @@ public:
 	void UpdateBuffers(const Entity& entity);
 	//template<typename T>
 	//void SubmitDataToBind();
-	void Update() const;
+	void Update();
 	void Draw();
 
 	SceneRenderer() = delete;

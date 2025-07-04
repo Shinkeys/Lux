@@ -3,7 +3,7 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
-SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanBackend}
+SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkanBackend }
 {
 	// Descriptor
 	// Create descriptor for every frame
@@ -19,8 +19,8 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanB
 		_baseShadingDescriptorSets.emplace_back(vulkanBackend.GetDescriptorObj().CreateDescSet(descInfo));
 	}
 
-	
-	 
+
+
 	constexpr i32 pushConstBufferCount = 10; // uniform + vertexBuff + ssbo
 
 	GraphicsPipeline baseShadingPipeline;
@@ -28,7 +28,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanB
 	baseShadingPipeline.cullMode = VK_CULL_MODE_BACK_BIT;
 	baseShadingPipeline.pushConstantSizeBytes = sizeof(VkDeviceAddress) * pushConstBufferCount;
 	baseShadingPipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() }; // Now only one descriptor layout, to DO
-	baseShadingPipeline.depthCompare = VK_COMPARE_OP_LESS; 
+	baseShadingPipeline.depthCompare = VK_COMPARE_OP_LESS;
 	baseShadingPipeline.depthWriteEnable = VK_TRUE;
 	baseShadingPipeline.depthTestEnable = VK_TRUE;
 
@@ -47,10 +47,8 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanB
 		spec.extent = VkExtent3D{ static_cast<u32>(Window::GetWindowWidth()), static_cast<u32>(Window::GetWindowHeight()), 1 };
 		spec.aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
 
-		_depthAttachments[i] = std::make_shared<ImageHandle>(_vulkanBackend.GetImageObj().CreateEmptyImage(spec));
+		_depthAttachments[i] = _vulkanBackend.GetImageObj().CreateEmptyImage(spec);
 	}
-
-	_vulkanBackend.GetFrameObj().SubmitDepthAttachments(_depthAttachments);
 
 	// Create sampler
 	VkFilter minFiltering{ VK_FILTER_LINEAR };
@@ -87,7 +85,27 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{vulkanB
 	_pointLights.push_back(pointLight);
 	_pointLightsBuffer = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(sizeof(PointLight) * _pointLights.size());
 	_vulkanBackend.GetBufferObj().UpdateSSBOBuffer(_pointLights.data(), sizeof(PointLight) * _pointLights.size(), _pointLightsBuffer.index);
+
+	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
+	const u32 windowWidth = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.width;
+	const u32 windowHeight = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.height;
+
+
+	// Init G buffer
+	ImageSpecification imageSpec;
+	imageSpec.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	imageSpec.mipLevels = 1;
+	imageSpec.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+	imageSpec.extent = { windowWidth, windowHeight, 1 };
+	imageSpec.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+	_gBuffer.positions = imageManager.CreateEmptyImage(imageSpec);
+	_gBuffer.normals = imageManager.CreateEmptyImage(imageSpec);
+	imageSpec.format = VK_FORMAT_R8G8B8A8_SRGB;
+	_gBuffer.baseColor = imageManager.CreateEmptyImage(imageSpec);
+	_gBuffer.metallicRoughness = imageManager.CreateEmptyImage(imageSpec);
+
 }
+
 
 
 void SceneRenderer::UpdateBuffers(const Entity& entity)
@@ -187,12 +205,13 @@ glm::mat4 SceneRenderer::GenerateModelMatrix(const TranslationComponent& transla
 	return model;
 }
 
-void SceneRenderer::Update() const
+void SceneRenderer::Update()
 {
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
 	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
 	VulkanDescriptor& descriptorManager = _vulkanBackend.GetDescriptorObj();
+	VulkanPresentation& presentationManager = _vulkanBackend.GetPresentationObj();
 
 
 	const std::vector<MaterialTexturesDesc>& allMaterials = AssetManager::Get()->GetAllSceneMaterialsDesc();
@@ -200,20 +219,24 @@ void SceneRenderer::Update() const
 
 	for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
 	{
-		const std::vector<ImageHandle>& images = imageManager.GetAllLoadedImages(); // TEMPORARY SOLUTION. TO REWORK
+		const std::vector<std::shared_ptr<ImageHandle>>& images = imageManager.GetAllLoadedImages(); // TEMPORARY SOLUTION. TO REWORK
+		assert(!images.empty() && "Images size is zero");
 		for (u32 i = 0; i < images.size(); ++i)
 		{
 			DescriptorUpdate updateData;
 			updateData.set = _baseShadingDescriptorSets[descInd];
-			updateData.imgView = images[i].imageView;
+			updateData.imgView = images[i]->imageView;
 			updateData.dstBinding = 0;
-			updateData.dstArrayElem = images[i].index; // starting from 1, zero is null
+			updateData.dstArrayElem = images[i]->index; // starting from 1, zero is null
 
 			updateData.sampler = _samplerLinear;
 
 			descriptorManager.UpdateBindlessDescriptorSet(updateData);
 		}
 	}
+
+	_currentColorAttachment = presentationManager.GetSwapchainDesc().images[frameManager.GetCurrentImageIndex()];
+	_currentDepthAttachment = _depthAttachments[frameManager.GetCurrentImageIndex()];
 	
 }
 
@@ -222,14 +245,27 @@ void SceneRenderer::Draw()
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// THIS IS TEMPORARY SOLUTION. TO REWORK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	_vulkanBackend.GetImageObj().UpdateLayoutsToCopyData();
+	_vulkanBackend.GetDescriptorObj().UpdateSets();
 
-	while (!_drawCommands.empty())
+	Renderer::BeginRender({ _currentColorAttachment, _currentDepthAttachment });
+
+	for(const auto& command : _drawCommands)
 	{
 		auto& command = _drawCommands.front();
 		command.lightPushConstants.materialAddress = _baseMaterialsSSBO.address;
-		frameManager.SubmitRenderTask(command); // Example. TO DO
-		_drawCommands.pop();
+		command.lightPushConstants.lightsAddress = _pointLightsBuffer.address;
+		command.lightPushConstants.pointLightCount = _pointLights.size();
+		Renderer::RenderMesh(command);
+
 	}
+	Renderer::EndRender();
+
+
+	_drawCommands.clear();
 }
 
 // THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
@@ -269,19 +305,15 @@ void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 		if (vertexDesc == nullptr)
 			return;
 
-		VulkanDrawCommand command;
+		DrawCommand command;
 		command.pipeline = _baseShadingPair.pipeline;
 		command.pipelineLayout = _baseShadingPair.pipelineLayout;
 		command.descriptorSet = _baseShadingDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
 		command.lightPushConstants.verticesAddress = meshBuffers->GetDeviceAddress();
 		command.lightPushConstants.uniformAddress = uniformBuffer->GetDeviceAddress();
-		command.lightPushConstants.lightsAddress = _pointLightsBuffer.address;
-		command.lightPushConstants.pointLightCount = _pointLights.size();
 		command.indexCount = vertexDesc->indexCount;
 		command.indexBuffer = bufferManager.GetMeshBuffers(entity.GetID())->GetVkIndexBuffer();
-		command.type = RenderJobType::GEOMETRY_PASS;
-		_drawCommands.emplace(std::move(command));
-
+		_drawCommands.emplace_back(std::move(command));
 	}
 
 }

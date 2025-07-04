@@ -1,56 +1,45 @@
 #include "../../../headers/base/core/renderer.h"
 
-VulkanBase* Renderer::_vulkanBackend{ nullptr };
-std::vector<std::pair<RenderJobType, Renderer::RenderJob>> Renderer::_renderJobs;
-std::vector<std::pair<RenderJobType, Renderer::BindingJob>> Renderer::_bindingJobs;
-
+RendererAPI* Renderer::_renderAPI{ nullptr };
 
 void Renderer::Initialize(VulkanBase& vulkanBase)
 {
-	_vulkanBackend = &vulkanBase;
+	_renderAPI = new VulkanRenderer(vulkanBase);
 }
 
-u32 Renderer::GetCurrentFrameIndex()
+void Renderer::BeginFrame()
 {
-	return _vulkanBackend->GetFrameObj().GetCurrentFrameIndex();
-}
-	
-void Renderer::SubmitDrawJob(RenderJob&& renderJob, RenderJobType jobType)
-{
-	_renderJobs.emplace_back(jobType, renderJob);
+	_renderAPI->BeginFrame();
 }
 
-void Renderer::SubmitBindingJob(BindingJob&& bindingJob, RenderJobType renderStage)
+void Renderer::EndFrame()
 {
-	_bindingJobs.emplace_back(renderStage, bindingJob);
+	_renderAPI->EndFrame();
+}
+
+void Renderer::BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments)
+{
+	_renderAPI->BeginRender(attachments);
+}
+
+void Renderer::EndRender()
+{
+	_renderAPI->EndRender();
 }
 
 // Draw all the data passed in
-void Renderer::RenderScene()
+void Renderer::ExecuteRecordedCommands()
 {
-	// Sort em by priority
-	std::sort(_renderJobs.begin(), _renderJobs.end(), [&](const std::pair<RenderJobType, RenderJob>& fstJob, const std::pair<RenderJobType, RenderJob>& scJob)
-		{
-			return fstJob.first < scJob.first;
-		});
+	_renderAPI->ExecuteCurrentCommands();
+}
 
-	std::sort(_bindingJobs.begin(), _bindingJobs.end(), [&](const std::pair<RenderJobType, BindingJob>& fstJob, const std::pair<RenderJobType, BindingJob>& scJob)
-		{
-			return fstJob.first < scJob.first;
-		});
+void Renderer::RenderMesh(const DrawCommand& command)
+{
+	_renderAPI->RenderMesh(command);
+}
 
-	for (auto renderJobIt = _renderJobs.begin(); renderJobIt != _renderJobs.end(); ++renderJobIt)
-	{
-		for (const auto& bindJob : _bindingJobs)
-		{
-			if (bindJob.first == renderJobIt->first)
-				(bindJob.second)(); // Bind all the structures with the same type
-			else break; // we need to rebind every structure again for every draw call.
-		}
 
-		(renderJobIt->second)();
-	}
-
-	_renderJobs.clear();
-	_bindingJobs.clear();
+void Renderer::Cleanup()
+{
+	delete _renderAPI;
 }

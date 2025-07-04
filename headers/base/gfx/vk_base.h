@@ -31,7 +31,7 @@ public:
 	VulkanAllocator& GetAllocatorObj()			{ return *_allocatorObject; }
 	VulkanImage& GetImageObj()					{ return *_imageObject; }
 
-	void RenderFrame();
 	void Cleanup();
 	void Initialize(Window& windowObj);
+	void Update();
 };

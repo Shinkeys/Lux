@@ -31,8 +31,12 @@ private:
 
 	std::vector<VkSampler> _allSamplersStorage;
 
-	std::vector<ImageHandle> _allLoadedImagesStorage; // global storage of all loaded images
-	std::vector<ImageHandle> _allCreatedImagesStorage; // global storage for all created images
+	// THIS IS JUST A TEMPORARY SOLUTION. GREAT IDEA WOULD BE NOT TO STORE IMAGES IN THE VECTORS AT ALL, BUT TO MAKE SMART SYSTEM OF DEALLOCATION IMAGES VIA SHARED_PTR
+	// WHEN REF COUNT IS ZERO. 2-3 FRAMES AFTER THE LAST USAGE
+	std::vector<std::shared_ptr<ImageHandle>> _allLoadedImagesStorage; // global storage of all loaded images
+	std::vector<std::shared_ptr<ImageHandle>> _allCreatedImagesStorage; // global storage for all created images
+
+
 	using HandleIndex = u32;
 	HandleIndex _imageAvailableIndex{ 1 };
 
@@ -56,7 +60,7 @@ public:
 	VulkanImage& operator= (VulkanImage&&) = delete;
 
 	VkSampler CreateSampler(const CreateSamplerSpec& spec);
-	ImageHandle* LoadAndStoreImageFromFile(const fs::path& path);
-	ImageHandle& CreateEmptyImage(const ImageSpecification& spec);
-	const std::vector<ImageHandle>& GetAllLoadedImages() const { return _allLoadedImagesStorage; }
+	std::shared_ptr<ImageHandle> LoadAndStoreImageFromFile(const fs::path& path);
+	std::shared_ptr<ImageHandle> CreateEmptyImage(const ImageSpecification& spec);
+	const std::vector<std::shared_ptr<ImageHandle>>& GetAllLoadedImages() const { return _allLoadedImagesStorage; }
 };

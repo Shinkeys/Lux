@@ -1,6 +1,6 @@
 #pragma once
-#include "../gfx/vk_base.h"
-
+#include "../gfx/vk_renderer.h"
+#include "rendererAPI.h"
 
 
 // Renderer now is vulkan only. If would need different API, then can create base class renderer API
@@ -10,17 +10,20 @@
 class Renderer
 {
 private:
-	using RenderJob = std::function<void()>;
-	using BindingJob = std::function<void()>;
-
-	static std::vector<std::pair<RenderJobType, RenderJob>> _renderJobs;
-	static std::vector<std::pair<RenderJobType, BindingJob>> _bindingJobs;
-	static VulkanBase* _vulkanBackend;
+	static RendererAPI* _renderAPI;
 public:
-	static u32 GetCurrentFrameIndex();
-	static void RenderScene();
-	static void SubmitDrawJob(RenderJob&& renderJob, RenderJobType jobType);
-	static void SubmitBindingJob(BindingJob&& bindingJob, RenderJobType renderStage);
+	static void ExecuteRecordedCommands();
 
+
+	// ENGINE NOW WORKS ONLY WITH VULKAN. IF WOULD NEED TO CHANGE IT, JUST CREATE A STRUCT WITH DIFFERENT TYPES OF RENDERERS
 	static void Initialize(VulkanBase& vulkanBase);
+
+	static void BeginFrame();
+	static void EndFrame();
+	static void BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments);
+	static void EndRender();
+	static void RenderMesh(const DrawCommand& command);
+
+
+	static void Cleanup();
 };

@@ -12,22 +12,14 @@ VulkanFrame::VulkanFrame(VulkanDevice& deviceObj, VulkanPresentation& presentati
 
 }
 
-void VulkanFrame::SubmitDepthAttachments(const std::vector<std::shared_ptr<ImageHandle>>& attachments)
-{
-	assert(!attachments.empty());
-	_depthAttachments.resize(attachments.size());
-	for (u32 i = 0; i < attachments.size(); ++i)
-		_depthAttachments[i] = attachments[i];
-}
-
 VkSemaphore VulkanFrame::GetImageAvailableSemaphore() const
 {
 	return _imageAvailableSemaphores[_currentFrame];
 }
 // This one should be the same as the swapchain image count
-VkSemaphore VulkanFrame::GetRenderFinishedSemaphore(u32 imageIndex)  const
+VkSemaphore VulkanFrame::GetRenderFinishedSemaphore()  const
 {
-	return _renderFinishedSemaphores[imageIndex];
+	return _renderFinishedSemaphores[_currentImage];
 }
 VkFence VulkanFrame::GetFence() const
 {
@@ -93,114 +85,78 @@ void VulkanFrame::CreateSynchronizationObjects()
 	}
 }
 
-void VulkanFrame::BeginRendering(u32 imageIndex)
+void VulkanFrame::BeginFrame()
 {
-	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
+	VkDevice device = _deviceObject.GetDevice();
 	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
+	// Image index - swapchain image index
 
-	// Dynamic rendering requires layout transitions. access mask is the first layer of synchronization while stage is the second layer.
-// looks like the first one is what you need to protect in the memory and the second one when to finish this, in this case fragment shader output
-	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[imageIndex], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+	WaitForFence();
+	VkResult swapchainResultImageStage = vkAcquireNextImageKHR(device, swapchainDesc.swapchain,
+		UINT64_MAX, GetImageAvailableSemaphore(), VK_NULL_HANDLE, &_currentImage);
 
-
-	VkClearValue clearColor{ {0.0f, 0.0f, 0.0f, 1.0f} };
-
-	VkRenderingAttachmentInfo colorAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-	colorAttachment.imageView = swapchainDesc.imagesView[imageIndex];
-	colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	colorAttachment.clearValue = clearColor;
-
-	VkRenderingAttachmentInfo depthAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-	depthAttachment.imageView = _depthAttachments.size() > imageIndex ? _depthAttachments[imageIndex]->imageView : VK_NULL_HANDLE;
-	depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-	depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-	depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-	depthAttachment.clearValue = { .depthStencil{1.0f, 0} };
-
-	// Begin rendering
-	VkRenderingInfo renderingInfo{ VK_STRUCTURE_TYPE_RENDERING_INFO };
-	renderingInfo.renderArea =
+	if (swapchainResultImageStage == VK_ERROR_OUT_OF_DATE_KHR || swapchainResultImageStage == VK_SUBOPTIMAL_KHR)
 	{
-		.offset = {0,0},
-		.extent = swapchainDesc.extent
-	};
-	renderingInfo.layerCount = 1;
-	renderingInfo.colorAttachmentCount = 1;
-	renderingInfo.pColorAttachments = &colorAttachment;
-	renderingInfo.pDepthAttachment = _depthAttachments.empty() ? nullptr : &depthAttachment;
+		_presentationObject.RecreateSwapchain();
+		return; // Go and get a new frame
+	}
 
-	vkCmdBeginRendering(cmdBuffer, &renderingInfo);
+	ResetFence();
 
-	_pipelineObject.SetDynamicStates(cmdBuffer);
+	VkSemaphore semaphoreRenderFinished = GetRenderFinishedSemaphore();
 }
 
-void VulkanFrame::EndRendering(u32 imageIndex)
+void VulkanFrame::EndFrame()
 {
-	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
+	VkSemaphore waitSemaphores[] =   { GetImageAvailableSemaphore() };
+	VkSemaphore signalSemaphores[] = { GetRenderFinishedSemaphore() };
+	const auto graphicsQueue = _deviceObject.GetQueueByType(QueueType::VULKAN_GRAPHICS_QUEUE);
+	const auto presentationQueue = _deviceObject.GetQueueByType(QueueType::VULKAN_PRESENTATION_QUEUE);
 
-	vkCmdEndRendering(cmdBuffer);
+
+	VkPresentInfoKHR presentInfo{ VK_STRUCTURE_TYPE_PRESENT_INFO_KHR };
+	presentInfo.waitSemaphoreCount = 1;
+	presentInfo.pWaitSemaphores = signalSemaphores;
+
+	std::vector<VkSwapchainKHR> swapchains
+	{ _presentationObject.GetSwapchainDesc().swapchain };
+	presentInfo.swapchainCount = static_cast<u32>(swapchains.size());
+	presentInfo.pSwapchains = swapchains.data();
+	presentInfo.pImageIndices = &_currentImage;
+
+	if (!presentationQueue.has_value())
+	{
+		std::cout << "Critical error, presentation queue is nullptr";
+		return;
+	}
+
+	VkResult swapchainResultPresentStage = vkQueuePresentKHR(presentationQueue.value(), &presentInfo);
+	if (swapchainResultPresentStage == VK_ERROR_OUT_OF_DATE_KHR || swapchainResultPresentStage == VK_SUBOPTIMAL_KHR)
+	{
+		_presentationObject.RecreateSwapchain();
+	}
+
+	UpdateCurrentFrameIndex();
 }
 
-void VulkanFrame::BeginFrame(u32 imageIndex)
+void VulkanFrame::BeginCommandRecord()
 {
 	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
-	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
-
 	vkResetCommandBuffer(cmdBuffer, 0);
 
 	VkCommandBufferBeginInfo beginInfo = vkhelpers::CmdBufferBeginInfo();
-	
+
 	VK_CHECK(vkBeginCommandBuffer(cmdBuffer, &beginInfo));
-
 }
 
-void VulkanFrame::SubmitRenderTask(const VulkanDrawCommand& drawCommand) const
-{
-	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
-
-	const bool areObjectsInitialized = drawCommand.pipeline != VK_NULL_HANDLE && drawCommand.pipelineLayout != VK_NULL_HANDLE && drawCommand.descriptorSet != VK_NULL_HANDLE &&
-		drawCommand.indexBuffer != VK_NULL_HANDLE;
-
-	assert(areObjectsInitialized && "Vulkan draw command is dispatched with some NULL object");
-	// To DO: compute tasks when would need
-	Renderer::SubmitDrawJob([=]
-		{
-			vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipeline);
-			vkCmdBindIndexBuffer(cmdBuffer, drawCommand.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-			vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipelineLayout, 0, 1, &drawCommand.descriptorSet, 0, nullptr);
-			vkCmdPushConstants(cmdBuffer, drawCommand.pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(LightPushConsts), &drawCommand.lightPushConstants);
-			vkCmdDrawIndexed(cmdBuffer, drawCommand.indexCount, 1, 0, 0, 0);
-		}, drawCommand.type);
-}
-
-void VulkanFrame::SubmitBindingOfCommonResources(const VulkanBindCommonResources& resources) const
-{
-	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
-
-
-	const bool areObjectsInitialized = resources.pipelineLayout != VK_NULL_HANDLE;
-	assert(areObjectsInitialized && "Vulkan bind command is dispatched with some NULL object");
-
-	Renderer::SubmitBindingJob([=]
-		{
-			if (!resources.buffersAddresses.empty())
-			{
-				vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, resources.pipeline);
-				vkCmdPushConstants(cmdBuffer, resources.pipelineLayout, VK_SHADER_STAGE_ALL, 0, sizeof(VkDeviceAddress) * resources.buffersAddresses.size(),
-					resources.buffersAddresses.data());
-			}
-		}, resources.type);
-}
-
-void VulkanFrame::EndFrame(u32 imageIndex)
+void VulkanFrame::EndCommandRecord()
 {
 	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
 	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
 
-	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[imageIndex], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	assert(!swapchainDesc.images.empty() && "Vulkan swapchain images is empty in EndCommandRecord()");
+
+	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[_currentImage]->image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
