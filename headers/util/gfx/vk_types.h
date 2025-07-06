@@ -35,6 +35,7 @@ struct ImageHandle
 	VkImageView imageView{ VK_NULL_HANDLE };
 	VmaAllocation allocation{ nullptr };
 	ImageUsage usage{ ImageUsage::USAGE_RENDER_TARGET };
+	VkImageLayout currentLayout{ VK_IMAGE_LAYOUT_UNDEFINED };
 };
 
 struct LayoutsUpdateDesc
@@ -66,3 +67,31 @@ struct VulkanSwapchain
 	VkExtent2D extent{ 0,0 };
 };
 
+// PIPELINE BARRIER
+// To do: abstract vulkan
+struct PipelineImageBarrierInfo
+{
+	VkPipelineStageFlags2    srcStageMask{ VK_PIPELINE_STAGE_2_NONE };
+	VkAccessFlags2           srcAccessMask{ VK_ACCESS_2_NONE };
+	VkPipelineStageFlags2    dstStageMask{ VK_PIPELINE_STAGE_2_NONE };
+	VkAccessFlags2           dstAccessMask{ VK_ACCESS_2_NONE };
+
+	std::shared_ptr<ImageHandle> imgHandle;
+	VkImageLayout newLayout{ VK_IMAGE_LAYOUT_UNDEFINED };
+};
+
+struct PipelineMemoryBarrierInfo
+{
+	VkPipelineStageFlags2    srcStageMask{ VK_PIPELINE_STAGE_2_NONE };
+	VkAccessFlags2           srcAccessMask{ VK_ACCESS_2_NONE };
+	VkPipelineStageFlags2    dstStageMask{ VK_PIPELINE_STAGE_2_NONE };
+	VkAccessFlags2           dstAccessMask{ VK_ACCESS_2_NONE };
+};
+
+
+
+struct PipelineBarrierStorage
+{
+	std::vector<PipelineImageBarrierInfo> imageBarriers;
+	std::vector<PipelineMemoryBarrierInfo> memoryBarriers;
+};

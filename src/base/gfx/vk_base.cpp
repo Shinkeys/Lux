@@ -19,11 +19,6 @@ void VulkanBase::Initialize(Window& windowObj)
 	_imageObject = std::make_unique<VulkanImage>(*_deviceObject, *_bufferObject, *_frameObject, *_allocatorObject);
 }
 
-void VulkanBase::Update()
-{
-	_imageObject->UpdateLayoutsToCopyData();
-	_descriptorObject->UpdateSets();
-}
 
 void VulkanBase::Cleanup()
 {

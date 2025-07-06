@@ -44,18 +44,22 @@ DescriptorSet VulkanDescriptor::CreateDescSet(const DescriptorInfo& info)
 		flags.push_back(VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT);
 	}
 
-	VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
-	bindingFlags.pBindingFlags = flags.data();
-	bindingFlags.bindingCount = static_cast<u32>(flags.size());
+	if (_bindlessLayout == VK_NULL_HANDLE)
+	{
+		VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlags{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO };
+		bindingFlags.pBindingFlags = flags.data();
+		bindingFlags.bindingCount = static_cast<u32>(flags.size());
 
-	VkDescriptorSetLayoutCreateInfo createInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-	createInfo.pBindings = bindings.data();
-	createInfo.bindingCount = static_cast<u32>(info.bindings.size());
-	createInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-	createInfo.pNext = &bindingFlags;
+		VkDescriptorSetLayoutCreateInfo createInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+		createInfo.pBindings = bindings.data();
+		createInfo.bindingCount = static_cast<u32>(info.bindings.size());
+		createInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+		createInfo.pNext = &bindingFlags;
 
-	VK_CHECK(vkCreateDescriptorSetLayout(_deviceObject.GetDevice(), &createInfo, nullptr, &_bindlessLayout));
-	
+		VK_CHECK(vkCreateDescriptorSetLayout(_deviceObject.GetDevice(), &createInfo, nullptr, &_bindlessLayout));
+		_layoutsToDestroy.push_back(_bindlessLayout);
+	}
+
 	VkDescriptorSetAllocateInfo allocInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
 	allocInfo.pSetLayouts = &_bindlessLayout;
 	allocInfo.descriptorSetCount = 1;
@@ -64,40 +68,27 @@ DescriptorSet VulkanDescriptor::CreateDescSet(const DescriptorInfo& info)
 	VkDescriptorSet set;
 	VK_CHECK(vkAllocateDescriptorSets(_deviceObject.GetDevice(), &allocInfo, &set));
 
-	_layoutsToDestroy.push_back(_bindlessLayout);
 
 	return DescriptorSet(set);
 }
 
 void VulkanDescriptor::UpdateBindlessDescriptorSet(const DescriptorUpdate& updateData)
 {
-	_queueToWriteSets.emplace(updateData);
-}
+	VkDescriptorImageInfo imgInfo{};
+	imgInfo.imageView = updateData.imgView;
+	imgInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imgInfo.sampler = updateData.sampler;
 
-void VulkanDescriptor::UpdateSets()
-{
-	while (!_queueToWriteSets.empty())
-	{
-		const DescriptorUpdate& updateData = _queueToWriteSets.front();
-
-		VkDescriptorImageInfo imgInfo{};
-		imgInfo.imageView = updateData.imgView;
-		imgInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		imgInfo.sampler = updateData.sampler;
-
-		VkWriteDescriptorSet writeSet{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-		writeSet.dstSet = updateData.set.descriptorSet;
-		writeSet.dstBinding = updateData.dstBinding;
-		writeSet.dstArrayElement = updateData.dstArrayElem;
-		writeSet.descriptorCount = 1;
-		writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		writeSet.pImageInfo = &imgInfo;
+	VkWriteDescriptorSet writeSet{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+	writeSet.dstSet = updateData.set.descriptorSet;
+	writeSet.dstBinding = updateData.dstBinding;
+	writeSet.dstArrayElement = updateData.dstArrayElem;
+	writeSet.descriptorCount = 1;
+	writeSet.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	writeSet.pImageInfo = &imgInfo;
 
 
-		vkUpdateDescriptorSets(_deviceObject.GetDevice(), 1, &writeSet, 0, nullptr);
-		_queueToWriteSets.pop();
-	}
-
+	vkUpdateDescriptorSets(_deviceObject.GetDevice(), 1, &writeSet, 0, nullptr);
 }
 
 

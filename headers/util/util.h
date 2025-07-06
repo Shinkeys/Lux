@@ -30,9 +30,9 @@ using i64 = std::int64_t;
 using isize = std::ptrdiff_t;
 using f32 = float;
 using f64 = double;
-using b8 = u8;
-using b32 = u32;
+using byte = u8;
 
+	
 
 
 

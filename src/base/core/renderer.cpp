@@ -17,9 +17,9 @@ void Renderer::EndFrame()
 	_renderAPI->EndFrame();
 }
 
-void Renderer::BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments)
+void Renderer::BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments, glm::vec4 clearColor)
 {
-	_renderAPI->BeginRender(attachments);
+	_renderAPI->BeginRender(attachments, clearColor);
 }
 
 void Renderer::EndRender()
@@ -36,6 +36,16 @@ void Renderer::ExecuteRecordedCommands()
 void Renderer::RenderMesh(const DrawCommand& command)
 {
 	_renderAPI->RenderMesh(command);
+}
+
+void Renderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
+{
+	_renderAPI->ExecuteBarriers(barriers);
+}
+
+void Renderer::RenderQuad(const DrawCommand& drawCommand)
+{
+	_renderAPI->RenderQuad(drawCommand);
 }
 
 

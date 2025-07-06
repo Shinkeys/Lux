@@ -9,41 +9,6 @@
 // Y is reverted in vulkan
 // Y is reverted in vulkan
 
-struct Vertex
-{
-	vec3 position;
-	vec3 normal;
-	vec3 tangent;
-	vec2 UV;
-
-	uint materialIndex;
-};
-
-layout(scalar, buffer_reference, buffer_reference_align = 4) buffer Vertices
-{
-	Vertex vertex[];
-};
-
-layout(scalar, buffer_reference, buffer_reference_align = 4) buffer UniformBuffer
-{
-	mat4 model;
-	mat4 view;
-	mat4 proj;
-};
-
-struct Material
-{
-	uint albedoID;
-	uint normalID;
-	uint metalRoughnessID;
-};
-
-layout(scalar, buffer_reference, buffer_reference_align = 4) buffer Materials
-{
-	Material materials[];
-};
-
-
 struct PointLight
 {
 	vec3 position;
@@ -57,32 +22,46 @@ layout(scalar, buffer_reference, buffer_reference_align = 4) buffer PointLights
 	PointLight pointLights[];
 };
 
-
-
-layout(push_constant) uniform buffersPtr
+layout(push_constant) uniform pushConst
 {
-	Vertices ptr;
-	UniformBuffer uniformPtr;
-	Materials materialsPtr;
 	PointLights lightsPtr;
+
+	uint positionTexIndex;
+	uint normalsTexIndex;
+	uint albedoTexIndex;
+	uint metallicRoughnessTexIndex;
+
 	uint pointLightsCount;
 };
 
+const vec3 vertices[] = 
+{
+  vec3(-1.0f, -1.0f, 0.0f),
+  vec3(1.0f, -1.0f, 0.0f),
+  vec3(1.0f, 1.0f, 0.0f),
+  vec3(1.0f, 1.0f, 0.0f),
+  vec3(-1.0f, 1.0f, 0.0f),
+  vec3(-1.0f, -1.0f, 0.0f)
+};
 
-layout(location = 0) out vec2 outUV;
-layout(location = 1) out flat uint outMaterialIndex;
-layout(location = 2) out vec3 outFragPos;
+const vec2 texCoords[] = 
+{
+	vec2(0.0f, 1.0f),
+    vec2(1.0f, 1.0f),
+    vec2(1.0f, 0.0f),
+    vec2(1.0f, 0.0f),
+    vec2(0.0f, 0.0f),
+    vec2(0.0f, 1.0f)
+};
+
+
+layout(location = 0) out vec4 outPosition;
+layout(location = 1) out vec2 outUV;
 
 void main()
-{ 
-	uint index = gl_VertexIndex;
-	vec3 position = ptr.vertex[index].position;
+{
+	outPosition = vec4(vertices[gl_VertexIndex], 1.0);
+	gl_Position = outPosition;
 
-
-
-	gl_Position = uniformPtr.proj * uniformPtr.view * uniformPtr.model * vec4(position.xyz, 1.0);
-
-	outUV = ptr.vertex[index].UV;
-	outMaterialIndex = ptr.vertex[index].materialIndex;
-	outFragPos = vec3(uniformPtr.model * vec4(position, 1.0));
+	outUV = texCoords[gl_VertexIndex];
 }

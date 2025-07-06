@@ -33,5 +33,4 @@ public:
 
 	void Cleanup();
 	void Initialize(Window& windowObj);
-	void Update();
 };

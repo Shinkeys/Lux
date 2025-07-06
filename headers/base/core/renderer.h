@@ -20,9 +20,12 @@ public:
 
 	static void BeginFrame();
 	static void EndFrame();
-	static void BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments);
+	static void BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments, glm::vec4 clearColor);
 	static void EndRender();
 	static void RenderMesh(const DrawCommand& command);
+	static void RenderQuad(const DrawCommand& drawCommand);
+	// WOULD FLUSH THIS STRUCTURE
+	static void ExecuteBarriers(PipelineBarrierStorage& barriers);
 
 
 	static void Cleanup();

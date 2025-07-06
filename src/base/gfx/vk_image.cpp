@@ -98,7 +98,8 @@ std::shared_ptr<ImageHandle> VulkanImage::LoadAndStoreImageFromFile(const fs::pa
 	VkImageCreateInfo createInfo = vkhelpers::CreateImageInfo(imgFormat, imageExtent, mipLevels, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
 
 	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	allocInfo.memoryTypeBits = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 	std::shared_ptr<ImageHandle> imgHandle = std::make_shared<ImageHandle>();
 
@@ -132,7 +133,8 @@ std::shared_ptr<ImageHandle> VulkanImage::CreateEmptyImage(const ImageSpecificat
 		spec.usage);
 
 	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	allocInfo.memoryTypeBits = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 	std::shared_ptr<ImageHandle> imgHandle = std::make_shared<ImageHandle>();
 
@@ -170,10 +172,9 @@ void VulkanImage::UpdateLayoutsToCopyData()
 		const auto& queueFront = _queueToChangeLayouts.front();
 
 		// image initially created with undefined layout
-		vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle->image, VK_IMAGE_LAYOUT_UNDEFINED, 
+		vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle, VK_IMAGE_LAYOUT_UNDEFINED, 
 			queueFront.newLayout, 0, VK_ACCESS_2_TRANSFER_WRITE_BIT, 
 			VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT, queueFront.aspect);
-
 
 		if (queueFront.stagingPair.has_value())
 		{
@@ -193,7 +194,7 @@ void VulkanImage::UpdateLayoutsToCopyData()
 				queueFront.imgHandle->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 			// Transit image again to make it readable for the shader
-			vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			vkhelpers::TransitionImageLayout(_frameObject.GetCommandBuffer(), queueFront.imgHandle, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 				VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_SHADER_READ_BIT,
 				VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT, queueFront.aspect);
 		}

@@ -48,7 +48,7 @@ namespace vkhelpers
 		return beginInfo;
 	}
 
-	void TransitionImageLayout(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout,
+	void TransitionImageLayout(VkCommandBuffer cmd, std::shared_ptr<ImageHandle> imgHandle , VkImageLayout currentLayout, VkImageLayout newLayout,
 			VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
 			VkImageAspectFlags aspectFlags)
 	{
@@ -63,7 +63,8 @@ namespace vkhelpers
 		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
-		barrier.image = image;
+		barrier.image = imgHandle->image;
+		imgHandle->currentLayout = newLayout;
 
 		barrier.subresourceRange =
 		{
@@ -97,5 +98,21 @@ namespace vkhelpers
 		
 
 		return imgCreateInfo;
+	}
+
+	void InsertMemoryBarrier(VkCommandBuffer cmd, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask)
+	{
+		VkMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
+		barrier.srcStageMask = srcStageMask;
+		barrier.dstStageMask = dstStageMask;
+		barrier.srcAccessMask = srcAccessMask;
+		barrier.dstAccessMask = dstAccessMask;
+
+		VkDependencyInfo dependencyInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+		dependencyInfo.dependencyFlags = 0;
+		dependencyInfo.memoryBarrierCount = 1;
+		dependencyInfo.pMemoryBarriers = &barrier;
+
+		vkCmdPipelineBarrier2(cmd, &dependencyInfo);
 	}
 }

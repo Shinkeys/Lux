@@ -147,6 +147,13 @@ void VulkanFrame::BeginCommandRecord()
 	VkCommandBufferBeginInfo beginInfo = vkhelpers::CmdBufferBeginInfo();
 
 	VK_CHECK(vkBeginCommandBuffer(cmdBuffer, &beginInfo));
+
+	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
+
+	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[_currentImage], VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+
 }
 
 void VulkanFrame::EndCommandRecord()
@@ -156,7 +163,7 @@ void VulkanFrame::EndCommandRecord()
 
 	assert(!swapchainDesc.images.empty() && "Vulkan swapchain images is empty in EndCommandRecord()");
 
-	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[_currentImage]->image, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[_currentImage], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
 		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 

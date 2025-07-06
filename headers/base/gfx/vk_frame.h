@@ -1,19 +1,6 @@
 #pragma once
 #include "vk_pipeline.h"
 
-
-// Vulkan draw COMMAND entity based. all those resources should be binded on ENTITY basis. Other resources independent of entity, but
-// dependent of scene should be bound with VulkanBindCommonResources
-struct LightPushConsts
-{
-	VkDeviceAddress verticesAddress{ 0 };
-	VkDeviceAddress uniformAddress{ 0 };
-	VkDeviceAddress materialAddress{ 0 };
-	VkDeviceAddress lightsAddress{ 0 };
-	u32 pointLightCount{ 0 };
-};
-
-
 struct Attachments
 {
 	std::vector<VkImage> images;

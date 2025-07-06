@@ -10,13 +10,25 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 	for (u32 i = 0; i < VulkanFrame::FramesInFlight; ++i)
 	{
 		constexpr i32 descriptorUsageCount = 1;
-		DescriptorInfo descInfo{};
-		descInfo.bindings.resize(descriptorUsageCount);
-		descInfo.bindings[0].binding = 0;
-		descInfo.bindings[0].descriptorCount = 1024; // BINDLESS. SPECIFY LATER
-		descInfo.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-		descInfo.bindings[0].stageFlags = VK_SHADER_STAGE_ALL; // bindless buffer of textures
-		_baseShadingDescriptorSets.emplace_back(vulkanBackend.GetDescriptorObj().CreateDescSet(descInfo));
+		{
+			DescriptorInfo baseShadingDescInfo{};
+			baseShadingDescInfo.bindings.resize(descriptorUsageCount);
+			baseShadingDescInfo.bindings[0].binding = 0;
+			baseShadingDescInfo.bindings[0].descriptorCount = 1024;
+			baseShadingDescInfo.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			baseShadingDescInfo.bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
+			_baseShadingDescriptorSets.emplace_back(vulkanBackend.GetDescriptorObj().CreateDescSet(baseShadingDescInfo));
+		}
+		
+		{
+			DescriptorInfo gBuffdescInfo{};
+			gBuffdescInfo.bindings.resize(descriptorUsageCount);
+			gBuffdescInfo.bindings[0].binding = 0;
+			gBuffdescInfo.bindings[0].descriptorCount = 1024;
+			gBuffdescInfo.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			gBuffdescInfo.bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
+			_gBuffDescriptorSets.emplace_back(vulkanBackend.GetDescriptorObj().CreateDescSet(gBuffdescInfo));
+		}
 	}
 
 
@@ -31,10 +43,12 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 	baseShadingPipeline.depthCompare = VK_COMPARE_OP_LESS;
 	baseShadingPipeline.depthWriteEnable = VK_TRUE;
 	baseShadingPipeline.depthTestEnable = VK_TRUE;
+	baseShadingPipeline.colorFormats = {VulkanPresentation::ColorFormat.format};
 
 	// other data is aight
-
 	_baseShadingPair = _vulkanBackend.GetPipelineObj().CreatePipeline(baseShadingPipeline);
+
+
 	_depthAttachments.resize(VulkanPresentation::PresentationImagesCount);
 	for (u32 i = 0; i < VulkanPresentation::PresentationImagesCount; ++i)
 	{
@@ -93,7 +107,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 
 	// Init G buffer
 	ImageSpecification imageSpec;
-	imageSpec.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	imageSpec.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	imageSpec.mipLevels = 1;
 	imageSpec.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
 	imageSpec.extent = { windowWidth, windowHeight, 1 };
@@ -104,9 +118,40 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 	_gBuffer.baseColor = imageManager.CreateEmptyImage(imageSpec);
 	_gBuffer.metallicRoughness = imageManager.CreateEmptyImage(imageSpec);
 
+	{
+		constexpr i32 pushConstBufferCount = 10; // uniform + vertexBuff + ssbo
+
+		GraphicsPipeline gBufferGraphicsPipeline;
+		gBufferGraphicsPipeline.shaderName = "g-pass";
+		gBufferGraphicsPipeline.cullMode = VK_CULL_MODE_BACK_BIT;
+		gBufferGraphicsPipeline.pushConstantSizeBytes = sizeof(VkDeviceAddress) * pushConstBufferCount; // 10 in advance, doesn't really affect anything.
+		gBufferGraphicsPipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() }; // Now only one descriptor layout, to DO
+		gBufferGraphicsPipeline.depthCompare = VK_COMPARE_OP_LESS;
+		gBufferGraphicsPipeline.depthWriteEnable = VK_TRUE;
+		gBufferGraphicsPipeline.depthTestEnable = VK_TRUE;
+		gBufferGraphicsPipeline.attachmentsCount = 4;
+		gBufferGraphicsPipeline.colorFormats = { VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8A8_SRGB };
+
+		// other data is aight
+
+		_gBufferPipeline = _vulkanBackend.GetPipelineObj().CreatePipeline(gBufferGraphicsPipeline);
+	}
+
+
+
 }
 
-
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
 
 void SceneRenderer::UpdateBuffers(const Entity& entity)
 {
@@ -133,14 +178,14 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 				vertexDesc.elementsCount = desc->vertexCount;
 				vertexDesc.bufferUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 				vertexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-				vertexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+				vertexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 				MeshIndexBufferCreateDesc indexDesc;
 				indexDesc.indicesPtr = desc->indicesPtr;
 				indexDesc.elementsCount = desc->indexCount;
 				indexDesc.bufferUsage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 				indexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-				indexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
+				indexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 				bufferManager.CreateMeshBuffers(vertexDesc, indexDesc, entity.GetID());
 			}
@@ -223,8 +268,9 @@ void SceneRenderer::Update()
 		assert(!images.empty() && "Images size is zero");
 		for (u32 i = 0; i < images.size(); ++i)
 		{
+			// G buffer desc set
 			DescriptorUpdate updateData;
-			updateData.set = _baseShadingDescriptorSets[descInd];
+			updateData.set = _gBuffDescriptorSets[descInd];
 			updateData.imgView = images[i]->imageView;
 			updateData.dstBinding = 0;
 			updateData.dstArrayElem = images[i]->index; // starting from 1, zero is null
@@ -233,6 +279,24 @@ void SceneRenderer::Update()
 
 			descriptorManager.UpdateBindlessDescriptorSet(updateData);
 		}
+
+		// Shading desc set
+		DescriptorUpdate shadingDescUpdate;
+		shadingDescUpdate.set = _baseShadingDescriptorSets[descInd];
+		shadingDescUpdate.imgView = _gBuffer.positions->imageView;
+		shadingDescUpdate.dstBinding = 0;
+		shadingDescUpdate.dstArrayElem = _gBuffer.positions->index;
+		shadingDescUpdate.sampler = _samplerLinear;
+		descriptorManager.UpdateBindlessDescriptorSet(shadingDescUpdate);
+		shadingDescUpdate.imgView = _gBuffer.normals->imageView;
+		shadingDescUpdate.dstArrayElem = _gBuffer.normals->index;
+		descriptorManager.UpdateBindlessDescriptorSet(shadingDescUpdate);
+		shadingDescUpdate.imgView = _gBuffer.baseColor->imageView;
+		shadingDescUpdate.dstArrayElem = _gBuffer.baseColor->index;
+		descriptorManager.UpdateBindlessDescriptorSet(shadingDescUpdate);
+		shadingDescUpdate.imgView = _gBuffer.metallicRoughness->imageView;
+		shadingDescUpdate.dstArrayElem = _gBuffer.metallicRoughness->index;
+		descriptorManager.UpdateBindlessDescriptorSet(shadingDescUpdate);
 	}
 
 	_currentColorAttachment = presentationManager.GetSwapchainDesc().images[frameManager.GetCurrentImageIndex()];
@@ -249,37 +313,112 @@ void SceneRenderer::Draw()
 	// THIS IS TEMPORARY SOLUTION. TO REWORK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	_vulkanBackend.GetImageObj().UpdateLayoutsToCopyData();
-	_vulkanBackend.GetDescriptorObj().UpdateSets();
+	PipelineBarrierStorage pipelineBarriers;
 
-	Renderer::BeginRender({ _currentColorAttachment, _currentDepthAttachment });
+	PipelineImageBarrierInfo preGbufferLayoutTransition;
+	preGbufferLayoutTransition.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	preGbufferLayoutTransition.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	preGbufferLayoutTransition.srcAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+	preGbufferLayoutTransition.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	preGbufferLayoutTransition.imgHandle = _gBuffer.positions;
+	preGbufferLayoutTransition.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	pipelineBarriers.imageBarriers.push_back(preGbufferLayoutTransition);
+	preGbufferLayoutTransition.imgHandle = _gBuffer.normals;
+	pipelineBarriers.imageBarriers.push_back(preGbufferLayoutTransition);
+	preGbufferLayoutTransition.imgHandle = _gBuffer.baseColor;
+	pipelineBarriers.imageBarriers.push_back(preGbufferLayoutTransition);
+	preGbufferLayoutTransition.imgHandle = _gBuffer.metallicRoughness;
+	pipelineBarriers.imageBarriers.push_back(preGbufferLayoutTransition);
 
-	for(const auto& command : _drawCommands)
+	Renderer::ExecuteBarriers(pipelineBarriers);
+
+	// GEOMETRY PASS
+	Renderer::BeginRender({ _gBuffer.positions, _gBuffer.normals, _gBuffer.baseColor, _gBuffer.metallicRoughness, _currentDepthAttachment }, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+	for (auto entity : _drawCommands)
 	{
-		auto& command = _drawCommands.front();
-		command.lightPushConstants.materialAddress = _baseMaterialsSSBO.address;
-		command.lightPushConstants.lightsAddress = _pointLightsBuffer.address;
-		command.lightPushConstants.pointLightCount = _pointLights.size();
-		Renderer::RenderMesh(command);
+		if (entity == nullptr)
+			continue;
 
+		const MeshBuffers* meshBuffers = bufferManager.GetMeshBuffers(entity->GetID());
+		assert(meshBuffers && "Mesh buffer for entity is empty");
+		const StorageBuffer* uniformBuffer = bufferManager.GetUniformBuffer(entity->GetID());
+		assert(meshBuffers && "Uniform buffer for entity is empty");
+
+		const MeshComponent* meshComp = entity->GetComponent<MeshComponent>();
+		if (meshComp != nullptr)
+		{
+			const u32 meshAssetIndex = meshComp->meshIndex;
+			if (meshAssetIndex == 0)
+				continue;
+
+			const VertexDescription* vertexDesc = AssetManager::Get()->GetVertexDesc(meshAssetIndex);
+			if (vertexDesc == nullptr)
+				continue;
+
+			GBufferPushConst* gBuffPushConst = new GBufferPushConst;
+			gBuffPushConst->vertexAddress = meshBuffers->GetDeviceAddress();
+			gBuffPushConst->uniformAddress = uniformBuffer->GetDeviceAddress();
+			gBuffPushConst->materialAddress = _baseMaterialsSSBO.address;
+						   
+			PushConsts pushConstants;
+			pushConstants.data = (byte*)gBuffPushConst;
+			pushConstants.size = sizeof(GBufferPushConst);
+
+			DrawCommand command;
+			command.descriptorSet = _gBuffDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
+			command.pushConstants = pushConstants;
+			command.indexCount = vertexDesc->indexCount;
+			command.indexBuffer = bufferManager.GetMeshBuffers(entity->GetID())->GetVkIndexBuffer();
+			command.pipeline = _gBufferPipeline.pipeline;
+			command.pipelineLayout = _gBufferPipeline.pipelineLayout;
+			Renderer::RenderMesh(command);
+		}
 	}
 	Renderer::EndRender();
 
+	PipelineImageBarrierInfo imageGBufferLightPassBarrier;
+	imageGBufferLightPassBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	imageGBufferLightPassBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	imageGBufferLightPassBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	imageGBufferLightPassBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
+	imageGBufferLightPassBarrier.imgHandle = _gBuffer.positions;
+	imageGBufferLightPassBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
+	imageGBufferLightPassBarrier.imgHandle = _gBuffer.normals;
+	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
+	imageGBufferLightPassBarrier.imgHandle = _gBuffer.baseColor;
+	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
+	imageGBufferLightPassBarrier.imgHandle = _gBuffer.metallicRoughness;
+	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
+
+	Renderer::ExecuteBarriers(pipelineBarriers);
+
+
+	LightPassPushConst* lightPassPushConst = new LightPassPushConst;
+	lightPassPushConst->lightAddress = _pointLightsBuffer.address;
+	lightPassPushConst->pointLightsCount = _pointLights.size();
+	lightPassPushConst->positionTextureIdx = _gBuffer.positions->index;
+	lightPassPushConst->normalsTextureIdx = _gBuffer.normals->index;
+	lightPassPushConst->baseColorTextureIdx = _gBuffer.baseColor->index;
+	lightPassPushConst->metallicRoughnessTextureIdx = _gBuffer.metallicRoughness->index;
+
+	PushConsts pushConstants;
+	pushConstants.data = (byte*)lightPassPushConst;
+	pushConstants.size = sizeof(LightPassPushConst);
+
+	// LIGHT PASS
+	DrawCommand quadDrawCommand;
+	quadDrawCommand.pipeline = _baseShadingPair.pipeline;
+	quadDrawCommand.pipelineLayout = _baseShadingPair.pipelineLayout;
+	quadDrawCommand.descriptorSet = _baseShadingDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
+	quadDrawCommand.pushConstants = pushConstants;
+
+	Renderer::BeginRender({ _currentColorAttachment, _currentDepthAttachment }, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+	Renderer::RenderQuad(quadDrawCommand);
+	Renderer::EndRender();
 
 	_drawCommands.clear();
 }
-
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-
 
 void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 {
@@ -288,32 +427,7 @@ void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 
 	UpdateBuffers(entity);
 
+	_drawCommands.push_back(&entity);
 
-	const MeshBuffers* meshBuffers = bufferManager.GetMeshBuffers(entity.GetID());
-	assert(meshBuffers && "Mesh buffer for entity is empty");
-	const StorageBuffer* uniformBuffer = bufferManager.GetUniformBuffer(entity.GetID());
-	assert(meshBuffers && "Uniform buffer for entity is empty");
-
-	const MeshComponent* meshComp = entity.GetComponent<MeshComponent>();
-	if (meshComp != nullptr)
-	{
-		const u32 meshAssetIndex = meshComp->meshIndex;
-		if (meshAssetIndex == 0)
-			return;
-
-		const VertexDescription* vertexDesc =  AssetManager::Get()->GetVertexDesc(meshAssetIndex);
-		if (vertexDesc == nullptr)
-			return;
-
-		DrawCommand command;
-		command.pipeline = _baseShadingPair.pipeline;
-		command.pipelineLayout = _baseShadingPair.pipelineLayout;
-		command.descriptorSet = _baseShadingDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
-		command.lightPushConstants.verticesAddress = meshBuffers->GetDeviceAddress();
-		command.lightPushConstants.uniformAddress = uniformBuffer->GetDeviceAddress();
-		command.indexCount = vertexDesc->indexCount;
-		command.indexBuffer = bufferManager.GetMeshBuffers(entity.GetID())->GetVkIndexBuffer();
-		_drawCommands.emplace_back(std::move(command));
-	}
 
 }

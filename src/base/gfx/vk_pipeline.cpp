@@ -140,11 +140,15 @@ PipelinePair VulkanPipeline::CreatePipeline(const GraphicsPipeline& graphicsPipe
 	colorBlendState.alphaBlendOp = VK_BLEND_OP_ADD;
 	colorBlendState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
+	std::vector< VkPipelineColorBlendAttachmentState> colorBlends;
+	for (u32 i = 0; i < graphicsPipeline.attachmentsCount; ++i)
+		colorBlends.push_back(colorBlendState);
+
 	VkPipelineColorBlendStateCreateInfo colorBlendInfo{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
 	colorBlendInfo.logicOpEnable = VK_FALSE;
 	colorBlendInfo.logicOp = VK_LOGIC_OP_COPY;
-	colorBlendInfo.attachmentCount = 1;
-	colorBlendInfo.pAttachments = &colorBlendState;
+	colorBlendInfo.attachmentCount = graphicsPipeline.attachmentsCount;
+	colorBlendInfo.pAttachments = colorBlends.data();
 	colorBlendInfo.blendConstants[0] = 0.0f;
 	colorBlendInfo.blendConstants[1] = 0.0f;
 	colorBlendInfo.blendConstants[2] = 0.0f;
@@ -172,8 +176,8 @@ PipelinePair VulkanPipeline::CreatePipeline(const GraphicsPipeline& graphicsPipe
 	Logger::Log("[PIPELINE] Created pipeline layout", pipelinePair.pipelineLayout, LogLevel::Debug);
 
 	VkPipelineRenderingCreateInfo pipelineRenderingInfo{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO }; // for dynamic rendering
-	pipelineRenderingInfo.colorAttachmentCount = 1;
-	pipelineRenderingInfo.pColorAttachmentFormats = &graphicsPipeline.colorFormat;
+	pipelineRenderingInfo.colorAttachmentCount = graphicsPipeline.attachmentsCount;
+	pipelineRenderingInfo.pColorAttachmentFormats = graphicsPipeline.colorFormats.data();
 	pipelineRenderingInfo.depthAttachmentFormat = graphicsPipeline.depthFormat;
 
 	// to do: VkPipelineDepthStencilStateCreateInfo 

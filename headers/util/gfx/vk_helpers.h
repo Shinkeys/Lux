@@ -24,9 +24,12 @@ namespace vkhelpers
 * @param srcStage The pipeline stage that must happen before the transition.
 * @param dstStage The pipeline stage that must happen after the transition.
 */
-	void TransitionImageLayout(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout,
+	void TransitionImageLayout(VkCommandBuffer cmd, std::shared_ptr<ImageHandle> imgHandle, VkImageLayout currentLayout, VkImageLayout newLayout,
 		VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
 		VkImageAspectFlags aspectFlags);
+
+	void InsertMemoryBarrier(VkCommandBuffer cmd, VkPipelineStageFlags2 srcStageMask, 
+		VkPipelineStageFlags2 dstStageMask, VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask);
 
 	VkImageCreateInfo CreateImageInfo(VkFormat imgFormat, VkExtent3D imgExtent, u32 mipLevels, VkImageUsageFlags usageFlags);
 }

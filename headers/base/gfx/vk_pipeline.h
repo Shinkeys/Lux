@@ -15,8 +15,10 @@ struct GraphicsPipeline
 	VkBool32 depthTestEnable{ VK_TRUE };
 	VkBool32 depthWriteEnable{ VK_TRUE };
 	VkCompareOp depthCompare{ VK_COMPARE_OP_GREATER };
-	VkFormat colorFormat{ VulkanPresentation::ColorFormat.format };
+	std::vector<VkFormat> colorFormats;
 	VkFormat depthFormat{ VK_FORMAT_D32_SFLOAT };
+
+	u32 attachmentsCount{ 1 };
 
 	std::vector<VkDescriptorSetLayout> descriptorLayouts;
 
@@ -25,8 +27,7 @@ struct GraphicsPipeline
 
 	bool operator==(const GraphicsPipeline& other) const
 	{
-		return shaderName == other.shaderName && colorFormat == other.colorFormat &&
-				cullMode == other.cullMode;
+		return shaderName == other.shaderName;
 	}
 };
 
@@ -36,10 +37,9 @@ struct std::hash<GraphicsPipeline>
 	size_t operator()(const GraphicsPipeline& pipeline) const noexcept
 	{
 		size_t h1 = std::hash<fs::path>{}(pipeline.shaderName); // since C++ 20
-		size_t h2 = std::hash<VkFormat>{}(pipeline.colorFormat);
-		size_t h3 = std::hash<VkCullModeFlagBits>{}(pipeline.cullMode); 
+		size_t h2 = std::hash<VkCullModeFlagBits>{}(pipeline.cullMode); 
 
-		return h1 ^ (h2 << 1) ^ (h3 << 2);
+		return h1 ^ (h2 << 1);
 	}
 };
 

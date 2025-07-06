@@ -32,11 +32,9 @@ private:
 
 	std::vector<VkDescriptorSetLayout> _layoutsToDestroy;
 
-	std::queue<DescriptorUpdate> _queueToWriteSets;
 public:
 	void UpdateBindlessDescriptorSet(const DescriptorUpdate& updateData);
 	VkDescriptorSetLayout GetBindlessDescriptorSetLayout() const { return _bindlessLayout; }
-	void UpdateSets();
 	DescriptorSet CreateDescSet(const DescriptorInfo& info);
 	VulkanDescriptor() = delete;
 	~VulkanDescriptor() = default;
