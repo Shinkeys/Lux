@@ -8,9 +8,9 @@ VulkanPipeline::VulkanPipeline(VulkanDevice& deviceObj, VulkanPresentation& pres
 }
 const PipelinePair* VulkanPipeline::GetPipelinePair(const GraphicsPipeline& graphicsPipeline) const
 {
-	auto it = _pipelinesCache.find(graphicsPipeline);
+	auto it = _graphicsCache.find(graphicsPipeline);
 
-	if (it == _pipelinesCache.end())
+	if (it == _graphicsCache.end())
 	{
 		Logger::CriticalLog("Can't find pipeline layout by passed graphics pipeline. Check call stack");
 		return nullptr;
@@ -21,7 +21,7 @@ const PipelinePair* VulkanPipeline::GetPipelinePair(const GraphicsPipeline& grap
 
 PipelinePair VulkanPipeline::CreatePipeline(const GraphicsPipeline& graphicsPipeline)
 {
-	if (auto it = _pipelinesCache.find(graphicsPipeline); it != _pipelinesCache.end())
+	if (auto it = _graphicsCache.find(graphicsPipeline); it != _graphicsCache.end())
 	{
 		return it->second;
 	}
@@ -213,7 +213,7 @@ PipelinePair VulkanPipeline::CreatePipeline(const GraphicsPipeline& graphicsPipe
 	Logger::Log("[PIPELINE] Created pipeline object", pipelinePair.pipeline, LogLevel::Debug);
 
 	// Store it in the storage
-	_pipelinesCache.insert({ graphicsPipeline, pipelinePair });
+	_graphicsCache.insert({ graphicsPipeline, pipelinePair });
 
 
 	vkDestroyShaderModule(device, vertShaderModule.value(), nullptr);
@@ -223,6 +223,76 @@ PipelinePair VulkanPipeline::CreatePipeline(const GraphicsPipeline& graphicsPipe
 
 	return pipelinePair;
 }
+
+	
+PipelinePair VulkanPipeline::CreatePipeline(const ComputePipeline& computePipeline)
+{
+	if (auto it = _computeCache.find(computePipeline); it != _computeCache.end())
+	{
+		return it->second;
+	}
+
+
+	const VkDevice device = _deviceObject.GetDevice();
+
+	fs::path computePath = computePipeline.shaderName;
+
+	computePath += ".comp.spv";
+
+	auto compShaderModule = vkhelpers::ReadShaderFile(computePath, device);
+
+	Logger::Log("Cannot create vertex shader module which is required in graphics pipeline", compShaderModule.has_value(), LogLevel::Fatal);
+
+
+	VkPipelineShaderStageCreateInfo shaderStageInfo{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+	shaderStageInfo.module = compShaderModule.value();
+	shaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	shaderStageInfo.pName = "main"; // enty point
+
+
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+	pipelineLayoutInfo.setLayoutCount = static_cast<u32>(computePipeline.descriptorLayouts.size());
+	pipelineLayoutInfo.pSetLayouts = computePipeline.descriptorLayouts.size() > 0 ? computePipeline.descriptorLayouts.data() : nullptr;
+
+	VkPushConstantRange pushConstant;
+	pushConstant.size = computePipeline.pushConstantSizeBytes;
+	pushConstant.offset = computePipeline.pushConstantOffset;
+	pushConstant.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+	if (computePipeline.pushConstantSizeBytes > 0)
+	{
+		pipelineLayoutInfo.pushConstantRangeCount = 1;
+		pipelineLayoutInfo.pPushConstantRanges = &pushConstant;
+	}
+
+	PipelinePair computePair;
+
+	VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &computePair.pipelineLayout));
+
+	Logger::Log("[PIPELINE] Created compute pipeline layout", computePair.pipelineLayout, LogLevel::Debug);
+
+
+
+	VkComputePipelineCreateInfo createInfo{ VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+	createInfo.stage = shaderStageInfo;
+	createInfo.layout = computePair.pipelineLayout;
+	createInfo.basePipelineHandle = nullptr;
+	createInfo.basePipelineIndex = -1;
+
+	VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &createInfo, nullptr, &computePair.pipeline));
+
+	Logger::Log("[PIPELINE] Created compute pipeline object", computePair.pipeline, LogLevel::Debug);
+
+	_computeCache.insert({ computePipeline, computePair });
+
+	vkDestroyShaderModule(device, compShaderModule.value(), nullptr);
+
+
+	return computePair;
+}
+
+
+
 
 void VulkanPipeline::SetDynamicStates(VkCommandBuffer cmdBuffer) const
 {
@@ -246,7 +316,13 @@ void VulkanPipeline::Cleanup()
 {
 	VkDevice device = _deviceObject.GetDevice();
 
-	for (const auto& pipelinePair : _pipelinesCache)
+	for (const auto& pipelinePair : _graphicsCache)
+	{
+		vkDestroyPipeline(device, pipelinePair.second.pipeline, nullptr);
+		vkDestroyPipelineLayout(device, pipelinePair.second.pipelineLayout, nullptr);
+	}
+
+	for (const auto& pipelinePair : _computeCache)
 	{
 		vkDestroyPipeline(device, pipelinePair.second.pipeline, nullptr);
 		vkDestroyPipelineLayout(device, pipelinePair.second.pipelineLayout, nullptr);

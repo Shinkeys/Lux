@@ -10,6 +10,12 @@ struct SSBOPair
 	i32 index{ -1 };
 };
 
+struct UBOPair
+{
+	VkDeviceAddress address{ 0 };
+	i32 index{ -1 };
+};
+
 class StorageBuffer;
 struct StagingPair
 {
@@ -25,7 +31,7 @@ enum class ImageUsage : u8
 {
 	USAGE_RENDER_TARGET,
 	USAGE_DEPTH_TARGET,
-
+	USAGE_STORAGE_BIT,
 };
 
 struct ImageHandle
@@ -36,6 +42,7 @@ struct ImageHandle
 	VmaAllocation allocation{ nullptr };
 	ImageUsage usage{ ImageUsage::USAGE_RENDER_TARGET };
 	VkImageLayout currentLayout{ VK_IMAGE_LAYOUT_UNDEFINED };
+	VkExtent2D extent{ 0, 0 };
 };
 
 struct LayoutsUpdateDesc

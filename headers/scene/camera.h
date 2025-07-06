@@ -3,6 +3,7 @@
 
 #include <glm/glm.hpp>
 
+
 class Window;
 class Camera
 {
@@ -28,6 +29,8 @@ private:
 	glm::vec3 _right;
 
 
+
+
 	void UpdateOnKeyboard(const Window& window);
 	void UpdateRotation(float yawOffset, float pitchOffset);
 	void CalculateMatrices();
@@ -37,6 +40,11 @@ public:
 	const glm::mat4& GetViewMatrix()           const { return _view; }
 	const glm::mat4& GetProjectionMatrix()     const { return _projection; }
 	const glm::mat4& GetViewProjectionMatrix() const { return _viewProjection; }
+	const glm::mat4& GetInverseProjection()    const { return glm::inverse(_projection); }
+	glm::vec3 GetPosition()                    const { return _position; }
+	float GetNearPlane()                       const { return _nearPlane; }
+	float GetFarPlane()                        const { return _farPlane; }
+	
 
 	void Update(const Window& window);
 	void LookAt(glm::vec3 at);

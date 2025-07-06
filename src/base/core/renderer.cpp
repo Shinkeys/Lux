@@ -43,6 +43,11 @@ void Renderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
 	_renderAPI->ExecuteBarriers(barriers);
 }
 
+void Renderer::DispatchCompute(const DispatchCommand& dispatchCommand)
+{
+	_renderAPI->DispatchCompute(dispatchCommand);
+}
+
 void Renderer::RenderQuad(const DrawCommand& drawCommand)
 {
 	_renderAPI->RenderQuad(drawCommand);

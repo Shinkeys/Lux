@@ -29,25 +29,17 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 			gBuffdescInfo.bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
 			_gBuffDescriptorSets.emplace_back(vulkanBackend.GetDescriptorObj().CreateDescSet(gBuffdescInfo));
 		}
+		
+		{
+			DescriptorInfo lightCullCompInfo{};
+			lightCullCompInfo.bindings.resize(descriptorUsageCount);
+			lightCullCompInfo.bindings[0].binding = 0;
+			lightCullCompInfo.bindings[0].descriptorCount = 1;
+			lightCullCompInfo.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+			lightCullCompInfo.bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+			_lightCullStructures.lightCullingDescriptorSets.emplace_back(vulkanBackend.GetDescriptorObj().CreateDescSet(lightCullCompInfo));
+		}
 	}
-
-
-
-	constexpr i32 pushConstBufferCount = 10; // uniform + vertexBuff + ssbo
-
-	GraphicsPipeline baseShadingPipeline;
-	baseShadingPipeline.shaderName = "shading";
-	baseShadingPipeline.cullMode = VK_CULL_MODE_BACK_BIT;
-	baseShadingPipeline.pushConstantSizeBytes = sizeof(VkDeviceAddress) * pushConstBufferCount;
-	baseShadingPipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() }; // Now only one descriptor layout, to DO
-	baseShadingPipeline.depthCompare = VK_COMPARE_OP_LESS;
-	baseShadingPipeline.depthWriteEnable = VK_TRUE;
-	baseShadingPipeline.depthTestEnable = VK_TRUE;
-	baseShadingPipeline.colorFormats = {VulkanPresentation::ColorFormat.format};
-
-	// other data is aight
-	_baseShadingPair = _vulkanBackend.GetPipelineObj().CreatePipeline(baseShadingPipeline);
-
 
 	_depthAttachments.resize(VulkanPresentation::PresentationImagesCount);
 	for (u32 i = 0; i < VulkanPresentation::PresentationImagesCount; ++i)
@@ -97,34 +89,82 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 	_pointLights.push_back(pointLight);
 	pointLight.position = glm::vec3(0.0f, 0.0f, -25.0f);
 	_pointLights.push_back(pointLight);
+
 	_pointLightsBuffer = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(sizeof(PointLight) * _pointLights.size());
 	_vulkanBackend.GetBufferObj().UpdateSSBOBuffer(_pointLights.data(), sizeof(PointLight) * _pointLights.size(), _pointLightsBuffer.index);
 
-	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
+
 	const u32 windowWidth = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.width;
 	const u32 windowHeight = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.height;
+	// Init light indices SSBO
+	{
+		glm::ivec3& numWorkGroups = _lightCullStructures.numWorkGroups;
+		numWorkGroups.x = std::ceil(windowWidth / 16);
+		numWorkGroups.y = std::ceil(windowHeight / 16);
+		numWorkGroups.z = 1;
 
+		u32& tilesPerScreen = _lightCullStructures.tilesPerScreen;
+		tilesPerScreen = static_cast<u32>(numWorkGroups.x * numWorkGroups.y * numWorkGroups.z);
+
+		_lightCullStructures.lightIndicesBuffer = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(sizeof(i32) 
+			* tilesPerScreen * _lightCullStructures.maxLightsPerCluster);
+		// It should be empty. Would be filled later
+	}
+
+	// Camera buffer
+	{
+		_viewDataBuffer = _vulkanBackend.GetBufferObj().CreateUniformBuffer(sizeof(ViewData));
+	}
+	
+
+	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
 
 	// Init G buffer
-	ImageSpecification imageSpec;
-	imageSpec.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-	imageSpec.mipLevels = 1;
-	imageSpec.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-	imageSpec.extent = { windowWidth, windowHeight, 1 };
-	imageSpec.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-	_gBuffer.positions = imageManager.CreateEmptyImage(imageSpec);
-	_gBuffer.normals = imageManager.CreateEmptyImage(imageSpec);
-	imageSpec.format = VK_FORMAT_R8G8B8A8_SRGB;
-	_gBuffer.baseColor = imageManager.CreateEmptyImage(imageSpec);
-	_gBuffer.metallicRoughness = imageManager.CreateEmptyImage(imageSpec);
+	{
+		ImageSpecification imageSpec;
+		imageSpec.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		imageSpec.mipLevels = 1;
+		imageSpec.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageSpec.extent = { windowWidth, windowHeight, 1 };
+		imageSpec.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+		_gBuffer.positions = imageManager.CreateEmptyImage(imageSpec);
+		_gBuffer.normals = imageManager.CreateEmptyImage(imageSpec);
+		imageSpec.format = VK_FORMAT_R8G8B8A8_SRGB;
+		_gBuffer.baseColor = imageManager.CreateEmptyImage(imageSpec);
+		_gBuffer.metallicRoughness = imageManager.CreateEmptyImage(imageSpec);
+	}
 
 	{
-		constexpr i32 pushConstBufferCount = 10; // uniform + vertexBuff + ssbo
+		ImageSpecification lightsGridImage;
+		lightsGridImage.usage = VK_IMAGE_USAGE_STORAGE_BIT;
+		lightsGridImage.mipLevels = 1;
+		lightsGridImage.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+		lightsGridImage.extent = { windowWidth, windowHeight, 1 };
+		lightsGridImage.format = VK_FORMAT_R32G32_UINT;
+		_lightCullStructures.lightsGrid = imageManager.CreateEmptyImage(lightsGridImage);
+	}
 
+
+	{
+		GraphicsPipeline baseShadingPipeline;
+		baseShadingPipeline.shaderName = "shading";
+		baseShadingPipeline.cullMode = VK_CULL_MODE_BACK_BIT;
+		baseShadingPipeline.pushConstantSizeBytes = sizeof(LightPassPushConst);
+		baseShadingPipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() }; // Now only one descriptor layout, to DO
+		baseShadingPipeline.depthCompare = VK_COMPARE_OP_LESS;
+		baseShadingPipeline.depthWriteEnable = VK_TRUE;
+		baseShadingPipeline.depthTestEnable = VK_TRUE;
+		baseShadingPipeline.colorFormats = { VulkanPresentation::ColorFormat.format };
+
+		// other data is aight
+		_baseShadingPipeline = _vulkanBackend.GetPipelineObj().CreatePipeline(baseShadingPipeline);
+	}
+
+	{
 		GraphicsPipeline gBufferGraphicsPipeline;
 		gBufferGraphicsPipeline.shaderName = "g-pass";
 		gBufferGraphicsPipeline.cullMode = VK_CULL_MODE_BACK_BIT;
-		gBufferGraphicsPipeline.pushConstantSizeBytes = sizeof(VkDeviceAddress) * pushConstBufferCount; // 10 in advance, doesn't really affect anything.
+		gBufferGraphicsPipeline.pushConstantSizeBytes = sizeof(GBufferPushConst);
 		gBufferGraphicsPipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() }; // Now only one descriptor layout, to DO
 		gBufferGraphicsPipeline.depthCompare = VK_COMPARE_OP_LESS;
 		gBufferGraphicsPipeline.depthWriteEnable = VK_TRUE;
@@ -137,6 +177,15 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 		_gBufferPipeline = _vulkanBackend.GetPipelineObj().CreatePipeline(gBufferGraphicsPipeline);
 	}
 
+
+	{
+		ComputePipeline lightCullingComputePipeline;
+		lightCullingComputePipeline.shaderName = "light-cull";
+		lightCullingComputePipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() };
+		lightCullingComputePipeline.pushConstantSizeBytes = sizeof(LightCullPushConst);
+
+		_lightCullStructures.lightCullingPipeline = _vulkanBackend.GetPipelineObj().CreatePipeline(lightCullingComputePipeline);
+	}
 
 
 }
@@ -206,36 +255,25 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 		meshComp->materialIndex = materialsStoreResult.materialID;
 	}
 
-	const bool isUniformCreated = bufferManager.GetUniformBuffer(entity.GetID()) != nullptr;
-	if (isUniformCreated)
+
+	if (_baseTransformationBuffer.index != -1)
 	{
-		const CameraComponent* comp = entity.GetComponent<CameraComponent>();
 		const TranslationComponent* transComp = entity.GetComponent<TranslationComponent>();
-		if (comp && comp->isActive)
-		{
-			glm::mat4 model = transComp ? GenerateModelMatrix(*transComp) : glm::mat4(1.0f);
-			UniformData uniform{};
-			uniform.view = comp->camera->GetViewMatrix();
-			uniform.proj = comp->camera->GetProjectionMatrix();
-			uniform.model = model;
-			bufferManager.UpdateUniformBuffer(&uniform, sizeof(UniformData), entity.GetID());
-		}
+		glm::mat4 model = transComp ? GenerateModelMatrix(*transComp) : glm::mat4(1.0f);
+		EntityUniformData uniform{};
+		uniform.model = model;
+		bufferManager.UpdateUniformBuffer(&uniform, sizeof(EntityUniformData), _baseTransformationBuffer.index);
+		
 	}
 	else // create
 	{
-		UniformData uniform{};
-		const CameraComponent* comp = entity.GetComponent<CameraComponent>();
+		EntityUniformData uniform{};
 		const TranslationComponent* transComp = entity.GetComponent<TranslationComponent>();
-		if (comp && comp->isActive)
-		{
-			glm::mat4 model = transComp ? GenerateModelMatrix(*transComp) : glm::mat4(1.0f);
-			uniform.view = comp->camera->GetViewMatrix();
-			uniform.proj = comp->camera->GetProjectionMatrix();
-			uniform.model = model;
-		}
+		glm::mat4 model = transComp ? GenerateModelMatrix(*transComp) : glm::mat4(1.0f);
+		uniform.model = model;
 
-		bufferManager.CreateUniformBuffer(static_cast<size_t>(sizeof(UniformData)), entity.GetID());
-		bufferManager.UpdateUniformBuffer(&uniform, static_cast<size_t>(sizeof(UniformData)), entity.GetID());
+		_baseTransformationBuffer = bufferManager.CreateUniformBuffer(static_cast<size_t>(sizeof(EntityUniformData)));
+		bufferManager.UpdateUniformBuffer(&uniform, static_cast<size_t>(sizeof(EntityUniformData)), _baseTransformationBuffer.index);
 	}
 }
 
@@ -250,17 +288,41 @@ glm::mat4 SceneRenderer::GenerateModelMatrix(const TranslationComponent& transla
 	return model;
 }
 
-void SceneRenderer::Update()
+void SceneRenderer::Update(const Camera& camera)
 {
-	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
-	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
-	VulkanDescriptor& descriptorManager = _vulkanBackend.GetDescriptorObj();
 	VulkanPresentation& presentationManager = _vulkanBackend.GetPresentationObj();
+	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
+
+
+	_currentColorAttachment = presentationManager.GetSwapchainDesc().images[frameManager.GetCurrentImageIndex()];
+	_currentDepthAttachment = _depthAttachments[frameManager.GetCurrentImageIndex()];
+
+	UpdateDescriptors();
 
 
 	const std::vector<MaterialTexturesDesc>& allMaterials = AssetManager::Get()->GetAllSceneMaterialsDesc();
 	bufferManager.UpdateSSBOBuffer(allMaterials.data(), allMaterials.size() * sizeof(MaterialTexturesDesc), _baseMaterialsSSBO.index);
+	
+	//// Camera data buffer
+	ViewData viewData;
+	viewData.proj = camera.GetProjectionMatrix();
+	viewData.view = camera.GetViewMatrix();
+	viewData.inverseProjection = camera.GetInverseProjection();
+	viewData.viewProj = camera.GetViewProjectionMatrix();
+	viewData.position = camera.GetPosition();
+	viewData.nearPlane = camera.GetNearPlane();
+	viewData.farPlane = camera.GetFarPlane();
+	viewData.viewportExt = { _currentColorAttachment->extent.width, _currentColorAttachment->extent.height };
+
+	bufferManager.UpdateUniformBuffer(&viewData, sizeof(ViewData), _viewDataBuffer.index);
+}
+
+void SceneRenderer::UpdateDescriptors()
+{
+	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
+	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
+	VulkanDescriptor& descriptorManager = _vulkanBackend.GetDescriptorObj();
 
 	for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
 	{
@@ -297,11 +359,15 @@ void SceneRenderer::Update()
 		shadingDescUpdate.imgView = _gBuffer.metallicRoughness->imageView;
 		shadingDescUpdate.dstArrayElem = _gBuffer.metallicRoughness->index;
 		descriptorManager.UpdateBindlessDescriptorSet(shadingDescUpdate);
-	}
 
-	_currentColorAttachment = presentationManager.GetSwapchainDesc().images[frameManager.GetCurrentImageIndex()];
-	_currentDepthAttachment = _depthAttachments[frameManager.GetCurrentImageIndex()];
-	
+
+		DescriptorUpdate lightCullDescUpdate;
+		lightCullDescUpdate.set = _lightCullStructures.lightCullingDescriptorSets[descInd];
+		lightCullDescUpdate.dstBinding = 0; // Only those are binded through desc set, so 0
+		lightCullDescUpdate.dstArrayElem = 0; // Only those are binded through desc set, so 0 
+		lightCullDescUpdate.imgView = _lightCullStructures.lightsGrid->imageView;
+		lightCullDescUpdate.sampler = _samplerLinear;
+	}
 }
 
 void SceneRenderer::Draw()
@@ -310,11 +376,47 @@ void SceneRenderer::Draw()
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// THIS IS TEMPORARY SOLUTION. TO REWORK!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//!!!!!!!!!!!!!!!!!! THIS IS TEMPORARY SOLUTION. TO REWORK !!!!!!!!!!!!!!!!!!!!!!
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	_vulkanBackend.GetImageObj().UpdateLayoutsToCopyData();
 	PipelineBarrierStorage pipelineBarriers;
 
+	//// Firsly dispatch comp. shader to fill lights buffer
+	LightCullPushConst* lightCullPushConst = new LightCullPushConst;
+	lightCullPushConst->lightsListAddress = _pointLightsBuffer.address;
+	lightCullPushConst->lightsCount = _pointLights.size();
+	lightCullPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer.address;
+	lightCullPushConst->cameraDataAddress = _viewDataBuffer.address;
+	lightCullPushConst->maxLightsPerCluster = _lightCullStructures.maxLightsPerCluster;
+
+	//PushConsts lightCullPushConstants;
+	//lightCullPushConstants.data = (byte*)lightCullPushConst;
+	//lightCullPushConstants.size = sizeof(LightCullPushConst);
+
+
+
+	//DispatchCommand lightCullDispatch;
+	//lightCullDispatch.pipeline = _lightCullStructures.lightCullingPipeline.pipeline;
+	//lightCullDispatch.pipelineLayout = _lightCullStructures.lightCullingPipeline.pipelineLayout;
+	//lightCullDispatch.descriptorSet = _lightCullStructures.lightCullingDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
+	//lightCullDispatch.pushConstants = lightCullPushConstants;
+	//lightCullDispatch.numWorkgroups = { _lightCullStructures.numWorkGroups };
+
+
+	//Renderer::DispatchCompute(lightCullDispatch);
+
+
+
+
+
+
+
+
+
+	
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//!!!!!!!!!!!!!!!!!!!!! TO DO: VULKAN ABSTRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	PipelineImageBarrierInfo preGbufferLayoutTransition;
 	preGbufferLayoutTransition.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 	preGbufferLayoutTransition.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -333,7 +435,9 @@ void SceneRenderer::Draw()
 	Renderer::ExecuteBarriers(pipelineBarriers);
 
 	// GEOMETRY PASS
-	Renderer::BeginRender({ _gBuffer.positions, _gBuffer.normals, _gBuffer.baseColor, _gBuffer.metallicRoughness, _currentDepthAttachment }, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+	Renderer::BeginRender({ _gBuffer.positions, _gBuffer.normals, _gBuffer.baseColor, _gBuffer.metallicRoughness, _currentDepthAttachment }, 
+		glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+
 	for (auto entity : _drawCommands)
 	{
 		if (entity == nullptr)
@@ -341,8 +445,6 @@ void SceneRenderer::Draw()
 
 		const MeshBuffers* meshBuffers = bufferManager.GetMeshBuffers(entity->GetID());
 		assert(meshBuffers && "Mesh buffer for entity is empty");
-		const StorageBuffer* uniformBuffer = bufferManager.GetUniformBuffer(entity->GetID());
-		assert(meshBuffers && "Uniform buffer for entity is empty");
 
 		const MeshComponent* meshComp = entity->GetComponent<MeshComponent>();
 		if (meshComp != nullptr)
@@ -357,8 +459,9 @@ void SceneRenderer::Draw()
 
 			GBufferPushConst* gBuffPushConst = new GBufferPushConst;
 			gBuffPushConst->vertexAddress = meshBuffers->GetDeviceAddress();
-			gBuffPushConst->uniformAddress = uniformBuffer->GetDeviceAddress();
+			gBuffPushConst->entityUniformAddress = _baseTransformationBuffer.address;
 			gBuffPushConst->materialAddress = _baseMaterialsSSBO.address;
+			gBuffPushConst->cameraDataAddress = _viewDataBuffer.address;
 						   
 			PushConsts pushConstants;
 			pushConstants.data = (byte*)gBuffPushConst;
@@ -408,8 +511,8 @@ void SceneRenderer::Draw()
 
 	// LIGHT PASS
 	DrawCommand quadDrawCommand;
-	quadDrawCommand.pipeline = _baseShadingPair.pipeline;
-	quadDrawCommand.pipelineLayout = _baseShadingPair.pipelineLayout;
+	quadDrawCommand.pipeline = _baseShadingPipeline.pipeline;
+	quadDrawCommand.pipelineLayout = _baseShadingPipeline.pipelineLayout;
 	quadDrawCommand.descriptorSet = _baseShadingDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
 	quadDrawCommand.pushConstants = pushConstants;
 

@@ -165,6 +165,19 @@ void VulkanRenderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
 
 }
 
+
+void VulkanRenderer::DispatchCompute(const DispatchCommand& dispatchCommand)
+{
+	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
+
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, dispatchCommand.pipeline);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, dispatchCommand.pipelineLayout, 0, 1, &dispatchCommand.descriptorSet, 0, nullptr);
+	vkCmdPushConstants(cmdBuffer, dispatchCommand.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, dispatchCommand.pushConstants.size, dispatchCommand.pushConstants.data);
+	vkCmdDispatch(cmdBuffer, dispatchCommand.numWorkgroups.x, dispatchCommand.numWorkgroups.y, dispatchCommand.numWorkgroups.z);
+
+	delete[] dispatchCommand.pushConstants.data;
+}
+
 void VulkanRenderer::EndRender()
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();

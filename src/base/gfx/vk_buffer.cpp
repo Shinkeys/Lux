@@ -125,15 +125,24 @@ void VulkanBuffer::Cleanup()
 	}
 }
 
-StorageBuffer& VulkanBuffer::CreateUniformBuffer(size_t size, EntityIndex handleIndex)
+UBOPair VulkanBuffer::CreateUniformBuffer(size_t size)
 {
 	StorageBuffer uniformBuffers(_allocatorObj.GetAllocatorHandle());
 
 	uniformBuffers.CreateBuffer(_deviceObj.GetDevice(), size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-	// Copy constructors are not allowed in mesh buffers
-	auto it = _uniformBuffers.emplace(handleIndex, std::move(uniformBuffers));
 
-	return it.first->second;
+	const i32 availableIndex = _uniformBufferAvailableIndex;
+	++_uniformBufferAvailableIndex;
+
+
+	auto it = _uniformBuffers.emplace(availableIndex, std::move(uniformBuffers));
+	
+
+	UBOPair pair;
+	pair.address = it.first->second.GetDeviceAddress();
+	pair.index = availableIndex;
+
+	return pair;
 }
 
 
@@ -268,6 +277,8 @@ void StorageBuffer::CreateBuffer(VkDevice device, size_t size, VkBufferUsageFlag
 
 void StorageBuffer::Cleanup()
 {
-	vmaUnmapMemory(_allocator, _allocation);
+	if(_mappedData != nullptr)
+		vmaUnmapMemory(_allocator, _allocation);
+
 	vmaDestroyBuffer(_allocator, _buffer, _allocation);
 }

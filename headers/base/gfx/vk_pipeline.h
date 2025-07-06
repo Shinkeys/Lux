@@ -31,6 +31,24 @@ struct GraphicsPipeline
 	}
 };
 
+
+struct ComputePipeline
+{
+	std::filesystem::path shaderName{};
+
+
+	std::vector<VkDescriptorSetLayout> descriptorLayouts;
+
+	u32 pushConstantSizeBytes{ 0 };
+	u32 pushConstantOffset{ 0 };
+
+	bool operator==(const ComputePipeline& other) const
+	{
+		return shaderName == other.shaderName;
+	}
+};
+
+
 template <> 
 struct std::hash<GraphicsPipeline>
 {
@@ -42,6 +60,19 @@ struct std::hash<GraphicsPipeline>
 		return h1 ^ (h2 << 1);
 	}
 };
+
+template<>
+struct std::hash<ComputePipeline>
+{
+	size_t operator()(const ComputePipeline& pipeline) const noexcept
+	{
+		size_t h1 = std::hash<fs::path>{}(pipeline.shaderName); // since C++ 20
+		size_t h2 = std::hash<u32>{}(pipeline.pushConstantSizeBytes);
+
+		return h1 ^ (h2 << 1);
+	}
+};
+
 
 struct PipelinePair
 {
@@ -57,9 +88,11 @@ private:
 	VulkanPresentation& _presentationObject;
 
 	// To do. for uniforms
-	std::unordered_map<GraphicsPipeline, PipelinePair> _pipelinesCache;
+	std::unordered_map<GraphicsPipeline, PipelinePair> _graphicsCache;
+	std::unordered_map<ComputePipeline, PipelinePair>  _computeCache;
 public:
 	PipelinePair CreatePipeline(const GraphicsPipeline& graphicsPipeline);
+	PipelinePair CreatePipeline(const ComputePipeline& computePipeline);
 	void SetDynamicStates(VkCommandBuffer cmdBuffer) const;
 	const PipelinePair* GetPipelinePair(const GraphicsPipeline& graphicsPipeline) const;
 

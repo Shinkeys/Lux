@@ -57,7 +57,7 @@ const vec2 texCoords[] =
 
 layout(location = 0) out vec4 outPosition;
 layout(location = 1) out vec2 outUV;
-
+			
 void main()
 {
 	outPosition = vec4(vertices[gl_VertexIndex], 1.0);

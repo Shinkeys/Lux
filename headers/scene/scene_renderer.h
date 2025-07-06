@@ -4,11 +4,9 @@
 #include "lights.h"
 
 // TO replace
-struct UniformData
+struct EntityUniformData
 {
 	glm::mat4 model = glm::mat4(1.0f);
-	glm::mat4 view  = glm::mat4(1.0f);
-	glm::mat4 proj  = glm::mat4(1.0f);
 };
 
 struct RenderData
@@ -29,10 +27,21 @@ struct GBuffer
 struct GBufferPushConst
 {
 	VkDeviceAddress vertexAddress{ 0 };
-	VkDeviceAddress uniformAddress{ 0 };
+	VkDeviceAddress entityUniformAddress{ 0 };
 	VkDeviceAddress materialAddress{ 0 };
+	VkDeviceAddress cameraDataAddress{ 0 };
 };
 
+// Totally fine, would fit in 128 bytes easily.
+struct LightCullPushConst
+{
+	VkDeviceAddress lightsListAddress{ 0 };
+	VkDeviceAddress lightsIndicesAddress{ 0 };
+	VkDeviceAddress cameraDataAddress{ 0 };
+
+	u32 maxLightsPerCluster{ 0 };
+	u32 lightsCount{ 0 };
+};
 
 struct LightPassPushConst
 {
@@ -44,19 +53,52 @@ struct LightPassPushConst
 	u32 pointLightsCount{ 0 };
 };
 
+
+struct LightCullingStructures
+{
+	std::vector<DescriptorSet> lightCullingDescriptorSets{};
+	PipelinePair  lightCullingPipeline{};
+
+	std::shared_ptr<ImageHandle> lightsGrid;
+	SSBOPair lightIndicesBuffer{};
+
+	glm::ivec3 numWorkGroups{ glm::ivec3(0) };
+	u32 tilesPerScreen{ 0 }; // WOULD BE NUM WORK GROUPS.X * Y * Z
+
+	const u32 maxLightsPerCluster{ 64 };
+};
+
+struct ViewData
+{
+	glm::mat4 view{ glm::mat4(1.0f) };
+	glm::mat4 proj{ glm::mat4(1.0f) };
+	glm::mat4 viewProj{ glm::mat4(1.0f) };
+	glm::mat4 inverseProjection{ glm::mat4(1.0f) };
+	glm::vec3 position{ glm::vec3(0.0f) };
+
+
+	glm::ivec2 viewportExt{ glm::ivec2(0) }; 
+	float nearPlane{ 0.0f };
+	float farPlane{ 0.0f };
+};
+
+
 class Entity;
 class SceneRenderer
 {
 private:
 	VulkanBase& _vulkanBackend;
-	PipelinePair _baseShadingPair;
+	PipelinePair _baseShadingPipeline;
+	PipelinePair _gBufferPipeline;
+
 	std::vector<DescriptorSet> _gBuffDescriptorSets;
 	std::vector<DescriptorSet> _baseShadingDescriptorSets;
+
+	LightCullingStructures _lightCullStructures;
+
 	SSBOPair _baseMaterialsSSBO;
 	VkSampler _samplerLinear{ VK_NULL_HANDLE };
 
-	using EntityID = u32;
-	glm::mat4 GenerateModelMatrix(const TranslationComponent& translationComp);
 
 	std::vector<const Entity*> _drawCommands;
 
@@ -71,8 +113,12 @@ private:
 	SSBOPair _pointLightsBuffer;
 
 	GBuffer _gBuffer;
-	PipelinePair _gBufferPipeline;
 
+	UBOPair _viewDataBuffer;
+	UBOPair _baseTransformationBuffer;
+
+	glm::mat4 GenerateModelMatrix(const TranslationComponent& translationComp);
+	void UpdateDescriptors();
 public:
 	/**
 	* @brief Pass the objects which would LIVE after the submission
@@ -82,7 +128,7 @@ public:
 	void UpdateBuffers(const Entity& entity);
 	//template<typename T>
 	//void SubmitDataToBind();
-	void Update();
+	void Update(const Camera& camera);
 	void Draw();
 
 	SceneRenderer() = delete;

@@ -193,6 +193,7 @@ private:
 
 	i32 _stagingBufferAvailableIndex{ 1 };
 	i32 _ssboBufferAvailableIndex{ 1 };
+	i32 _uniformBufferAvailableIndex{ 1 };
 	std::unordered_map<BufferIndex, StorageBuffer> _ssboBuffers;
 	std::unordered_map<BufferIndex, StorageBuffer> _stagingBuffers;
 public:
@@ -202,9 +203,9 @@ public:
 	const MeshBuffers* GetMeshBuffers(EntityIndex handleIndex) const;
 	
 	// Uniform
-	StorageBuffer& CreateUniformBuffer(size_t size, EntityIndex handleIndex);
+	UBOPair CreateUniformBuffer(size_t size);
 	template<typename T>
-	void UpdateUniformBuffer(const T* data, size_t size, EntityIndex handleIndex);
+	void UpdateUniformBuffer(const T* data, size_t size, BufferIndex handleIndex);
 	const StorageBuffer* GetUniformBuffer(EntityIndex handleIndex) const;
 
 	// SSBO
@@ -245,7 +246,7 @@ void VulkanBuffer::UpdateSSBOBuffer(const T* data, size_t size, BufferIndex hand
 
 
 template<typename T>
-void VulkanBuffer::UpdateUniformBuffer(const T* data, size_t size, EntityIndex handleIndex)
+void VulkanBuffer::UpdateUniformBuffer(const T* data, size_t size, BufferIndex handleIndex)
 {
 	auto it = _uniformBuffers.find(handleIndex);
 

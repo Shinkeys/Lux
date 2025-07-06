@@ -118,6 +118,8 @@ std::shared_ptr<ImageHandle> VulkanImage::LoadAndStoreImageFromFile(const fs::pa
 	layoutsUpdateDesc.imgHandle = imgHandle;
 	layoutsUpdateDesc.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
+	imgHandle->extent = { imageExtent.width, imageExtent.height };
+
 
 	_queueToChangeLayouts.push(layoutsUpdateDesc);
 	
@@ -156,7 +158,12 @@ std::shared_ptr<ImageHandle> VulkanImage::CreateEmptyImage(const ImageSpecificat
 		imgHandle->usage = ImageUsage::USAGE_RENDER_TARGET;
 	else if (spec.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
 		imgHandle->usage = ImageUsage::USAGE_DEPTH_TARGET;
+	else if (spec.usage & VK_IMAGE_USAGE_STORAGE_BIT)
+		imgHandle->usage = ImageUsage::USAGE_STORAGE_BIT;
 	else assert(false && "Implement other types of image usage in it's creation");
+
+
+	imgHandle->extent = { spec.extent.width, spec.extent.height };
 
 
 	_allCreatedImagesStorage.push_back(imgHandle);
