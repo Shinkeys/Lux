@@ -20,11 +20,9 @@ layout(scalar, buffer_reference, buffer_reference_align = 4) buffer Vertices
 	Vertex vertex[];
 };
 
-layout(scalar, buffer_reference, buffer_reference_align = 4) buffer UniformBuffer
+layout(scalar, buffer_reference, buffer_reference_align = 4) buffer EntityUniformBuffer
 {
 	mat4 model;
-	mat4 view;
-	mat4 proj;
 };
 
 struct Material
@@ -53,13 +51,31 @@ layout(scalar, buffer_reference, buffer_reference_align = 4) buffer PointLights
 	PointLight pointLights[];
 };
 
+struct ViewData
+{
+	mat4 view;
+	mat4 proj;
+	mat4 viewProj;
+	mat4 inverseProjection;
+	vec3 position;
+
+	ivec2 extent;
+	float nearPlane;
+	float farPlane;
+};
+
+layout(scalar, buffer_reference, buffer_reference_align = 4) buffer ViewDataBuffer
+{
+	ViewData viewData;
+};
 
 
 layout(push_constant) uniform pushConst
 {
 	Vertices ptr;
-	UniformBuffer uniformPtr;
+	EntityUniformBuffer uniformPtr;
 	Materials materialsPtr;
+	ViewDataBuffer viewDataPtr;
 };
 
 // IN

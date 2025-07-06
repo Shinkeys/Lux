@@ -6,7 +6,7 @@
 struct ImageSpecification
 {
 	VkFormat format{ VulkanPresentation::ColorFormat.format };
-	VkExtent3D extent{ 0, 0 };
+	VkExtent3D extent{ 0, 0, 0 };
 	VkImageUsageFlags usage{ VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT };
 	VkImageLayout newLayout{ VK_IMAGE_LAYOUT_UNDEFINED };
 	VkImageAspectFlags aspect{ VK_IMAGE_ASPECT_COLOR_BIT };

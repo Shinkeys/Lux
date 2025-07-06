@@ -21,6 +21,15 @@ struct DrawCommand
 	u32 indexCount{ 0 };
 };
 
+struct DispatchCommand
+{
+	glm::ivec3 numWorkgroups{ 0 };
+
+	VkDescriptorSet descriptorSet{ VK_NULL_HANDLE };
+	VkPipeline pipeline{ VK_NULL_HANDLE };
+	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
+	PushConsts pushConstants{};
+};
 
 // Basic class from which renderer would inherit.
 class RendererAPI
@@ -36,6 +45,7 @@ public:
 	virtual void RenderMesh(const DrawCommand& drawCommand) = 0;
 	virtual void RenderQuad(const DrawCommand& drawCommand) = 0;
 	virtual void ExecuteBarriers(PipelineBarrierStorage& barriers) = 0;
+	virtual void DispatchCompute(const DispatchCommand& dispatchCommand) = 0;
 
 	virtual ~RendererAPI() = default;
 

@@ -26,6 +26,7 @@ public:
 	static void RenderQuad(const DrawCommand& drawCommand);
 	// WOULD FLUSH THIS STRUCTURE
 	static void ExecuteBarriers(PipelineBarrierStorage& barriers);
+	static void DispatchCompute(const DispatchCommand& dispatchCommand);
 
 
 	static void Cleanup();

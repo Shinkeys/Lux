@@ -20,6 +20,7 @@ private:
 
 	void ExecuteCurrentCommands() override;
 	void ExecuteBarriers(PipelineBarrierStorage& barriers) override;
+	void DispatchCompute(const DispatchCommand& dispatchCommand) override;
 
 public:
 

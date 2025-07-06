@@ -6,7 +6,7 @@ project (Lux)
 
 
 # Collecting all headers/cpp/glsl files
-file(GLOB_RECURSE GLSL_SOURCE_FILES "resources/shaders/*.vert" "resources/shaders/*.frag")
+file(GLOB_RECURSE GLSL_SOURCE_FILES "resources/shaders/*.vert" "resources/shaders/*.frag" "resources/shaders/*.comp")
 file(GLOB_RECURSE HEADER_FILES "headers/*.h")
 file(GLOB_RECURSE CPP_SOURCE_FILES "src/*.cpp")
 

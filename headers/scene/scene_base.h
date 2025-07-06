@@ -26,6 +26,7 @@ public:
 	//const auto& GetRegistry() const { return _entityRegistry; }
 	ComponentList* GetComponentListByEntity(const Entity& entity);
 
+	const Camera& GetCamera() const { assert(_camera && "Camera is nullptr somehow"); return *_camera; }
 	void Update();
 	void UpdateWithKeys(const Window& window);
 
