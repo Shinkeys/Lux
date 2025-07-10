@@ -75,16 +75,19 @@ void VulkanRenderer::BeginRender(const std::vector<Image*>& attachments, glm::ve
 				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 				VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
 				VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-				VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-				VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, 
+				VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT,
+				VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
 				vkconversions::ToVkAspectFlags(attachment->GetSpecification().aspect));
+
+			rawImage->SetCurrentLayout(ImageLayout::IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+
 
 			VkClearValue clearColor{ {0.0f, 0.0f, 0.0f, 1.0f} };
 
 			VkRenderingAttachmentInfo colorAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
 			colorAttachment.imageView = rawImage->GetRawView();
 			colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachment.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 			colorAttachment.clearValue = clearColor;
 
@@ -180,6 +183,8 @@ void VulkanRenderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
+	std::vector<VkImageMemoryBarrier2> imageBarriers;
+	std::vector<VkMemoryBarrier2> memoryBarriers;
 	for (const auto& barrierSpecification : barriers.memoryBarriers)
 	{
 		VkAccessFlags srcAccess = vkconversions::ToVkAccessFlags2(barrierSpecification.srcAccessMask);
@@ -189,7 +194,13 @@ void VulkanRenderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
 		VkPipelineStageFlags2 dstStage = vkconversions::ToVkPipelineStageFlags2(barrierSpecification.dstStageMask);
 
 
-		vkhelpers::InsertMemoryBarrier(cmdBuffer, srcStage, dstStage, srcAccess, dstAccess);
+		VkMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_MEMORY_BARRIER_2 };
+		barrier.srcStageMask = srcStage;
+		barrier.dstStageMask = dstStage;
+		barrier.srcAccessMask = srcAccess;
+		barrier.dstAccessMask = dstAccess;
+
+		memoryBarriers.push_back(barrier);
 	}
 
 	for (auto& barrierSpecification : barriers.imageBarriers)
@@ -228,17 +239,24 @@ void VulkanRenderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
 			.layerCount = 1
 		};
 
-		VkDependencyInfo dependencyInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-		dependencyInfo.dependencyFlags = 0;
-		dependencyInfo.imageMemoryBarrierCount = 1;
-		dependencyInfo.pImageMemoryBarriers = &barrier;
+		rawImage->SetCurrentLayout(barrierSpecification.newLayout);
 
-		vkCmdPipelineBarrier2(cmdBuffer, &dependencyInfo);
+		imageBarriers.push_back(barrier);
 	}
+	VkDependencyInfo dependencyInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	dependencyInfo.dependencyFlags = 0;
+
+	dependencyInfo.imageMemoryBarrierCount = static_cast<u32>(imageBarriers.size());
+	dependencyInfo.pImageMemoryBarriers = imageBarriers.empty() ? nullptr : imageBarriers.data();
+
+	dependencyInfo.memoryBarrierCount = static_cast<u32>(memoryBarriers.size());
+	dependencyInfo.pMemoryBarriers = memoryBarriers.empty() ? nullptr : memoryBarriers.data();
+
+	vkCmdPipelineBarrier2(cmdBuffer, &dependencyInfo);
+
 
 	barriers.imageBarriers.clear();
 	barriers.memoryBarriers.clear();
-
 }
 
 

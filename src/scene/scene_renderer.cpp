@@ -500,6 +500,16 @@ void SceneRenderer::Draw()
 	imageGBufferLightPassBarrier.image = _gBuffer.metallicRoughness.get();
 	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
 
+	//imageGBufferLightPassBarrier.srcStageMask = PipelineStage::COMPUTE_SHADER;
+	//imageGBufferLightPassBarrier.dstStageMask = PipelineStage::FRAGMENT_SHADER;
+	//imageGBufferLightPassBarrier.srcAccessMask = AccessFlag::SHADER_WRITE;
+	//imageGBufferLightPassBarrier.dstAccessMask = AccessFlag::SHADER_READ;
+	//imageGBufferLightPassBarrier.newLayout = ImageLayout::IMAGE_LAYOUT_GENERAL; // STORAGE IMAGE SHOULD BE IN THE GENERAL LAYOUT
+	//imageGBufferLightPassBarrier.image = _lightCullStructures.lightsGrid.get();
+
+	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
+
+
 	Renderer::ExecuteBarriers(pipelineBarriers);
 
 

@@ -39,6 +39,8 @@ public:
 	virtual void SetLayout(ImageLayout newLayout, AccessFlag srcAccess, AccessFlag dstAccess, PipelineStage srcStage, PipelineStage dstStage) = 0;
 
 	virtual const ImageSpecification& GetSpecification() const = 0;
+
+	virtual void SetCurrentLayout(ImageLayout layout) = 0;
 };
 
 

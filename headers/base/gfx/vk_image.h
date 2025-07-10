@@ -58,6 +58,7 @@ public:
 
 
 	void SetLayout(ImageLayout newLayout, AccessFlag srcAccess, AccessFlag dstAccess, PipelineStage srcStage, PipelineStage dstStage) override;
+	void SetCurrentLayout(ImageLayout layout) override { _specification.layout = layout; }
 
 	VkImageView GetRawView()  const { return _imageView; }
 	VkImage     GetRawImage() const { return _image; }

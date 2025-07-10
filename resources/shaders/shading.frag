@@ -121,18 +121,18 @@ void main()
 	uint  startIndex = lightsDataInTile.x;
 	uint  lightsCount = lightsDataInTile.y;
 
-	vec3 lightingResult = albedoColor * 0.1;
+	//vec3 lightingResult = albedoColor * 0.1;
+	//
+	//for(uint i = startIndex; i < lightsCount; ++i)
+	//{
+	//	PointLight pointLight = lightsPtr.pointLights[i];
+	//
+	//	LightCalculation calcResult = CalculateLight(pointLight, positions, normals);
+	//
+	//	albedoColor = calcResult.albedo;
+	//
+	//	lightingResult += albedoColor;
+	//}
 
-	for(uint i = startIndex; i < lightsCount; ++i)
-	{
-		PointLight pointLight = lightsPtr.pointLights[i];
-
-		LightCalculation calcResult = CalculateLight(pointLight, positions, normals);
-
-		albedoColor = calcResult.albedo;
-
-		lightingResult += albedoColor;
-	}
-
-	FragColor = vec4(lightingResult, 1.0);
+	FragColor = vec4(albedoColor * 0.1, 1.0);
 }
