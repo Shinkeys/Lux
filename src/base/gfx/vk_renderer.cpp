@@ -1,5 +1,6 @@
 #include "../../../headers/base/gfx/vk_renderer.h"
 #include "../../../headers/util/gfx/vk_helpers.h"
+#include "../../../headers/base/core/pipeline_types.h"
 
 VulkanRenderer::VulkanRenderer(VulkanBase& vulkanBase) : _vulkanBase{ vulkanBase }
 {
@@ -50,7 +51,7 @@ void VulkanRenderer::ExecuteCurrentCommands()
 	VK_CHECK(vkQueueSubmit(graphicsQueue.value(), 1, &submitInfo, _vulkanBase.GetFrameObj().GetFence()));
 }
 
-void VulkanRenderer::BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments, glm::vec4 clearColor)
+void VulkanRenderer::BeginRender(const std::vector<Image*>& attachments, glm::vec4 clearColor)
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 	const VulkanSwapchain& swapchainDesc = _vulkanBase.GetPresentationObj().GetSwapchainDesc();
@@ -61,21 +62,27 @@ void VulkanRenderer::BeginRender(const std::vector<std::shared_ptr<ImageHandle>>
 	for (auto attachment : attachments)
 	{
 
-		if (attachment->usage == ImageUsage::USAGE_RENDER_TARGET)
+		if (attachment->GetSpecification().usage & ImageUsage::IMAGE_USAGE_COLOR_ATTACHMENT)
 		{
+			VulkanImage* rawImage = static_cast<VulkanImage*>(attachment);
+
+			assert(rawImage && "Raw vulkan image is nullptr in the BeginRender(), color attachment part");
+
 			// Dynamic rendering requires layout transitions. access mask is the first layer of synchronization while stage is the second layer.
 			// looks like the first one is what you need to protect in the memory and the second one when to finish this, in this case fragment shader output
-			VkImageLayout newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
-			vkhelpers::TransitionImageLayout(cmdBuffer, attachment, attachment->currentLayout, newLayout,
-				VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-				VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
-
+			vkhelpers::TransitionImageLayout(cmdBuffer, rawImage->GetRawImage(),
+				vkconversions::ToVkImageLayout(attachment->GetSpecification().layout),
+				VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+				VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT,
+				VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+				VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+				VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, 
+				vkconversions::ToVkAspectFlags(attachment->GetSpecification().aspect));
 
 			VkClearValue clearColor{ {0.0f, 0.0f, 0.0f, 1.0f} };
 
 			VkRenderingAttachmentInfo colorAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-			colorAttachment.imageView = attachment->imageView;
+			colorAttachment.imageView = rawImage->GetRawView();
 			colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 			colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -84,14 +91,14 @@ void VulkanRenderer::BeginRender(const std::vector<std::shared_ptr<ImageHandle>>
 
 			colorAttachments.push_back(colorAttachment);
 		}
-		else if (attachment->usage == ImageUsage::USAGE_DEPTH_TARGET)
+		else if (attachment->GetSpecification().usage & ImageUsage::IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT)
 		{
-			vkhelpers::TransitionImageLayout(cmdBuffer, attachment, attachment->currentLayout, VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-				VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT,
-				VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT, VK_IMAGE_ASPECT_DEPTH_BIT);
+			VulkanImage* rawImage = static_cast<VulkanImage*>(attachment);
+
+			assert(rawImage && "Raw vulkan image is nullptr in the BeginRender(), depth stencil attachment part");
 
 			VkRenderingAttachmentInfo depthAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
-			depthAttachment.imageView = attachment->imageView;
+			depthAttachment.imageView = rawImage->GetRawView();
 			depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 
 			if (clearColor.w != 0.0f)
@@ -119,7 +126,23 @@ void VulkanRenderer::BeginRender(const std::vector<std::shared_ptr<ImageHandle>>
 	renderingInfo.pColorAttachments = colorAttachments.data();
 	renderingInfo.pDepthAttachment = depthAttachments.empty() ? nullptr : depthAttachments.data();
 
-	_vulkanBase.GetPipelineObj().SetDynamicStates(cmdBuffer);
+	VkExtent2D swapchainExtent = _vulkanBase.GetPresentationObj().GetSwapchainDesc().extent;
+	// Dynamic states
+	VkViewport viewport{};
+	viewport.x = 0.0f;
+	viewport.y = static_cast<float>(swapchainExtent.height);
+	viewport.width = static_cast<float>(swapchainExtent.width);
+	viewport.height = -static_cast<float>(swapchainExtent.height); // Flipping viewport to change Y positive direction
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(cmdBuffer, 0, 1, &viewport);
+
+	VkRect2D scissor{};
+	scissor.offset = { 0, 0 };
+	scissor.extent = swapchainExtent;
+	vkCmdSetScissor(cmdBuffer, 0, 1, &scissor);
+
+
 	vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 }
 
@@ -127,16 +150,25 @@ void VulkanRenderer::RenderMesh(const DrawCommand& drawCommand)
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
-	const bool areObjectsInitialized = drawCommand.pipeline != VK_NULL_HANDLE && drawCommand.pipelineLayout != VK_NULL_HANDLE && drawCommand.descriptorSet != VK_NULL_HANDLE &&
+	const bool areObjectsInitialized = drawCommand.pipeline && drawCommand.descriptor &&
 		drawCommand.indexBuffer != VK_NULL_HANDLE;
 
 	assert(areObjectsInitialized && "Vulkan draw command is dispatched with some NULL object");
 
+
+	VulkanPipeline* rawPipeline     = static_cast<VulkanPipeline*>(drawCommand.pipeline);
+	VulkanDescriptor* rawDescriptor = static_cast<VulkanDescriptor*>(drawCommand.descriptor);
+
+	assert(rawPipeline && rawDescriptor && "After trying to cast from base to derived object VulkanPipeline or VulkanDescriptor is null in RenderMesh()");
+
+	VkDescriptorSet descriptorSet = rawDescriptor->GetRawSet();
+
+
 	// To DO: compute tasks when would need
-	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipeline);
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawPipeline());
 	vkCmdBindIndexBuffer(cmdBuffer, drawCommand.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipelineLayout, 0, 1, &drawCommand.descriptorSet, 0, nullptr);
-	vkCmdPushConstants(cmdBuffer, drawCommand.pipelineLayout, VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawLayout(), 0, 1, &descriptorSet, 0, nullptr);
+	vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
 	vkCmdDrawIndexed(cmdBuffer, drawCommand.indexCount, 1, 0, 0, 0);
 
 
@@ -148,16 +180,60 @@ void VulkanRenderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
-	for (const auto& barrier : barriers.memoryBarriers)
+	for (const auto& barrierSpecification : barriers.memoryBarriers)
 	{
-		vkhelpers::InsertMemoryBarrier(cmdBuffer, barrier.srcStageMask, barrier.dstStageMask, barrier.srcAccessMask, barrier.dstAccessMask);
+		VkAccessFlags srcAccess = vkconversions::ToVkAccessFlags2(barrierSpecification.srcAccessMask);
+		VkAccessFlags dstAccess = vkconversions::ToVkAccessFlags2(barrierSpecification.dstAccessMask);
+
+		VkPipelineStageFlags2 srcStage = vkconversions::ToVkPipelineStageFlags2(barrierSpecification.srcStageMask);
+		VkPipelineStageFlags2 dstStage = vkconversions::ToVkPipelineStageFlags2(barrierSpecification.dstStageMask);
+
+
+		vkhelpers::InsertMemoryBarrier(cmdBuffer, srcStage, dstStage, srcAccess, dstAccess);
 	}
 
-	for (auto& barrier : barriers.imageBarriers)
+	for (auto& barrierSpecification : barriers.imageBarriers)
 	{
-		vkhelpers::TransitionImageLayout(cmdBuffer, barrier.imgHandle, barrier.imgHandle->currentLayout, barrier.newLayout, barrier.srcAccessMask,
-			barrier.dstAccessMask, barrier.srcStageMask, barrier.dstStageMask, VK_IMAGE_ASPECT_COLOR_BIT);
+		if (barrierSpecification.image == nullptr)
+			continue;
 
+		VkAccessFlags srcAccess = vkconversions::ToVkAccessFlags2(barrierSpecification.srcAccessMask);
+		VkAccessFlags dstAccess = vkconversions::ToVkAccessFlags2(barrierSpecification.dstAccessMask);
+
+		VkPipelineStageFlags2 srcStage = vkconversions::ToVkPipelineStageFlags2(barrierSpecification.srcStageMask);
+		VkPipelineStageFlags2 dstStage = vkconversions::ToVkPipelineStageFlags2(barrierSpecification.dstStageMask);
+
+		VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+		barrier.oldLayout = vkconversions::ToVkImageLayout(barrierSpecification.image->GetSpecification().layout);
+		barrier.newLayout = vkconversions::ToVkImageLayout(barrierSpecification.newLayout);
+		barrier.srcAccessMask = vkconversions::ToVkAccessFlags2(barrierSpecification.srcAccessMask);
+		barrier.dstAccessMask = vkconversions::ToVkAccessFlags2(barrierSpecification.dstAccessMask);
+		barrier.srcStageMask  = vkconversions::ToVkPipelineStageFlags2(barrierSpecification.srcStageMask);
+		barrier.dstStageMask  = vkconversions::ToVkPipelineStageFlags2(barrierSpecification.dstStageMask);
+
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+
+		VulkanImage* rawImage = static_cast<VulkanImage*>(barrierSpecification.image);
+
+		barrier.image = rawImage->GetRawImage();
+
+		barrier.subresourceRange =
+		{
+			.aspectMask = vkconversions::ToVkAspectFlags(barrierSpecification.aspect),
+			.baseMipLevel = 0,
+			.levelCount = 1,
+			.baseArrayLayer = 0,
+			.layerCount = 1
+		};
+
+		VkDependencyInfo dependencyInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+		dependencyInfo.dependencyFlags = 0;
+		dependencyInfo.imageMemoryBarrierCount = 1;
+		dependencyInfo.pImageMemoryBarriers = &barrier;
+
+		vkCmdPipelineBarrier2(cmdBuffer, &dependencyInfo);
 	}
 
 	barriers.imageBarriers.clear();
@@ -170,9 +246,17 @@ void VulkanRenderer::DispatchCompute(const DispatchCommand& dispatchCommand)
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
-	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, dispatchCommand.pipeline);
-	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, dispatchCommand.pipelineLayout, 0, 1, &dispatchCommand.descriptorSet, 0, nullptr);
-	vkCmdPushConstants(cmdBuffer, dispatchCommand.pipelineLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, dispatchCommand.pushConstants.size, dispatchCommand.pushConstants.data);
+	VulkanPipeline* rawPipeline     = static_cast<VulkanPipeline*>(dispatchCommand.pipeline);
+	VulkanDescriptor* rawDescriptor = static_cast<VulkanDescriptor*>(dispatchCommand.descriptor);
+
+	assert(rawPipeline && rawDescriptor && "After trying to cast from base to derived object VulkanPipeline or VulkanDescriptor is null in DispatchCompute()");
+
+
+	VkDescriptorSet descriptorSet = rawDescriptor->GetRawSet();
+
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rawPipeline->GetRawPipeline());
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rawPipeline->GetRawLayout(), 0, 1, &descriptorSet, 0, nullptr);
+	vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, dispatchCommand.pushConstants.size, dispatchCommand.pushConstants.data);
 	vkCmdDispatch(cmdBuffer, dispatchCommand.numWorkgroups.x, dispatchCommand.numWorkgroups.y, dispatchCommand.numWorkgroups.z);
 
 	delete[] dispatchCommand.pushConstants.data;
@@ -189,9 +273,16 @@ void VulkanRenderer::RenderQuad(const DrawCommand& drawCommand)
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
-	vkCmdPushConstants(cmdBuffer, drawCommand.pipelineLayout, VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
-	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipeline);
-	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, drawCommand.pipelineLayout, 0, 1, &drawCommand.descriptorSet, 0, nullptr);
+	VulkanPipeline* rawPipeline        = static_cast<VulkanPipeline*>(drawCommand.pipeline);
+	VulkanDescriptor* rawDescriptorSet = static_cast<VulkanDescriptor*>(drawCommand.descriptor);
+
+	assert(rawPipeline && rawDescriptorSet && "After trying to cast from base to derived object VulkanPipeline or VulkanDescriptor is null in RenderQuad()");
+
+	VkDescriptorSet descriptor = rawDescriptorSet->GetRawSet();
+
+	vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawPipeline());
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawLayout(), 0, 1, &descriptor, 0, nullptr);
 
 	vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 

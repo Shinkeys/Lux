@@ -3,8 +3,8 @@
 #include "../../../headers/util/gfx/vk_helpers.h"
 #include "../../../headers/base/core/renderer.h"
 
-VulkanFrame::VulkanFrame(VulkanDevice& deviceObj, VulkanPresentation& presentationObj, VulkanPipeline& pipelineObj) : 
-				  _deviceObject{ deviceObj }, _presentationObject {presentationObj}, _pipelineObject{ pipelineObj }
+VulkanFrame::VulkanFrame(VulkanDevice& deviceObj, VulkanPresentation& presentationObj) : 
+				  _deviceObject{ deviceObj }, _presentationObject {presentationObj}
 {
 	CreateCommandPool();
 	CreateCommandBuffers();
@@ -150,10 +150,35 @@ void VulkanFrame::BeginCommandRecord()
 
 	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
 
-	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[_currentImage], VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 
+	VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+	barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	barrier.newLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+	barrier.srcAccessMask = 0;
+	barrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+	barrier.image = swapchainDesc.images[_currentImage]->GetRawImage();
+
+	barrier.subresourceRange =
+	{
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseMipLevel = 0,
+		.levelCount = 1,
+		.baseArrayLayer = 0,
+		.layerCount = 1
+	};
+
+	VkDependencyInfo dependencyInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	dependencyInfo.dependencyFlags = 0;
+	dependencyInfo.imageMemoryBarrierCount = 1;
+	dependencyInfo.pImageMemoryBarriers = &barrier;
+
+	vkCmdPipelineBarrier2(GetCommandBuffer(), &dependencyInfo);
 }
 
 void VulkanFrame::EndCommandRecord()
@@ -163,9 +188,35 @@ void VulkanFrame::EndCommandRecord()
 
 	assert(!swapchainDesc.images.empty() && "Vulkan swapchain images is empty in EndCommandRecord()");
 
-	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[_currentImage], VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-		VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT, 0,
-		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+
+	VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+	barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	barrier.dstAccessMask = 0;
+	barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+
+	barrier.image = swapchainDesc.images[_currentImage]->GetRawImage();
+
+	barrier.subresourceRange =
+	{
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.baseMipLevel = 0,
+		.levelCount = 1,
+		.baseArrayLayer = 0,
+		.layerCount = 1
+	};
+
+	VkDependencyInfo dependencyInfo{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	dependencyInfo.dependencyFlags = 0;
+	dependencyInfo.imageMemoryBarrierCount = 1;
+	dependencyInfo.pImageMemoryBarriers = &barrier;
+
+	vkCmdPipelineBarrier2(GetCommandBuffer(), &dependencyInfo);
 
 	VK_CHECK(vkEndCommandBuffer(cmdBuffer));
 }

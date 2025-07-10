@@ -20,7 +20,7 @@ public:
 
 	static void BeginFrame();
 	static void EndFrame();
-	static void BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments, glm::vec4 clearColor);
+	static void BeginRender(const std::vector<Image*>& attachments, glm::vec4 clearColor);
 	static void EndRender();
 	static void RenderMesh(const DrawCommand& command);
 	static void RenderQuad(const DrawCommand& drawCommand);

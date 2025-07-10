@@ -3,79 +3,53 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
-SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkanBackend }
+SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) : _vulkanBackend{ vulkanBackend }, _engineBase{engineBase}
 {
 	// Descriptor
 	// Create descriptor for every frame
 	for (u32 i = 0; i < VulkanFrame::FramesInFlight; ++i)
 	{
-		constexpr i32 descriptorUsageCount = 1;
-		{
-			DescriptorInfo baseShadingDescInfo{};
-			baseShadingDescInfo.bindings.resize(descriptorUsageCount);
-			baseShadingDescInfo.bindings[0].binding = 0;
-			baseShadingDescInfo.bindings[0].descriptorCount = 1024;
-			baseShadingDescInfo.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			baseShadingDescInfo.bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
-			_baseShadingDescriptorSets.emplace_back(vulkanBackend.GetDescriptorObj().CreateDescSet(baseShadingDescInfo));
-		}
+		constexpr i32 descriptorUsageCount = 3;
+		DescriptorSpecification sceneDescSpec{};
+		sceneDescSpec.bindings.resize(2);
+		sceneDescSpec.bindings[0].binding = 0;
+		sceneDescSpec.bindings[0].descriptorCount = 1024;
+		sceneDescSpec.bindings[0].descriptorType = DescriptorType::COMBINED_IMAGE_SAMPLER;
+		sceneDescSpec.bindings[1].binding = 1;
+		sceneDescSpec.bindings[1].descriptorCount = 1;
+		sceneDescSpec.bindings[1].descriptorType = DescriptorType::STORAGE_IMAGE;
 		
-		{
-			DescriptorInfo gBuffdescInfo{};
-			gBuffdescInfo.bindings.resize(descriptorUsageCount);
-			gBuffdescInfo.bindings[0].binding = 0;
-			gBuffdescInfo.bindings[0].descriptorCount = 1024;
-			gBuffdescInfo.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-			gBuffdescInfo.bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
-			_gBuffDescriptorSets.emplace_back(vulkanBackend.GetDescriptorObj().CreateDescSet(gBuffdescInfo));
-		}
-		
-		{
-			DescriptorInfo lightCullCompInfo{};
-			lightCullCompInfo.bindings.resize(descriptorUsageCount);
-			lightCullCompInfo.bindings[0].binding = 0;
-			lightCullCompInfo.bindings[0].descriptorCount = 1;
-			lightCullCompInfo.bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
-			lightCullCompInfo.bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
-			_lightCullStructures.lightCullingDescriptorSets.emplace_back(vulkanBackend.GetDescriptorObj().CreateDescSet(lightCullCompInfo));
-		}
+		_sceneDescriptorSets.emplace_back(_engineBase.GetDescriptorManager().CreateDescriptorSet(sceneDescSpec));
 	}
+
+
 
 	_depthAttachments.resize(VulkanPresentation::PresentationImagesCount);
 	for (u32 i = 0; i < VulkanPresentation::PresentationImagesCount; ++i)
 	{
 		ImageSpecification spec;
 		spec.mipLevels = 1;
-		spec.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		spec.aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-		spec.format = VK_FORMAT_D32_SFLOAT;
-		spec.newLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-		spec.extent = VkExtent3D{ static_cast<u32>(Window::GetWindowWidth()), static_cast<u32>(Window::GetWindowHeight()), 1 };
-		spec.aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+		spec.usage  =  ImageUsage::IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT;
+		spec.aspect =  ImageAspect::IMAGE_ASPECT_DEPTH;
+		spec.format =  ImageFormat::IMAGE_FORMAT_D32_SFLOAT;
+		spec.type	=  ImageType::IMAGE_TYPE_DEPTH_BUFFER;
+		spec.extent = ImageExtent3D{ static_cast<u32>(Window::GetWindowWidth()), static_cast<u32>(Window::GetWindowHeight()), 1 };
 
-		_depthAttachments[i] = _vulkanBackend.GetImageObj().CreateEmptyImage(spec);
+		_depthAttachments[i] = _engineBase.GetImageManager().CreateImage(spec);
 	}
 
-	// Create sampler
-	VkFilter minFiltering{ VK_FILTER_LINEAR };
-	VkFilter magFiltering{ VK_FILTER_LINEAR };
-	VkSamplerMipmapMode mipmapFiltering{ VK_SAMPLER_MIPMAP_MODE_LINEAR };
-	VkSamplerAddressMode addressMode{ VK_SAMPLER_ADDRESS_MODE_REPEAT };
-	float minLod{ 0.0f };
-	float maxLod{ 100.0f };
-	float lodBias{ 0.0f };
-
-	CreateSamplerSpec samplerSpec;
-	samplerSpec.minFiltering = VK_FILTER_LINEAR;
-	samplerSpec.magFiltering = VK_FILTER_LINEAR;
-	samplerSpec.mipmapFiltering = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerSpec.addressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	// Sampler
+	SamplerSpecification samplerSpec;
+	samplerSpec.minFiltering = Filter::FILTER_LINEAR;
+	samplerSpec.magFiltering = Filter::FILTER_LINEAR;
+	samplerSpec.mipmapFiltering =  SamplerMipMapMode::SAMPLER_MIPMAP_MODE_LINEAR;
+	samplerSpec.addressMode = SamplerAddressMode::SAMPLER_ADDRESS_MODE_REPEAT;
 	samplerSpec.minLod = 0.0f;
 	samplerSpec.maxLod = 1000.0f;
 	samplerSpec.lodBias = 0.0f;
 
 
-	_samplerLinear = _vulkanBackend.GetImageObj().CreateSampler(samplerSpec);
+	_samplerLinear = _engineBase.GetImageManager().CreateSampler(samplerSpec);
 
 	// Materials buffer
 	constexpr size_t baseMaterialsBuffersSize = 1024 * 4; // 4096 bytes
@@ -94,13 +68,14 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 	_vulkanBackend.GetBufferObj().UpdateSSBOBuffer(_pointLights.data(), sizeof(PointLight) * _pointLights.size(), _pointLightsBuffer.index);
 
 
-	const u32 windowWidth = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.width;
+	const u32 windowWidth  = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.width;
 	const u32 windowHeight = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.height;
 	// Init light indices SSBO
 	{
 		glm::ivec3& numWorkGroups = _lightCullStructures.numWorkGroups;
-		numWorkGroups.x = std::ceil(windowWidth / 16);
-		numWorkGroups.y = std::ceil(windowHeight / 16);
+		const u32 tileSize = _lightCullStructures.tileSize;
+		numWorkGroups.x = std::ceil(windowWidth / tileSize);
+		numWorkGroups.y = std::ceil(windowHeight / tileSize);
 		numWorkGroups.z = 1;
 
 		u32& tilesPerScreen = _lightCullStructures.tilesPerScreen;
@@ -109,6 +84,11 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 		_lightCullStructures.lightIndicesBuffer = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(sizeof(i32) 
 			* tilesPerScreen * _lightCullStructures.maxLightsPerCluster);
 		// It should be empty. Would be filled later
+
+		// This buffer is needed for global lights counter among all comp. shader invocations
+		constexpr u32 globalLightsInitialCount = 0;
+		_lightCullStructures.globalLightsCountBuffer = _vulkanBackend.GetBufferObj().CreateUniformBuffer(sizeof(u32));
+		_vulkanBackend.GetBufferObj().UpdateUniformBuffer(&globalLightsInitialCount, sizeof(u32), _lightCullStructures.globalLightsCountBuffer.index);
 	}
 
 	// Camera buffer
@@ -117,74 +97,93 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 	}
 	
 
-	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
+	const ImageManager& imageManager = _engineBase.GetImageManager();
 
 	// Init G buffer
 	{
 		ImageSpecification imageSpec;
-		imageSpec.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		imageSpec.usage = ImageUsage::IMAGE_USAGE_COLOR_ATTACHMENT | ImageUsage::IMAGE_USAGE_SAMPLED;
 		imageSpec.mipLevels = 1;
-		imageSpec.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageSpec.aspect = ImageAspect::IMAGE_ASPECT_COLOR;
 		imageSpec.extent = { windowWidth, windowHeight, 1 };
-		imageSpec.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-		_gBuffer.positions = imageManager.CreateEmptyImage(imageSpec);
-		_gBuffer.normals = imageManager.CreateEmptyImage(imageSpec);
-		imageSpec.format = VK_FORMAT_R8G8B8A8_SRGB;
-		_gBuffer.baseColor = imageManager.CreateEmptyImage(imageSpec);
-		_gBuffer.metallicRoughness = imageManager.CreateEmptyImage(imageSpec);
+		imageSpec.format = ImageFormat::IMAGE_FORMAT_R16G16B16A16_SFLOAT;
+		imageSpec.type = ImageType::IMAGE_TYPE_RENDER_TARGET;
+
+		_gBuffer.positions = imageManager.CreateImage(imageSpec);
+		_gBuffer.normals   = imageManager.CreateImage(imageSpec);
+		imageSpec.format   = ImageFormat::IMAGE_FORMAT_R8G8B8A8_SRGB;
+		_gBuffer.baseColor = imageManager.CreateImage(imageSpec);
+		_gBuffer.metallicRoughness = imageManager.CreateImage(imageSpec);
 	}
 
 	{
 		ImageSpecification lightsGridImage;
-		lightsGridImage.usage = VK_IMAGE_USAGE_STORAGE_BIT;
+		lightsGridImage.usage  = ImageUsage::IMAGE_USAGE_SAMPLED | ImageUsage::IMAGE_USAGE_STORAGE_BIT;
 		lightsGridImage.mipLevels = 1;
-		lightsGridImage.aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-		lightsGridImage.extent = { windowWidth, windowHeight, 1 };
-		lightsGridImage.format = VK_FORMAT_R32G32_UINT;
-		_lightCullStructures.lightsGrid = imageManager.CreateEmptyImage(lightsGridImage);
+		lightsGridImage.aspect = ImageAspect::IMAGE_ASPECT_COLOR;
+		lightsGridImage.extent = { static_cast<u32>(_lightCullStructures.numWorkGroups.x), 
+								   static_cast<u32>(_lightCullStructures.numWorkGroups.y), 
+								   static_cast<u32>(_lightCullStructures.numWorkGroups.z) };
+		lightsGridImage.format = ImageFormat::IMAGE_FORMAT_R32G32_UINT;
+		lightsGridImage.type   = ImageType::IMAGE_TYPE_RENDER_TARGET;
+
+		_lightCullStructures.lightsGrid = imageManager.CreateImage(lightsGridImage);
 	}
 
 
+	auto extractRawPtrsLambda = [&]()
+		{
+			std::vector<Descriptor*> descriptors;
+
+			for (auto& descriptor : _sceneDescriptorSets)
+				descriptors.push_back(descriptor.get());
+
+			return descriptors;
+		};
 	{
-		GraphicsPipeline baseShadingPipeline;
+		PipelineSpecification baseShadingPipeline;
+		baseShadingPipeline.type = PipelineType::GRAPHICS_PIPELINE;
 		baseShadingPipeline.shaderName = "shading";
-		baseShadingPipeline.cullMode = VK_CULL_MODE_BACK_BIT;
+		baseShadingPipeline.cullMode = CullMode::CULL_MODE_BACK;
 		baseShadingPipeline.pushConstantSizeBytes = sizeof(LightPassPushConst);
-		baseShadingPipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() }; // Now only one descriptor layout, to DO
-		baseShadingPipeline.depthCompare = VK_COMPARE_OP_LESS;
-		baseShadingPipeline.depthWriteEnable = VK_TRUE;
-		baseShadingPipeline.depthTestEnable = VK_TRUE;
-		baseShadingPipeline.colorFormats = { VulkanPresentation::ColorFormat.format };
+		baseShadingPipeline.descriptorSets = { extractRawPtrsLambda() };
+		baseShadingPipeline.depthCompare = CompareOP::COMPARE_OP_LESS;
+		baseShadingPipeline.depthWriteEnable = true;
+		baseShadingPipeline.depthTestEnable  = true;
+		baseShadingPipeline.colorFormats = { ImageFormat::IMAGE_FORMAT_B8G8R8A8_SRGB };
 
 		// other data is aight
-		_baseShadingPipeline = _vulkanBackend.GetPipelineObj().CreatePipeline(baseShadingPipeline);
+		_baseShadingPipeline = _engineBase.GetPipelineManager().CreatePipeline(baseShadingPipeline);
 	}
 
 	{
-		GraphicsPipeline gBufferGraphicsPipeline;
+		PipelineSpecification gBufferGraphicsPipeline;
+		gBufferGraphicsPipeline.type = PipelineType::GRAPHICS_PIPELINE;
 		gBufferGraphicsPipeline.shaderName = "g-pass";
-		gBufferGraphicsPipeline.cullMode = VK_CULL_MODE_BACK_BIT;
+		gBufferGraphicsPipeline.cullMode = CullMode::CULL_MODE_BACK;
 		gBufferGraphicsPipeline.pushConstantSizeBytes = sizeof(GBufferPushConst);
-		gBufferGraphicsPipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() }; // Now only one descriptor layout, to DO
-		gBufferGraphicsPipeline.depthCompare = VK_COMPARE_OP_LESS;
-		gBufferGraphicsPipeline.depthWriteEnable = VK_TRUE;
-		gBufferGraphicsPipeline.depthTestEnable = VK_TRUE;
+		gBufferGraphicsPipeline.descriptorSets = { extractRawPtrsLambda() }; // Now only one descriptor layout, to DO
+		gBufferGraphicsPipeline.depthCompare = CompareOP::COMPARE_OP_LESS;
+		gBufferGraphicsPipeline.depthWriteEnable = true;
+		gBufferGraphicsPipeline.depthTestEnable  = true;
 		gBufferGraphicsPipeline.attachmentsCount = 4;
-		gBufferGraphicsPipeline.colorFormats = { VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R16G16B16A16_SFLOAT, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_R8G8B8A8_SRGB };
+		gBufferGraphicsPipeline.colorFormats = { ImageFormat::IMAGE_FORMAT_R16G16B16A16_SFLOAT, ImageFormat::IMAGE_FORMAT_R16G16B16A16_SFLOAT, 
+			ImageFormat::IMAGE_FORMAT_R8G8B8A8_SRGB, ImageFormat::IMAGE_FORMAT_R8G8B8A8_SRGB };
 
 		// other data is aight
 
-		_gBufferPipeline = _vulkanBackend.GetPipelineObj().CreatePipeline(gBufferGraphicsPipeline);
+		_gBufferPipeline = _engineBase.GetPipelineManager().CreatePipeline(gBufferGraphicsPipeline);
 	}
 
 
 	{
-		ComputePipeline lightCullingComputePipeline;
+		PipelineSpecification lightCullingComputePipeline;
+		lightCullingComputePipeline.type = PipelineType::COMPUTE_PIPELINE;
 		lightCullingComputePipeline.shaderName = "light-cull";
-		lightCullingComputePipeline.descriptorLayouts = { _vulkanBackend.GetDescriptorObj().GetBindlessDescriptorSetLayout() };
+		lightCullingComputePipeline.descriptorSets = { extractRawPtrsLambda() };
 		lightCullingComputePipeline.pushConstantSizeBytes = sizeof(LightCullPushConst);
 
-		_lightCullStructures.lightCullingPipeline = _vulkanBackend.GetPipelineObj().CreatePipeline(lightCullingComputePipeline);
+		_lightCullStructures.lightCullingPipeline = _engineBase.GetPipelineManager().CreatePipeline(lightCullingComputePipeline);
 	}
 
 
@@ -205,7 +204,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend) : _vulkanBackend{ vulkan
 void SceneRenderer::UpdateBuffers(const Entity& entity)
 {
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
-	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
+	const ImageManager& imageManager = _engineBase.GetImageManager();
 
 	MeshComponent* meshComp = entity.GetComponent<MeshComponent>();
 	// Check if buffer exist
@@ -295,8 +294,8 @@ void SceneRenderer::Update(const Camera& camera)
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 
 
-	_currentColorAttachment = presentationManager.GetSwapchainDesc().images[frameManager.GetCurrentImageIndex()];
-	_currentDepthAttachment = _depthAttachments[frameManager.GetCurrentImageIndex()];
+	_currentColorAttachment = presentationManager.GetSwapchainDesc().images[frameManager.GetCurrentImageIndex()].get();
+	_currentDepthAttachment = _depthAttachments[frameManager.GetCurrentImageIndex()].get();
 
 	UpdateDescriptors();
 
@@ -313,7 +312,7 @@ void SceneRenderer::Update(const Camera& camera)
 	viewData.position = camera.GetPosition();
 	viewData.nearPlane = camera.GetNearPlane();
 	viewData.farPlane = camera.GetFarPlane();
-	viewData.viewportExt = { _currentColorAttachment->extent.width, _currentColorAttachment->extent.height };
+	viewData.viewportExt = { _currentColorAttachment->GetSpecification().extent.x, _currentColorAttachment->GetSpecification().extent.y };
 
 	bufferManager.UpdateUniformBuffer(&viewData, sizeof(ViewData), _viewDataBuffer.index);
 }
@@ -321,52 +320,52 @@ void SceneRenderer::Update(const Camera& camera)
 void SceneRenderer::UpdateDescriptors()
 {
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
-	VulkanImage& imageManager = _vulkanBackend.GetImageObj();
-	VulkanDescriptor& descriptorManager = _vulkanBackend.GetDescriptorObj();
+	DescriptorManager& descriptorManager = _engineBase.GetDescriptorManager();
 
 	for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
 	{
-		const std::vector<std::shared_ptr<ImageHandle>>& images = imageManager.GetAllLoadedImages(); // TEMPORARY SOLUTION. TO REWORK
-		assert(!images.empty() && "Images size is zero");
-		for (u32 i = 0; i < images.size(); ++i)
+		u32 availableIndex = 0;
+		// Main shading pass
+		const auto& allTextures = AssetManager::Get()->GetAllTextures(); // TEMPORARY SOLUTION. TO REWORK
+		assert(!allTextures.empty() && "Images size is zero");
+		for (u32 i = 0; i < allTextures.size(); ++i)
 		{
-			// G buffer desc set
-			DescriptorUpdate updateData;
-			updateData.set = _gBuffDescriptorSets[descInd];
-			updateData.imgView = images[i]->imageView;
-			updateData.dstBinding = 0;
-			updateData.dstArrayElem = images[i]->index; // starting from 1, zero is null
-
-			updateData.sampler = _samplerLinear;
-
-			descriptorManager.UpdateBindlessDescriptorSet(updateData);
+			_sceneDescriptorSets[descInd]->Write(0, allTextures[i].first,
+				DescriptorType::COMBINED_IMAGE_SAMPLER, allTextures[i].second.get(), _samplerLinear.get());
+			++availableIndex;
 		}
 
-		// Shading desc set
-		DescriptorUpdate shadingDescUpdate;
-		shadingDescUpdate.set = _baseShadingDescriptorSets[descInd];
-		shadingDescUpdate.imgView = _gBuffer.positions->imageView;
-		shadingDescUpdate.dstBinding = 0;
-		shadingDescUpdate.dstArrayElem = _gBuffer.positions->index;
-		shadingDescUpdate.sampler = _samplerLinear;
-		descriptorManager.UpdateBindlessDescriptorSet(shadingDescUpdate);
-		shadingDescUpdate.imgView = _gBuffer.normals->imageView;
-		shadingDescUpdate.dstArrayElem = _gBuffer.normals->index;
-		descriptorManager.UpdateBindlessDescriptorSet(shadingDescUpdate);
-		shadingDescUpdate.imgView = _gBuffer.baseColor->imageView;
-		shadingDescUpdate.dstArrayElem = _gBuffer.baseColor->index;
-		descriptorManager.UpdateBindlessDescriptorSet(shadingDescUpdate);
-		shadingDescUpdate.imgView = _gBuffer.metallicRoughness->imageView;
-		shadingDescUpdate.dstArrayElem = _gBuffer.metallicRoughness->index;
-		descriptorManager.UpdateBindlessDescriptorSet(shadingDescUpdate);
+		_gBuffer.posIndex    = availableIndex++;
+		_gBuffer.normalIndex = availableIndex++;
+		_gBuffer.baseIndex   = availableIndex++;
+		_gBuffer.metallicRoughnessIndex = availableIndex++;
+
+		// Write g buffer descriptors
+		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.posIndex,    DescriptorType::COMBINED_IMAGE_SAMPLER,    _gBuffer.positions.get(), _samplerLinear.get());
+		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.normalIndex, DescriptorType::COMBINED_IMAGE_SAMPLER, _gBuffer.normals.get(),   _samplerLinear.get());
+		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.baseIndex,   DescriptorType::COMBINED_IMAGE_SAMPLER,   _gBuffer.baseColor.get(), _samplerLinear.get());
+		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.metallicRoughnessIndex, DescriptorType::COMBINED_IMAGE_SAMPLER, 
+			_gBuffer.metallicRoughness.get(), _samplerLinear.get());
 
 
-		DescriptorUpdate lightCullDescUpdate;
-		lightCullDescUpdate.set = _lightCullStructures.lightCullingDescriptorSets[descInd];
-		lightCullDescUpdate.dstBinding = 0; // Only those are binded through desc set, so 0
-		lightCullDescUpdate.dstArrayElem = 0; // Only those are binded through desc set, so 0 
-		lightCullDescUpdate.imgView = _lightCullStructures.lightsGrid->imageView;
-		lightCullDescUpdate.sampler = _samplerLinear;
+		if (_lightCullStructures.lightsGrid->GetSpecification().layout == ImageLayout::IMAGE_LAYOUT_UNDEFINED)
+		{
+			PipelineBarrierStorage pipelineBarriers;
+			PipelineImageBarrierInfo preComputeLayoutTransition;
+			preComputeLayoutTransition.srcStageMask = PipelineStage::TOP_OF_PIPE;
+			preComputeLayoutTransition.dstStageMask = PipelineStage::COMPUTE_SHADER;
+			preComputeLayoutTransition.srcAccessMask = AccessFlag::NONE;
+			preComputeLayoutTransition.dstAccessMask = AccessFlag::SHADER_WRITE;
+			preComputeLayoutTransition.newLayout = ImageLayout::IMAGE_LAYOUT_GENERAL;
+			preComputeLayoutTransition.image = _lightCullStructures.lightsGrid.get();
+
+			pipelineBarriers.imageBarriers.push_back(preComputeLayoutTransition);
+
+			Renderer::ExecuteBarriers(pipelineBarriers);
+		}
+
+		// Add light's grid to get data about lights
+		_sceneDescriptorSets[descInd]->Write(1, 0, DescriptorType::STORAGE_IMAGE, _lightCullStructures.lightsGrid.get(), _samplerLinear.get());
 	}
 }
 
@@ -375,67 +374,75 @@ void SceneRenderer::Draw()
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
 	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	//!!!!!!!!!!!!!!!!!! THIS IS TEMPORARY SOLUTION. TO REWORK !!!!!!!!!!!!!!!!!!!!!!
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	_vulkanBackend.GetImageObj().UpdateLayoutsToCopyData();
 	PipelineBarrierStorage pipelineBarriers;
 
-	//// Firsly dispatch comp. shader to fill lights buffer
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!TO REWORK PUSH CONSTANTS TO ABSTRACT VULKAN!!!!!!!!!!!!!!!!!!!!!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	////// Firsly dispatch comp. shader to fill lights buffer
+	PipelineImageBarrierInfo preComputeLayoutTransition;
+	preComputeLayoutTransition.srcStageMask = PipelineStage::FRAGMENT_SHADER;
+	preComputeLayoutTransition.dstStageMask = PipelineStage::COMPUTE_SHADER;
+	preComputeLayoutTransition.srcAccessMask = AccessFlag::SHADER_READ;
+	preComputeLayoutTransition.dstAccessMask = AccessFlag::SHADER_WRITE;
+	preComputeLayoutTransition.image = _lightCullStructures.lightsGrid.get();
+	preComputeLayoutTransition.newLayout = ImageLayout::IMAGE_LAYOUT_GENERAL; // STORAGE IMAGE SHOULD BE IN THE GENERAL LAYOUT
+	pipelineBarriers.imageBarriers.push_back(preComputeLayoutTransition);
+
+
 	LightCullPushConst* lightCullPushConst = new LightCullPushConst;
 	lightCullPushConst->lightsListAddress = _pointLightsBuffer.address;
 	lightCullPushConst->lightsCount = _pointLights.size();
 	lightCullPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer.address;
 	lightCullPushConst->cameraDataAddress = _viewDataBuffer.address;
+	lightCullPushConst->globalLightsCounterAddress = _lightCullStructures.globalLightsCountBuffer.address; // MAKE IT ZERO AFTER DISPATCH
 	lightCullPushConst->maxLightsPerCluster = _lightCullStructures.maxLightsPerCluster;
+	lightCullPushConst->tileSize = _lightCullStructures.tileSize;
 
-	//PushConsts lightCullPushConstants;
-	//lightCullPushConstants.data = (byte*)lightCullPushConst;
-	//lightCullPushConstants.size = sizeof(LightCullPushConst);
-
-
-
-	//DispatchCommand lightCullDispatch;
-	//lightCullDispatch.pipeline = _lightCullStructures.lightCullingPipeline.pipeline;
-	//lightCullDispatch.pipelineLayout = _lightCullStructures.lightCullingPipeline.pipelineLayout;
-	//lightCullDispatch.descriptorSet = _lightCullStructures.lightCullingDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
-	//lightCullDispatch.pushConstants = lightCullPushConstants;
-	//lightCullDispatch.numWorkgroups = { _lightCullStructures.numWorkGroups };
-
-
-	//Renderer::DispatchCompute(lightCullDispatch);
+	PushConsts lightCullPushConstants;
+	lightCullPushConstants.data = (byte*)lightCullPushConst;
+	lightCullPushConstants.size = sizeof(LightCullPushConst);
 
 
 
+	DispatchCommand lightCullDispatch;
+	lightCullDispatch.pipeline      = _lightCullStructures.lightCullingPipeline.get();
+	lightCullDispatch.descriptor    = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
+	lightCullDispatch.pushConstants = lightCullPushConstants;
+	lightCullDispatch.numWorkgroups = { _lightCullStructures.numWorkGroups };
 
 
+ 	Renderer::ExecuteBarriers(pipelineBarriers);
 
+	Renderer::DispatchCompute(lightCullDispatch);
 
+	// Update buff
+	constexpr u32 clearGlobalLightCount = 0;
+	_vulkanBackend.GetBufferObj().UpdateUniformBuffer(&clearGlobalLightCount, sizeof(u32), _lightCullStructures.globalLightsCountBuffer.index);
 
-
-	
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//!!!!!!!!!!!!!!!!!!!!! TO DO: VULKAN ABSTRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	PipelineImageBarrierInfo preGbufferLayoutTransition;
-	preGbufferLayoutTransition.srcStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-	preGbufferLayoutTransition.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	preGbufferLayoutTransition.srcAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-	preGbufferLayoutTransition.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	preGbufferLayoutTransition.imgHandle = _gBuffer.positions;
-	preGbufferLayoutTransition.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	preGbufferLayoutTransition.srcStageMask =  PipelineStage::FRAGMENT_SHADER;
+	preGbufferLayoutTransition.dstStageMask =  PipelineStage::COLOR_ATTACHMENT_OUTPUT;
+	preGbufferLayoutTransition.srcAccessMask = AccessFlag::SHADER_READ;
+	preGbufferLayoutTransition.dstAccessMask = AccessFlag::COLOR_ATTACHMENT_WRITE;
+	preGbufferLayoutTransition.image = _gBuffer.positions.get();
+	preGbufferLayoutTransition.newLayout = ImageLayout::IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 	pipelineBarriers.imageBarriers.push_back(preGbufferLayoutTransition);
-	preGbufferLayoutTransition.imgHandle = _gBuffer.normals;
+	preGbufferLayoutTransition.image = _gBuffer.normals.get();
 	pipelineBarriers.imageBarriers.push_back(preGbufferLayoutTransition);
-	preGbufferLayoutTransition.imgHandle = _gBuffer.baseColor;
+	preGbufferLayoutTransition.image = _gBuffer.baseColor.get();
 	pipelineBarriers.imageBarriers.push_back(preGbufferLayoutTransition);
-	preGbufferLayoutTransition.imgHandle = _gBuffer.metallicRoughness;
+	preGbufferLayoutTransition.image = _gBuffer.metallicRoughness.get();
 	pipelineBarriers.imageBarriers.push_back(preGbufferLayoutTransition);
 
 	Renderer::ExecuteBarriers(pipelineBarriers);
 
 	// GEOMETRY PASS
-	Renderer::BeginRender({ _gBuffer.positions, _gBuffer.normals, _gBuffer.baseColor, _gBuffer.metallicRoughness, _currentDepthAttachment }, 
+	Renderer::BeginRender({ _gBuffer.positions.get(), _gBuffer.normals.get(), 
+		_gBuffer.baseColor.get(), _gBuffer.metallicRoughness.get(), _currentDepthAttachment},
 		glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 
 	for (auto entity : _drawCommands)
@@ -468,30 +475,29 @@ void SceneRenderer::Draw()
 			pushConstants.size = sizeof(GBufferPushConst);
 
 			DrawCommand command;
-			command.descriptorSet = _gBuffDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
+			command.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
 			command.pushConstants = pushConstants;
 			command.indexCount = vertexDesc->indexCount;
 			command.indexBuffer = bufferManager.GetMeshBuffers(entity->GetID())->GetVkIndexBuffer();
-			command.pipeline = _gBufferPipeline.pipeline;
-			command.pipelineLayout = _gBufferPipeline.pipelineLayout;
+			command.pipeline = _gBufferPipeline.get();
 			Renderer::RenderMesh(command);
 		}
 	}
 	Renderer::EndRender();
 
 	PipelineImageBarrierInfo imageGBufferLightPassBarrier;
-	imageGBufferLightPassBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	imageGBufferLightPassBarrier.dstStageMask = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-	imageGBufferLightPassBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	imageGBufferLightPassBarrier.dstAccessMask = VK_ACCESS_2_SHADER_READ_BIT;
-	imageGBufferLightPassBarrier.imgHandle = _gBuffer.positions;
-	imageGBufferLightPassBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	imageGBufferLightPassBarrier.srcStageMask  = PipelineStage::COLOR_ATTACHMENT_OUTPUT;
+	imageGBufferLightPassBarrier.dstStageMask  = PipelineStage::FRAGMENT_SHADER;
+	imageGBufferLightPassBarrier.srcAccessMask = AccessFlag::COLOR_ATTACHMENT_WRITE;
+	imageGBufferLightPassBarrier.dstAccessMask = AccessFlag::SHADER_READ;
+	imageGBufferLightPassBarrier.image = _gBuffer.positions.get();
+	imageGBufferLightPassBarrier.newLayout = ImageLayout::IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
-	imageGBufferLightPassBarrier.imgHandle = _gBuffer.normals;
+	imageGBufferLightPassBarrier.image = _gBuffer.normals.get();
 	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
-	imageGBufferLightPassBarrier.imgHandle = _gBuffer.baseColor;
+	imageGBufferLightPassBarrier.image = _gBuffer.baseColor.get();
 	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
-	imageGBufferLightPassBarrier.imgHandle = _gBuffer.metallicRoughness;
+	imageGBufferLightPassBarrier.image = _gBuffer.metallicRoughness.get();
 	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
 
 	Renderer::ExecuteBarriers(pipelineBarriers);
@@ -499,11 +505,13 @@ void SceneRenderer::Draw()
 
 	LightPassPushConst* lightPassPushConst = new LightPassPushConst;
 	lightPassPushConst->lightAddress = _pointLightsBuffer.address;
+	lightPassPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer.address;
 	lightPassPushConst->pointLightsCount = _pointLights.size();
-	lightPassPushConst->positionTextureIdx = _gBuffer.positions->index;
-	lightPassPushConst->normalsTextureIdx = _gBuffer.normals->index;
-	lightPassPushConst->baseColorTextureIdx = _gBuffer.baseColor->index;
-	lightPassPushConst->metallicRoughnessTextureIdx = _gBuffer.metallicRoughness->index;
+	lightPassPushConst->positionTextureIdx = _gBuffer.posIndex;
+	lightPassPushConst->normalsTextureIdx = _gBuffer.normalIndex;
+	lightPassPushConst->baseColorTextureIdx = _gBuffer.baseIndex;
+	lightPassPushConst->metallicRoughnessTextureIdx = _gBuffer.metallicRoughnessIndex;
+	lightPassPushConst->tileSize = _lightCullStructures.tileSize;
 
 	PushConsts pushConstants;
 	pushConstants.data = (byte*)lightPassPushConst;
@@ -511,9 +519,8 @@ void SceneRenderer::Draw()
 
 	// LIGHT PASS
 	DrawCommand quadDrawCommand;
-	quadDrawCommand.pipeline = _baseShadingPipeline.pipeline;
-	quadDrawCommand.pipelineLayout = _baseShadingPipeline.pipelineLayout;
-	quadDrawCommand.descriptorSet = _baseShadingDescriptorSets[frameManager.GetCurrentFrameIndex()].descriptorSet;
+	quadDrawCommand.pipeline   = _baseShadingPipeline.get();
+	quadDrawCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
 	quadDrawCommand.pushConstants = pushConstants;
 
 	Renderer::BeginRender({ _currentColorAttachment, _currentDepthAttachment }, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));

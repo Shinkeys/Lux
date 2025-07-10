@@ -22,9 +22,15 @@ layout(scalar, buffer_reference, buffer_reference_align = 4) buffer PointLights
 	PointLight pointLights[];
 };
 
+layout(scalar, buffer_reference, buffer_reference_align = 4) buffer LightIndices
+{
+	int lightIndices[];
+};
+
 layout(push_constant) uniform pushConst
 {
-	PointLights lightsPtr;
+	PointLights  lightsPtr;
+	LightIndices lightIndicesPtr;
 
 	uint positionTexIndex;
 	uint normalsTexIndex;
@@ -32,6 +38,7 @@ layout(push_constant) uniform pushConst
 	uint metallicRoughnessTexIndex;
 
 	uint pointLightsCount;
+	uint tileSize;
 };
 
 const vec3 vertices[] = 

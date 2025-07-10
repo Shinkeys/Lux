@@ -4,11 +4,15 @@
 
 
 class VulkanDevice;
+class VulkanBuffer;
+class VulkanAllocator;
+class VulkanFrame;
 class VulkanPresentation
 {
 private:
 	VulkanInstance& _instanceObject;
 	VulkanDevice& _deviceObject;
+
 	Window& _windowObject;
 
 	VulkanSwapchain _swapchainDesc;
@@ -19,7 +23,6 @@ private:
 	VkPresentModeKHR FindRequiredPresentMode()										   const;
 	VkExtent2D SelectRequiredSwapchainExtent(const VkSurfaceCapabilitiesKHR& caps)     const;
 	void CreateSwapchain();
-	void CreateImageViews();
 	void DestroySwapchain();
 	void DestroyStructures();
 public:

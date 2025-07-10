@@ -20,9 +20,15 @@ layout(scalar, buffer_reference, buffer_reference_align = 4) buffer PointLights
 	PointLight pointLights[];
 };
 
+layout(scalar, buffer_reference, buffer_reference_align = 4) buffer LightIndices
+{
+	int lightIndices[];
+};
+
 layout(push_constant) uniform pushConst
 {
-	PointLights lightsPtr;
+	PointLights  lightsPtr;
+	LightIndices lightIndicesPtr;
 
 	uint positionTexIndex;
 	uint normalsTexIndex;
@@ -30,12 +36,22 @@ layout(push_constant) uniform pushConst
 	uint metallicRoughnessTexIndex;
 
 	uint pointLightsCount;
+	uint tileSize;
 };
 
 layout(binding = 0) uniform sampler2D textures[];
 
 layout(location = 0) in vec4 inPosition;
 layout(location = 1) in vec2 inUV;
+
+
+layout(rg32ui, binding = 1) uniform readonly uimage2D lightsGrid;
+
+
+struct LightCalculation
+{
+	vec3 albedo;
+};
 
 
 //
@@ -60,20 +76,19 @@ float AttenuatePointLight(vec3 lightPos, vec3 fragPos, float radius)
 }
 
 
-vec3 CalculateLight(vec3 position, vec3 normal)
+LightCalculation CalculateLight(PointLight light, vec3 fragPos, vec3 normal)
 {
-	float attenuation = AttenuatePointLight(lightsPtr.pointLights[0].position, position, lightsPtr.pointLights[0].radius);
+	float attenuation = AttenuatePointLight(light.position, fragPos, light.radius);
 
-	vec3 lightColor = lightsPtr.pointLights[0].color;
-	vec3 ambientStr = 0.10 * lightColor;
 
-	vec3 lightDirection =  lightsPtr.pointLights[0].position - position;
+	vec3 lightDirection =  light.position - fragPos;
 	float diffuseInt = max(dot(normal, lightDirection), 0.0);
-	vec3 diffuse = diffuseInt * lightColor * attenuation;
+	vec3 diffuse = diffuseInt * light.color * attenuation;
 
 
-
-	return ambientStr + diffuse;
+	LightCalculation result;
+	result.albedo  = diffuse;
+	return result;
 }
 
 void main()
@@ -102,7 +117,22 @@ void main()
 		metallicRoughnessColor = texture(textures[metallicRoughnessTexIndex], inUV).xyz;
 	}
 
-	vec3 resultColor = albedoColor * CalculateLight(positions, normals);
+	uvec4 lightsDataInTile = imageLoad(lightsGrid, ivec2(gl_FragCoord.xy / tileSize));
+	uint  startIndex = lightsDataInTile.x;
+	uint  lightsCount = lightsDataInTile.y;
 
-	FragColor = vec4(resultColor, 1.0);
+	vec3 lightingResult = albedoColor * 0.1;
+
+	for(uint i = startIndex; i < lightsCount; ++i)
+	{
+		PointLight pointLight = lightsPtr.pointLights[i];
+
+		LightCalculation calcResult = CalculateLight(pointLight, positions, normals);
+
+		albedoColor = calcResult.albedo;
+
+		lightingResult += albedoColor;
+	}
+
+	FragColor = vec4(lightingResult, 1.0);
 }

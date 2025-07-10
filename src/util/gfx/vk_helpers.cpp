@@ -48,7 +48,7 @@ namespace vkhelpers
 		return beginInfo;
 	}
 
-	void TransitionImageLayout(VkCommandBuffer cmd, std::shared_ptr<ImageHandle> imgHandle , VkImageLayout currentLayout, VkImageLayout newLayout,
+	void TransitionImageLayout(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout,
 			VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
 			VkImageAspectFlags aspectFlags)
 	{
@@ -63,8 +63,7 @@ namespace vkhelpers
 		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
-		barrier.image = imgHandle->image;
-		imgHandle->currentLayout = newLayout;
+		barrier.image = image;
 
 		barrier.subresourceRange =
 		{

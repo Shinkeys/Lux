@@ -22,7 +22,9 @@ void Application::Run()
 
 	_vulkanBackend.Initialize(_window);
 
-	_sceneManager = std::make_unique<SceneManager>(_vulkanBackend, _window);
+	_engineBase = std::make_unique<EngineBase>(_vulkanBackend);
+
+	_sceneManager = std::make_unique<SceneManager>(_vulkanBackend, *_engineBase, _window);
 
 	AssetManager::Initialize();
 	Renderer::Initialize(_vulkanBackend);

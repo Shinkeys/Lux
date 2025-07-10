@@ -17,7 +17,7 @@ void Renderer::EndFrame()
 	_renderAPI->EndFrame();
 }
 
-void Renderer::BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments, glm::vec4 clearColor)
+void Renderer::BeginRender(const std::vector<Image*>& attachments, glm::vec4 clearColor)
 {
 	_renderAPI->BeginRender(attachments, clearColor);
 }

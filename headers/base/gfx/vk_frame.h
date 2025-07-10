@@ -13,7 +13,6 @@ class VulkanFrame
 private:
 	VulkanDevice& _deviceObject;
 	VulkanPresentation& _presentationObject;
-	VulkanPipeline& _pipelineObject;
 
 	//std::vector<VkFramebuffer> _framebuffers;
 
@@ -34,7 +33,7 @@ private:
 public:
 	VulkanFrame() = delete;
 	~VulkanFrame() = default;
-	VulkanFrame(VulkanDevice& deviceObj, VulkanPresentation& presentationObj, VulkanPipeline& pipelineObj);
+	VulkanFrame(VulkanDevice& deviceObj, VulkanPresentation& presentationObj);
 
 
 	VulkanFrame(const VulkanFrame&) = delete;

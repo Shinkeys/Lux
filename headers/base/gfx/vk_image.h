@@ -2,17 +2,22 @@
 #include "vk_presentation.h"
 #include "../../util/gfx/vk_types.h"
 #include "../../asset/asset_types.h"
+#include "../core/image.h"
 
-struct ImageSpecification
+namespace vkconversions
 {
-	VkFormat format{ VulkanPresentation::ColorFormat.format };
-	VkExtent3D extent{ 0, 0, 0 };
-	VkImageUsageFlags usage{ VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT };
-	VkImageLayout newLayout{ VK_IMAGE_LAYOUT_UNDEFINED };
-	VkImageAspectFlags aspect{ VK_IMAGE_ASPECT_COLOR_BIT };
-	u32 mipLevels{ 1 };
-};
-// 
+	VkFormat ToVkFormat(ImageFormat format);
+	VkImageUsageFlags ToVkImageUsage(ImageUsage usage);
+	VkImageLayout ToVkImageLayout(ImageLayout layout);
+	VkImageAspectFlags ToVkAspectFlags(ImageAspect aspect);
+	VkFilter ToVkFilter(Filter filter);
+	VkSamplerMipmapMode ToVkMipmapMode(SamplerMipMapMode mode);
+	VkSamplerAddressMode ToVkAddressMode(SamplerAddressMode mode);
+	VkExtent2D ToVkExtent2D(const ImageExtent2D& extent);
+	VkExtent3D ToVkExtent3D(const ImageExtent3D& extent);
+
+	ImageFormat ToEngineFormat(VkFormat format);
+}
 
 
 class VulkanBuffer;
@@ -21,46 +26,57 @@ class VulkanFrame;
 class VulkanDevice;
 struct MeshMaterial;
 
-class VulkanImage
+class VulkanImage : public Image
 {
 private:
-	VulkanBuffer& _bufferObject;
-	VulkanFrame& _frameObject;
-	VulkanAllocator& _allocatorObject;
-	VulkanDevice& _deviceObject;
-
-	std::vector<VkSampler> _allSamplersStorage;
-
-	// THIS IS JUST A TEMPORARY SOLUTION. GREAT IDEA WOULD BE NOT TO STORE IMAGES IN THE VECTORS AT ALL, BUT TO MAKE SMART SYSTEM OF DEALLOCATION IMAGES VIA SHARED_PTR
-	// WHEN REF COUNT IS ZERO. 2-3 FRAMES AFTER THE LAST USAGE
-	std::vector<std::shared_ptr<ImageHandle>> _allLoadedImagesStorage; // global storage of all loaded images
-	std::vector<std::shared_ptr<ImageHandle>> _allCreatedImagesStorage; // global storage for all created images
+	VulkanBuffer* _bufferObject{ nullptr };
+	VulkanFrame* _frameObject{ nullptr };
+	VulkanAllocator* _allocatorObject{ nullptr };
+	VulkanDevice* _deviceObject{ nullptr };
 
 
-	using HandleIndex = u32;
-	HandleIndex _imageAvailableIndex{ 1 };
+	VkImageView _imageView{ VK_NULL_HANDLE };
+	VkImage		_image{ VK_NULL_HANDLE };
+	VmaAllocation _allocation{ nullptr };
 
-	std::queue<LayoutsUpdateDesc> _queueToChangeLayouts;
-
+	ImageSpecification _specification;
 	/**
 	* @brief Change images layout when cmd buffer would start recording. ITS impossible to do it when image is created
 	*/
-	void CreateImageView(ImageHandle& imgHandle, VkFormat format, VkImageAspectFlags aspectMask);
+	void CreateTexture();
+	void CreateRenderTarget();
 public:
-	void Cleanup();
-	void UpdateLayoutsToCopyData();
-	VulkanImage() = delete;
-	~VulkanImage() = default;
-	VulkanImage(VulkanDevice& deviceObject, VulkanBuffer& bufferObj, VulkanFrame& frameObj, VulkanAllocator& allocatorObj);
+	VulkanImage(const ImageSpecification& spec, VulkanDevice& deviceObject, VulkanBuffer& bufferObj, VulkanFrame& frameObj, VulkanAllocator& allocatorObj);
+	VulkanImage(const ImageSpecification& spec, VkImage image, VkImageView imageView);
+	~VulkanImage();
 
-
+	// OBJECT MANAGED VIA SHARED PTR
 	VulkanImage(const VulkanImage&) = delete;
-	VulkanImage(VulkanImage&&) = delete;
-	VulkanImage& operator= (const VulkanImage&) = delete;
-	VulkanImage& operator= (VulkanImage&&) = delete;
+	VulkanImage& operator=(const VulkanImage&) = delete;
+	VulkanImage(VulkanImage&&) noexcept = delete;
+	VulkanImage& operator=(VulkanImage&&) noexcept = delete;
 
-	VkSampler CreateSampler(const CreateSamplerSpec& spec);
-	std::shared_ptr<ImageHandle> LoadAndStoreImageFromFile(const fs::path& path);
-	std::shared_ptr<ImageHandle> CreateEmptyImage(const ImageSpecification& spec);
-	const std::vector<std::shared_ptr<ImageHandle>>& GetAllLoadedImages() const { return _allLoadedImagesStorage; }
+
+	void SetLayout(ImageLayout newLayout, AccessFlag srcAccess, AccessFlag dstAccess, PipelineStage srcStage, PipelineStage dstStage) override;
+
+	VkImageView GetRawView()  const { return _imageView; }
+	VkImage     GetRawImage() const { return _image; }
+
+	const ImageSpecification& GetSpecification() const override { return _specification; }
+};
+
+class VulkanSampler : public Sampler
+{
+private:
+	VulkanDevice& _deviceObject;
+
+	VkSampler _sampler{ VK_NULL_HANDLE };
+	SamplerSpecification _specification;
+public:
+	VulkanSampler(const SamplerSpecification& spec, VulkanDevice& deviceObject);
+	void Destroy() override;
+
+	VkSampler GetRawSampler() const { return _sampler; }
+	const SamplerSpecification& GetSpecification() const { return _specification; }
+
 };

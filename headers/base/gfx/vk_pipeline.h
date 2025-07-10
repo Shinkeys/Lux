@@ -1,110 +1,47 @@
 #pragma once
 #include "vk_presentation.h"
+#include "../core/pipeline.h"
 
-
-// Type shader name without extensions ---
-// Incorrect: shading.vert
-// Correct: shading
-struct GraphicsPipeline
+namespace vkconversions
 {
-	std::filesystem::path shaderName{};
-	VkPrimitiveTopology topology{ VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST };
-	VkPolygonMode polygonMode{ VK_POLYGON_MODE_FILL };
-	VkCullModeFlagBits cullMode{ VK_CULL_MODE_NONE };
-	VkFrontFace frontFace{ VK_FRONT_FACE_COUNTER_CLOCKWISE }; // CCW because flipped viewport
-	VkBool32 depthTestEnable{ VK_TRUE };
-	VkBool32 depthWriteEnable{ VK_TRUE };
-	VkCompareOp depthCompare{ VK_COMPARE_OP_GREATER };
-	std::vector<VkFormat> colorFormats;
-	VkFormat depthFormat{ VK_FORMAT_D32_SFLOAT };
+	VkPrimitiveTopology ToVkPrimitiveTopology(PrimitiveTopology topology);
+	VkPolygonMode ToVkPolygonMode(PolygonMode mode);
+	VkCullModeFlagBits ToVkCullMode(CullMode mode);
+	VkFrontFace ToVkFrontFace(FrontFace face);
+	VkCompareOp ToVkCompareOP(CompareOP op);
+	VkAccessFlags2 ToVkAccessFlags2(AccessFlag flags);
+	VkPipelineStageFlags2 ToVkPipelineStageFlags2(PipelineStage stages);
+}
 
-	u32 attachmentsCount{ 1 };
-
-	std::vector<VkDescriptorSetLayout> descriptorLayouts;
-
-	u32 pushConstantSizeBytes{ 0 };
-	u32 pushConstantOffset{ 0 };
-
-	bool operator==(const GraphicsPipeline& other) const
-	{
-		return shaderName == other.shaderName;
-	}
-};
-
-
-struct ComputePipeline
-{
-	std::filesystem::path shaderName{};
-
-
-	std::vector<VkDescriptorSetLayout> descriptorLayouts;
-
-	u32 pushConstantSizeBytes{ 0 };
-	u32 pushConstantOffset{ 0 };
-
-	bool operator==(const ComputePipeline& other) const
-	{
-		return shaderName == other.shaderName;
-	}
-};
-
-
-template <> 
-struct std::hash<GraphicsPipeline>
-{
-	size_t operator()(const GraphicsPipeline& pipeline) const noexcept
-	{
-		size_t h1 = std::hash<fs::path>{}(pipeline.shaderName); // since C++ 20
-		size_t h2 = std::hash<VkCullModeFlagBits>{}(pipeline.cullMode); 
-
-		return h1 ^ (h2 << 1);
-	}
-};
-
-template<>
-struct std::hash<ComputePipeline>
-{
-	size_t operator()(const ComputePipeline& pipeline) const noexcept
-	{
-		size_t h1 = std::hash<fs::path>{}(pipeline.shaderName); // since C++ 20
-		size_t h2 = std::hash<u32>{}(pipeline.pushConstantSizeBytes);
-
-		return h1 ^ (h2 << 1);
-	}
-};
-
-
-struct PipelinePair
-{
-	VkPipeline pipeline{ VK_NULL_HANDLE };
-	VkPipelineLayout pipelineLayout{ VK_NULL_HANDLE };
-};
-
-
-class VulkanPipeline
+// DON'T CREATE IT MANUALLY, IT SHOULD BE CREATED VIA PIPELINE BASE CLASS
+class VulkanPipeline : public Pipeline
 {
 private:
 	VulkanDevice& _deviceObject;
-	VulkanPresentation& _presentationObject;
+	VkPipeline _pipeline{ VK_NULL_HANDLE };
+	VkPipelineLayout _layout{ VK_NULL_HANDLE };
 
-	// To do. for uniforms
-	std::unordered_map<GraphicsPipeline, PipelinePair> _graphicsCache;
-	std::unordered_map<ComputePipeline, PipelinePair>  _computeCache;
+	PipelineSpecification _specification;
+
+	void CreateGraphicsPipeline();
+	void CreateComputePipeline();
 public:
-	PipelinePair CreatePipeline(const GraphicsPipeline& graphicsPipeline);
-	PipelinePair CreatePipeline(const ComputePipeline& computePipeline);
-	void SetDynamicStates(VkCommandBuffer cmdBuffer) const;
-	const PipelinePair* GetPipelinePair(const GraphicsPipeline& graphicsPipeline) const;
+	const PipelineSpecification& GetSpecification() override { return _specification; }
 
+	VulkanPipeline(const PipelineSpecification& spec, VulkanDevice& deviceObj);
+	
 	VulkanPipeline() = delete;
 	~VulkanPipeline() = default;
-	VulkanPipeline(VulkanDevice& deviceObj, VulkanPresentation& presentationObj);
-
 
 	VulkanPipeline(const VulkanPipeline&) = delete;
 	VulkanPipeline(VulkanPipeline&&) = delete;
 	VulkanPipeline& operator= (const VulkanPipeline&) = delete;
 	VulkanPipeline& operator= (VulkanPipeline&&) = delete;
+
+
+
+	VkPipeline GetRawPipeline()     const { return _pipeline; }
+	VkPipelineLayout GetRawLayout() const { return _layout;   }
 
 	void Cleanup();
 };

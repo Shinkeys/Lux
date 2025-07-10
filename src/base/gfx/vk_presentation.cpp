@@ -1,12 +1,14 @@
 #include "../../../headers/base/gfx/vk_presentation.h"
+#include "../../../headers/base/gfx/vk_frame.h"
+#include "../../../headers/base/gfx/vk_buffer.h"
+#include "../../../headers/base/gfx/vk_image.h"
 
 u32 VulkanPresentation::PresentationImagesCount{ 0 };
 
-VulkanPresentation::VulkanPresentation(VulkanInstance& instanceObj, VulkanDevice& deviceObj, Window& windowObj) : 
+VulkanPresentation::VulkanPresentation(VulkanInstance& instanceObj, VulkanDevice& deviceObj, Window& windowObj) :
 	_instanceObject{ instanceObj }, _deviceObject{ deviceObj }, _windowObject { windowObj }
 {
 	CreateSwapchain();
-	CreateImageViews();
 }
 
 void VulkanPresentation::RecreateSwapchain()
@@ -15,7 +17,6 @@ void VulkanPresentation::RecreateSwapchain()
 
 	DestroyStructures();
 	CreateSwapchain();
-	CreateImageViews();
 }
 void VulkanPresentation::CreateSwapchain()
 {
@@ -70,12 +71,35 @@ void VulkanPresentation::CreateSwapchain()
 
 	vkGetSwapchainImagesKHR(_deviceObject.GetDevice(), _swapchainDesc.swapchain, &swapImageCount, images.data());
 
+	ImageSpecification imageSpec;
+	imageSpec.aspect = ImageAspect::IMAGE_ASPECT_COLOR;
+	imageSpec.format = vkconversions::ToEngineFormat(surfaceFormat.format);
+	imageSpec.extent = ImageExtent3D{ swapchainExtent.width, swapchainExtent.height, 1 };
+
 	for (u32 i = 0; i < _swapchainDesc.images.size(); ++i)
 	{
 		if (_swapchainDesc.images[i] == nullptr)
-			_swapchainDesc.images[i] = std::make_shared<ImageHandle>();
+		{
+			VkImageViewCreateInfo createInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+			createInfo.image = images[i];
+			createInfo.format = surfaceFormat.format;
+			createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+			// Describes image purpose. Default color attachment for now
+			createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			createInfo.subresourceRange.baseMipLevel = 0;
+			createInfo.subresourceRange.baseArrayLayer = 0;
+			createInfo.subresourceRange.levelCount = 1;
+			createInfo.subresourceRange.layerCount = 1;
 
-		_swapchainDesc.images[i]->image = images[i];
+			VkImageView imageView;
+			VK_CHECK(vkCreateImageView(_deviceObject.GetDevice(), &createInfo, nullptr, &imageView));
+
+			_swapchainDesc.images[i] = std::make_shared<VulkanImage>(imageSpec, images[i], imageView);
+		}
 	}
 
 	_swapchainDesc.imageFormat = surfaceFormat.format;
@@ -165,29 +189,6 @@ VkExtent2D VulkanPresentation::SelectRequiredSwapchainExtent(const VkSurfaceCapa
 	return extent;
 }
 
-void VulkanPresentation::CreateImageViews()
-{
-	for (size_t i = 0; i < _swapchainDesc.images.size(); ++i)
-	{
-		VkImageViewCreateInfo createInfo{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-		createInfo.image  = _swapchainDesc.images[i]->image;
-		createInfo.format = _swapchainDesc.imageFormat;
-		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		// Describes image purpose. Default color attachment for now
-		createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		createInfo.subresourceRange.baseMipLevel = 0;
-		createInfo.subresourceRange.baseArrayLayer = 0;
-		createInfo.subresourceRange.levelCount = 1;
-		createInfo.subresourceRange.layerCount = 1;
-
-		VK_CHECK(vkCreateImageView(_deviceObject.GetDevice(), &createInfo, nullptr, &_swapchainDesc.images[i]->imageView));
-	}
-}
-
 
 void VulkanPresentation::Cleanup()
 {
@@ -202,7 +203,7 @@ void VulkanPresentation::DestroyStructures()
 	{
 		if (imageHandle != nullptr)
 		{
-			vkDestroyImageView(device, imageHandle->imageView, nullptr);
+			vkDestroyImageView(device, imageHandle->GetRawView(), nullptr);
 		}
 	}
 }

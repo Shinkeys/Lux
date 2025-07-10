@@ -11,7 +11,7 @@ private:
 
 	void BeginFrame() override;
 	void EndFrame() override;
-	void BeginRender(const std::vector<std::shared_ptr<ImageHandle>>& attachments, glm::vec4 clearColor) override; // to do;
+	void BeginRender(const std::vector<Image*>& attachments, glm::vec4 clearColor) override; // to do;
 	void EndRender() override;
 
 	void RenderMesh(const DrawCommand& command) override;

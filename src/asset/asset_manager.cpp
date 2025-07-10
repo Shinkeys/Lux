@@ -1,4 +1,5 @@
 #include "../../headers/asset/asset_manager.h"
+#include "../../headers/base/core/image.h"
 #include "../../headers/base/gfx/vk_image.h"
 #include "../../headers/util/helpers.h"
 
@@ -74,30 +75,55 @@ MaterialStorageBackData AssetManager::StoreLoadedMaterials(const std::vector<Mat
 	return backData;
 }
 
-MaterialTexturesDesc AssetManager::TryToLoadMaterial(VulkanImage& imageManager, const MeshMaterial& material)
+MaterialTexturesDesc AssetManager::TryToLoadMaterial(const ImageManager& imageManager, const MeshMaterial& material)
 {
 	MaterialTexturesDesc description;
 	for (auto& texture : material.materialTextures)
 	{
+		ImageSpecification spec;
+		spec.type   = ImageType::IMAGE_TYPE_TEXTURE;
+		spec.aspect = ImageAspect::IMAGE_ASPECT_COLOR;
+		spec.format = ImageFormat::IMAGE_FORMAT_R8G8B8A8_SRGB;
+		spec.path = texture.path;
+
+		const u32 availableIndex = static_cast<u32>(_textures.size());
+
 		switch (texture.dataType)
 		{
 		case TexturesData::Type::URI:
 		{
 			if (texture.textureType == TextureType::TEXTURE_ALBEDO)
 			{
-				auto res = imageManager.LoadAndStoreImageFromFile(texture.path);
-				description.albedoID = res ? res->index : 0;
+				auto res = imageManager.CreateImage(spec);
+				if (res)
+				{
+					description.albedoID = availableIndex;
+					_textures.emplace_back(availableIndex, std::move(res));
+				}
+				else
+					description.albedoID = 0;
 			}
 			else if (texture.textureType == TextureType::TEXTURE_NORMAL)
 			{
-				auto res = imageManager.LoadAndStoreImageFromFile(texture.path);
-				description.normalID = res ? res->index : 0;
-
+				auto res = imageManager.CreateImage(spec);
+				if (res)
+				{
+					description.normalID = availableIndex;
+					_textures.emplace_back(availableIndex, std::move(res));
+				}
+				else
+					description.normalID = 0;
 			}
 			else if (texture.textureType == TextureType::TEXTURE_METALLICROUGHNESS)
 			{
-				auto res = imageManager.LoadAndStoreImageFromFile(texture.path);
-				description.metalRoughnessID = res ? res->index : 0;
+				auto res = imageManager.CreateImage(spec);
+				if (res)
+				{
+					description.metalRoughnessID = availableIndex;
+					_textures.emplace_back(availableIndex, std::move(res));
+				}
+				else
+					description.metalRoughnessID = 0;
 			}
 
 			break;

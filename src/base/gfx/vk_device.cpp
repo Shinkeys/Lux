@@ -98,6 +98,7 @@ bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const
 		!queryVulkan12Features.shaderSampledImageArrayNonUniformIndexing ||
 		!queryVulkan12Features.descriptorBindingSampledImageUpdateAfterBind ||
 		!queryVulkan12Features.descriptorBindingPartiallyBound ||
+		!queryVulkan12Features.descriptorBindingStorageImageUpdateAfterBind ||
 		!queryVulkan12Features.runtimeDescriptorArray)
 		return false;
 
@@ -237,6 +238,7 @@ void VulkanDevice::CreateLogicalDevice()
 		.descriptorIndexing = VK_TRUE, // BINDLESS
 		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
 		.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
+		.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE,
 		.descriptorBindingPartiallyBound = VK_TRUE,
 		.runtimeDescriptorArray = VK_TRUE,
 

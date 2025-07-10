@@ -17,6 +17,8 @@ struct MaterialStorageBackData
 };
 
 class VulkanImage;
+class ImageManager;
+class Image;
 class AssetManager
 {
 private:
@@ -31,6 +33,8 @@ private:
 	MaterialID _availableMaterialIndex{ 1 };
 	std::unordered_map<AssetID, VertexDescription> _vertexDescription;
 	std::unordered_map<MaterialID, MaterialDescription> _materialDescription;
+
+	std::vector<std::pair<u32, std::unique_ptr<Image>>> _textures;
 
 	fs::path ConvertToPath(const fs::path& folder);
 	fs::path FindGLTFByPath(const fs::path& path);
@@ -50,6 +54,7 @@ public:
 
 	static AssetManager* Get() { return s_Instance; }
 
+	const auto& GetAllTextures() const { return _textures; }
 
 	size_t GetAllSceneSize();
 
@@ -61,6 +66,6 @@ public:
 	* @brief Write models FOLDER to load the file from it. There's should be files only for one model
 	*/
 	std::optional<MeshStorageBackData> TryToLoadAndStoreMesh(const fs::path& folder);
-	MaterialTexturesDesc TryToLoadMaterial(VulkanImage& imageManager, const MeshMaterial& material);
+	MaterialTexturesDesc TryToLoadMaterial(const ImageManager& imageManager, const MeshMaterial& material);
 	MaterialStorageBackData StoreLoadedMaterials(const std::vector<MaterialTexturesDesc>& materialsDesc);
 };

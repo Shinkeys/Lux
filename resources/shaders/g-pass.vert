@@ -56,7 +56,8 @@ struct ViewData
 	mat4 view;
 	mat4 proj;
 	mat4 viewProj;
-	mat4 inverseProjection;
+    mat4 inverseProjection;
+
 	vec3 position;
 
 	ivec2 extent;
