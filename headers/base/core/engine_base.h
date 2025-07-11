@@ -20,7 +20,7 @@ public:
 	PipelineManager&   GetPipelineManager() { return   *_pipelineManager; }
 
 	EngineBase() = delete;
-	~EngineBase() = default;
+	~EngineBase();
 	EngineBase(VulkanBase& vulkanBase);
 
 

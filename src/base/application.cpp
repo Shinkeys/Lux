@@ -42,7 +42,6 @@ void Application::Run()
 
 
 	// Application closed, cleanup everything.
-	AssetManager::Cleanup();
 	Cleanup();
 }
 
@@ -56,7 +55,7 @@ void Application::Render()
 
 void Application::Cleanup()
 {
+	AssetManager::Cleanup();
 	_core.Cleanup();
-	_vulkanBackend.Cleanup();
 	_window.Cleanup();
 }

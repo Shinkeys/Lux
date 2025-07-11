@@ -40,6 +40,7 @@ private:
 	VmaAllocation _allocation{ nullptr };
 
 	ImageSpecification _specification;
+
 	/**
 	* @brief Change images layout when cmd buffer would start recording. ITS impossible to do it when image is created
 	*/
@@ -50,7 +51,7 @@ public:
 	VulkanImage(const ImageSpecification& spec, VkImage image, VkImageView imageView);
 	~VulkanImage();
 
-	// OBJECT MANAGED VIA SHARED PTR
+	// OBJECT MANAGED VIA UNIQUE PTR
 	VulkanImage(const VulkanImage&) = delete;
 	VulkanImage& operator=(const VulkanImage&) = delete;
 	VulkanImage(VulkanImage&&) noexcept = delete;
@@ -75,7 +76,13 @@ private:
 	SamplerSpecification _specification;
 public:
 	VulkanSampler(const SamplerSpecification& spec, VulkanDevice& deviceObject);
-	void Destroy() override;
+	~VulkanSampler();
+
+	// OBJECT MANAGED VIA UNIQUE PTR
+	VulkanSampler(const VulkanSampler&) = delete;
+	VulkanSampler& operator=(const VulkanSampler&) = delete;
+	VulkanSampler(VulkanSampler&&) noexcept = delete;
+	VulkanSampler& operator=(VulkanSampler&&) noexcept = delete;
 
 	VkSampler GetRawSampler() const { return _sampler; }
 	const SamplerSpecification& GetSpecification() const { return _specification; }

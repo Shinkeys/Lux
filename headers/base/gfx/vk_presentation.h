@@ -31,7 +31,6 @@ public:
 	const VulkanSwapchain& GetSwapchainDesc() const { return _swapchainDesc; }
 	void RecreateSwapchain();
 
-	void Cleanup();
 	VulkanPresentation() = delete;
 	~VulkanPresentation() = default;
 	VulkanPresentation(VulkanInstance& instanceObj, VulkanDevice& deviceObj, Window& windowObj);
@@ -42,6 +41,7 @@ public:
 	VulkanPresentation& operator= (const VulkanPresentation&) = delete;
 	VulkanPresentation& operator= (VulkanPresentation&&) = delete;
 
+	void Cleanup();
 
 	static constexpr VkSurfaceFormatKHR ColorFormat{
 	.format {VK_FORMAT_B8G8R8A8_SRGB}, .colorSpace{VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}

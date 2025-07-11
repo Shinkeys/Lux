@@ -1,6 +1,7 @@
 #include "../../../headers/base/gfx/vk_pipeline.h"
 #include "../../../headers/util/gfx/vk_helpers.h"
 #include "../../../headers/base/gfx/vk_descriptor.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 #include "../../../headers/base/gfx/vk_image.h"
 
 VulkanPipeline::VulkanPipeline(const PipelineSpecification& spec, VulkanDevice& deviceObj) :
@@ -20,6 +21,18 @@ VulkanPipeline::VulkanPipeline(const PipelineSpecification& spec, VulkanDevice& 
 		break;
 	}
 
+}
+
+VulkanPipeline::~VulkanPipeline()
+{
+	VkDevice device = _deviceObject.GetDevice();
+	VkPipeline pipeline = _pipeline;
+	VkPipelineLayout layout = _layout;
+
+	VulkanDeleter::SubmitObjectDesctruction([device, pipeline, layout]() {
+		vkDestroyPipelineLayout(device, layout, nullptr);
+		vkDestroyPipeline(device, pipeline, nullptr);
+	});
 }
 
 void VulkanPipeline::CreateGraphicsPipeline()

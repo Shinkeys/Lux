@@ -28,6 +28,7 @@ layout(scalar, buffer_reference, buffer_reference_align = 4) buffer LightIndices
 
 
 layout(rg32ui, binding = 1, set = 0) uniform writeonly uimage2D lightsGrid;
+layout(binding = 2) uniform sampler2D depthTexture;
 
 struct ViewData
 {
@@ -109,6 +110,8 @@ vec4 ScreenToView(vec4 data)
 
 const int LOCAL_LIGHT_INDICES_MAX_SIZE = 128;
 
+shared int minDepth;
+shared int maxDepth;
 shared int localLightCount;
 shared vec4 frustumPlanes[4];
 shared int localLightIndices[LOCAL_LIGHT_INDICES_MAX_SIZE];
@@ -118,22 +121,37 @@ void AppendLightOpaque(uint lightIndex)
     uint index = atomicAdd(localLightCount, 1);
     if(index >= maxLightsPerCluster) return;
 
-    memoryBarrierShared();
     localLightIndices[index]  = int(lightIndex);
-    memoryBarrierShared();
 }
 
 
 
 void main()
 {
-	if(gl_LocalInvocationIndex == 0)
-	{
+    // Sampling depth texture
+    ivec2 texCoord = ivec2(gl_GlobalInvocationID.xy);
+    float depthFloat = texelFetch(depthTexture, texCoord, 0).r;
+    depthFloat = depthFloat * 2.0 - 1.0;
+    int depthInt = floatBitsToInt(depthFloat);
+
+
+    if(gl_LocalInvocationIndex == 0)
+    {
+        minDepth = 0x7FFFFFFF;
+        maxDepth = 0;
 		localLightCount = 0;
 	}
     
 	barrier();
+
+    atomicMin(minDepth, depthInt);
+    atomicMax(maxDepth, depthInt);
     
+    barrier();
+
+
+    float minDepthFloat = intBitsToFloat(minDepth);
+    float maxDepthFloat = intBitsToFloat(maxDepth);
     
 	if(gl_LocalInvocationIndex == 0)
 	{
@@ -165,6 +183,10 @@ void main()
     
     barrier();
     
+    float minDepthVS = ClipToView(vec4(0.0, 0.0,   minDepth, 1.0)).z;
+    float maxDepthVS = ClipToView(vec4(0.0, 0.0,   maxDepth, 1.0)).z;
+    vec4  minPlane   = vec4(0.0, 0.0, -1.0, -minDepthVS);
+
     int lightStep = int(gl_WorkGroupSize.x * gl_WorkGroupSize.y);
     for(uint i = gl_LocalInvocationIndex; i < lightsCount; i += lightStep)
     {
@@ -172,7 +194,13 @@ void main()
         float radius =  lightsPtr.pointLights[i].radius;
     
         vec4 lightPosView = viewDataPtr.viewData.view * vec4(pos, 1.0);
-        
+
+        float nearPlane = 0.0;
+        // Depth test. Values inverted because in vulkan 0 is the front face
+        if(lightPosView.z + radius < minDepthVS || lightPosView.z - radius > maxDepthVS)
+             continue;
+
+
         float dist = -1.0;
     
         for(uint j = 0; j < 4; ++j)
@@ -186,8 +214,6 @@ void main()
         // && !(dot(minPlane.xyz, lightPosView.xyz) - minPlane.w < -radius)
         if(dist >= -radius)
         {
-            debugPrintfEXT("Dist: %f", dist);
-
             AppendLightOpaque(i);
         }
     }

@@ -10,3 +10,9 @@ EngineBase::EngineBase(VulkanBase& vulkanBase) : _vulkanBase{ vulkanBase }
 	_descriptorManager = std::make_unique<DescriptorManager>(_vulkanBase);
 	_pipelineManager = std::make_unique<PipelineManager>(_vulkanBase);
 }
+
+EngineBase::~EngineBase()
+{
+	_descriptorManager->Cleanup();
+}
+

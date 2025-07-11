@@ -1,10 +1,18 @@
 #include "../../../headers/base/gfx/vk_device.h"
 #include "../../../headers/util/gfx/vk_defines.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 
 VulkanDevice::VulkanDevice(VulkanInstance& instanceObj) : _instanceObject{instanceObj}
 {
 	CreatePhysicalDevice();
 	CreateLogicalDevice();
+}
+
+void VulkanDevice::Cleanup()
+{
+	VulkanDeleter::SubmitObjectDesctruction([this]() {
+		vkDestroyDevice(_device, nullptr);
+	});
 }
 
 // To do: for different queue families, like:
@@ -286,9 +294,4 @@ void VulkanDevice::CreateLogicalDevice()
 	VkQueue presentationQueue;
 	vkGetDeviceQueue(_device, presentationQInd, 0, &presentationQueue);
 	_queuesStorage[static_cast<size_t>(QueueType::VULKAN_PRESENTATION_QUEUE)] = presentationQueue;
-}
-
-void VulkanDevice::Cleanup()
-{
-	vkDestroyDevice(_device, nullptr);
 }

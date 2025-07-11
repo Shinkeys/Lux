@@ -12,7 +12,6 @@ private:
 
 	VmaAllocator _allocator;
 public:
-	void Cleanup();
 	VulkanAllocator() = delete;
 	~VulkanAllocator() = default;
 	VulkanAllocator(VulkanInstance& instanceObj, VulkanDevice& deviceObj);
@@ -23,4 +22,6 @@ public:
 	VulkanAllocator(VulkanAllocator&&) = delete;
 	VulkanAllocator& operator= (const VulkanAllocator&) = delete;
 	VulkanAllocator& operator= (VulkanAllocator&&) = delete;
+
+	void Cleanup();
 };

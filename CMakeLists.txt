@@ -104,7 +104,7 @@ add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
 add_dependencies(Lux Shaders)
 
 # Linking libraries
-target_link_libraries(Lux PRIVATE SDL3::SDL3 imgui volk fastgltf::fastgltf)
+target_link_libraries(Lux PRIVATE SDL3::SDL3 imgui volk fastgltf::fastgltf -fsanitize=address -fsanitize=undefined)
 
 
 #-fsanitize=address -fsanitize=undefined remove that to make it possible to work with renderdoc, otherwise place in target libs

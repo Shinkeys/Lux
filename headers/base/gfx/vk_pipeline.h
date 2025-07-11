@@ -31,7 +31,7 @@ public:
 	VulkanPipeline(const PipelineSpecification& spec, VulkanDevice& deviceObj);
 	
 	VulkanPipeline() = delete;
-	~VulkanPipeline() = default;
+	~VulkanPipeline();
 
 	VulkanPipeline(const VulkanPipeline&) = delete;
 	VulkanPipeline(VulkanPipeline&&) = delete;

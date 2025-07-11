@@ -197,7 +197,6 @@ private:
 	std::unordered_map<BufferIndex, StorageBuffer> _ssboBuffers;
 	std::unordered_map<BufferIndex, StorageBuffer> _stagingBuffers;
 public:
-	void Cleanup();
 	// Mesh
 	MeshBuffers& CreateMeshBuffers(const MeshVertexBufferCreateDesc& vertexDesc, const MeshIndexBufferCreateDesc& indexDesc, EntityIndex handleIndex);
 	const MeshBuffers* GetMeshBuffers(EntityIndex handleIndex) const;
@@ -227,6 +226,8 @@ public:
 	VulkanBuffer(VulkanBuffer&&) = delete;
 	VulkanBuffer& operator= (const VulkanBuffer&) = delete;
 	VulkanBuffer& operator= (VulkanBuffer&&) = delete;
+
+	void Cleanup();
 };
 
 

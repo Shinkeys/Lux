@@ -81,9 +81,9 @@ LightCalculation CalculateLight(PointLight light, vec3 fragPos, vec3 normal)
 	float attenuation = AttenuatePointLight(light.position, fragPos, light.radius);
 
 
-	vec3 lightDirection =  light.position - fragPos;
+	vec3  lightDirection =  light.position - fragPos;
 	float diffuseInt = max(dot(normal, lightDirection), 0.0);
-	vec3 diffuse = diffuseInt * light.color * attenuation;
+	vec3  diffuse = diffuseInt * light.color * attenuation;
 
 
 	LightCalculation result;
@@ -118,21 +118,22 @@ void main()
 	}
 
 	uvec4 lightsDataInTile = imageLoad(lightsGrid, ivec2(gl_FragCoord.xy / tileSize));
-	uint  startIndex = lightsDataInTile.x;
+	uint  startIndex  = lightsDataInTile.x;
 	uint  lightsCount = lightsDataInTile.y;
 
-	//vec3 lightingResult = albedoColor * 0.1;
-	//
-	//for(uint i = startIndex; i < lightsCount; ++i)
-	//{
-	//	PointLight pointLight = lightsPtr.pointLights[i];
-	//
-	//	LightCalculation calcResult = CalculateLight(pointLight, positions, normals);
-	//
-	//	albedoColor = calcResult.albedo;
-	//
-	//	lightingResult += albedoColor;
-	//}
+	vec3 lightingResult = albedoColor * 0.1;
+	
+	for(uint i = startIndex; i < lightsCount; ++i)
+	{
+		uint lightIndex = lightIndicesPtr.lightIndices[i];
+		PointLight pointLight = lightsPtr.pointLights[lightIndex];
+	
+		LightCalculation calcResult = CalculateLight(pointLight, positions, normals);
+	
+		albedoColor = calcResult.albedo;
+	
+		lightingResult += albedoColor;
+	}
 
-	FragColor = vec4(albedoColor * 0.1, 1.0);
+	FragColor = vec4(lightingResult, 1.0);
 }

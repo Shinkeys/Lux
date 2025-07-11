@@ -49,7 +49,6 @@ public:
 	void EndCommandRecord();
 	void WaitForFence();
 	void ResetFence();
-	void Cleanup();
 
 	void UpdateCurrentFrameIndex() { _currentFrame = (_currentFrame + 1) % FramesInFlight; }
 	i32 GetCurrentFrameIndex()							   const { return _currentFrame; }
@@ -59,5 +58,8 @@ public:
 	VkSemaphore GetRenderFinishedSemaphore()		       const;
 	VkFence GetFence()                                     const;
 	VkCommandBuffer GetCommandBuffer()                     const;
+
+
+	void Cleanup();
 };
 

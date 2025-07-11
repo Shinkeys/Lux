@@ -1,5 +1,6 @@
 #include "../../../headers/base/gfx/vk_frame.h"
 #include "../../../headers/base/gfx/vk_image.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 #include "../../../headers/util/gfx/vk_helpers.h"
 #include "../../../headers/base/core/renderer.h"
 
@@ -92,6 +93,11 @@ void VulkanFrame::BeginFrame()
 	// Image index - swapchain image index
 
 	WaitForFence();
+
+
+	VulkanDeleter::ExecuteDeletion();
+
+
 	VkResult swapchainResultImageStage = vkAcquireNextImageKHR(device, swapchainDesc.swapchain,
 		UINT64_MAX, GetImageAvailableSemaphore(), VK_NULL_HANDLE, &_currentImage);
 
@@ -150,9 +156,9 @@ void VulkanFrame::BeginCommandRecord()
 
 	const VulkanSwapchain& swapchainDesc = _presentationObject.GetSwapchainDesc();
 
-	//vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[_currentImage]->GetRawImage(), VK_IMAGE_LAYOUT_UNDEFINED,
-	//	VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-	//	VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
+	vkhelpers::TransitionImageLayout(cmdBuffer, swapchainDesc.images[_currentImage]->GetRawImage(), VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 0, VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+		VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 void VulkanFrame::EndCommandRecord()
@@ -181,16 +187,23 @@ void VulkanFrame::ResetFence()
 
 void VulkanFrame::Cleanup()
 {
-	const VkDevice device = _deviceObject.GetDevice();
+	VkDevice device = _deviceObject.GetDevice();
+	VkCommandPool cmdPool = _commandPool;
+	std::vector<VkSemaphore> imgAvailableSemaphores = _imageAvailableSemaphores;
+	std::vector<VkFence> fences = _syncCPUFences;
+	std::vector<VkSemaphore> rFinishedSemaphores = _renderFinishedSemaphores;
 
-	vkDestroyCommandPool(device, _commandPool, nullptr);
-	for (i32 i = 0; i < FramesInFlight; ++i)
-	{
-		vkDestroySemaphore(device, _imageAvailableSemaphores[i], nullptr);
-		vkDestroyFence(device, _syncCPUFences[i], nullptr);
-	}
-	for (VkSemaphore semaphore : _renderFinishedSemaphores)
-	{
-		vkDestroySemaphore(device, semaphore, nullptr);
-	}
+	VulkanDeleter::SubmitObjectDesctruction([device, cmdPool, imgAvailableSemaphores, fences, rFinishedSemaphores]() {
+
+		vkDestroyCommandPool(device, cmdPool, nullptr);
+		for (i32 i = 0; i < FramesInFlight; ++i)
+		{
+			vkDestroySemaphore(device, imgAvailableSemaphores[i], nullptr);
+			vkDestroyFence(device, fences[i], nullptr);
+		}
+		for (VkSemaphore semaphore : rFinishedSemaphores)
+		{
+			vkDestroySemaphore(device, semaphore, nullptr);
+		}
+	});
 }

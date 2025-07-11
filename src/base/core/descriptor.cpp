@@ -1,6 +1,7 @@
 #include "../../../headers/base/core/descriptor.h"
 #include "../../../headers/base/gfx/vk_descriptor.h"
 #include "../../../headers/base/gfx/vk_base.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 
 DescriptorManager::DescriptorManager(VulkanBase& vulkanBase) : _vulkanBase{vulkanBase}
 {
@@ -35,5 +36,10 @@ std::unique_ptr<Descriptor> DescriptorManager::CreateDescriptorSet(const Descrip
 
 void DescriptorManager::Cleanup()
 {
-	vkDestroyDescriptorPool(_vulkanBase.GetVulkanDeviceObj().GetDevice(), _commonPool, nullptr);
+	VkDevice device = _vulkanBase.GetVulkanDeviceObj().GetDevice();
+	VkDescriptorPool descPool = _commonPool;
+
+	VulkanDeleter::SubmitObjectDesctruction([device, descPool](){
+		vkDestroyDescriptorPool(device, descPool, nullptr);
+	});
 }

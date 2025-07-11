@@ -81,12 +81,12 @@ MaterialTexturesDesc AssetManager::TryToLoadMaterial(const ImageManager& imageMa
 	for (auto& texture : material.materialTextures)
 	{
 		ImageSpecification spec;
-		spec.type   = ImageType::IMAGE_TYPE_TEXTURE;
+		spec.type = ImageType::IMAGE_TYPE_TEXTURE;
 		spec.aspect = ImageAspect::IMAGE_ASPECT_COLOR;
 		spec.format = ImageFormat::IMAGE_FORMAT_R8G8B8A8_SRGB;
 		spec.path = texture.path;
 
-		const u32 availableIndex = static_cast<u32>(_textures.size());
+		const u32 availableIndex = static_cast<u32>(_textures.size() + 1); // starts from 1
 
 		switch (texture.dataType)
 		{

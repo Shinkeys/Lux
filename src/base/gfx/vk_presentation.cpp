@@ -2,6 +2,7 @@
 #include "../../../headers/base/gfx/vk_frame.h"
 #include "../../../headers/base/gfx/vk_buffer.h"
 #include "../../../headers/base/gfx/vk_image.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 
 u32 VulkanPresentation::PresentationImagesCount{ 0 };
 
@@ -198,17 +199,20 @@ void VulkanPresentation::Cleanup()
 
 void VulkanPresentation::DestroyStructures()
 {
-	const VkDevice device = _deviceObject.GetDevice();
 	for (auto& imageHandle : _swapchainDesc.images)
 	{
 		if (imageHandle != nullptr)
 		{
-			vkDestroyImageView(device, imageHandle->GetRawView(), nullptr);
+			vkDestroyImageView(_deviceObject.GetDevice(), imageHandle->GetRawView(), nullptr);
 		}
 	}
 }
 
 void VulkanPresentation::DestroySwapchain()
 {
-	vkDestroySwapchainKHR(_deviceObject.GetDevice(), _swapchainDesc.swapchain, nullptr);
+	VkDevice device = _deviceObject.GetDevice();
+	VkSwapchainKHR swapchain = _swapchainDesc.swapchain;
+	VulkanDeleter::SubmitObjectDesctruction([device, swapchain]() {
+		vkDestroySwapchainKHR(device, swapchain, nullptr);
+	});
 }

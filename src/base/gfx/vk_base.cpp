@@ -1,4 +1,5 @@
 ﻿#include "../../../headers/base/gfx/vk_base.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 #include "../../../headers/base/core/renderer.h"
 
 // DEFINE FOR VOLK SHOULD BE PLACED ONLY HERE
@@ -17,14 +18,17 @@ void VulkanBase::Initialize(Window& windowObj)
 }
 
 
-void VulkanBase::Cleanup()
+VulkanBase::~VulkanBase()
 {
 	vkDeviceWaitIdle(_deviceObject->GetDevice());
-	// Instance should be destroyed last
+
 	_bufferObject->Cleanup();
 	_allocatorObject->Cleanup();
 	_frameObject->Cleanup();
 	_presentationObject->Cleanup();
 	_deviceObject->Cleanup();
 	_instanceObject->Cleanup();
+
+	VulkanDeleter::ExecuteDeletion();
+
 }

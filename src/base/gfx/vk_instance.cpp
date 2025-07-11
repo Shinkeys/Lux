@@ -1,11 +1,12 @@
 #include "../../../headers/base/gfx/vk_instance.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 #include "../../../headers/base/window.h"
 #include "../../../headers/util/logger.h"
 
 
 #include <SDL3/SDL_vulkan.h>
 
-VulkanInstance::VulkanInstance(Window& window) : _windowObject{window}
+VulkanInstance::VulkanInstance(Window& window) : _windowObject{ window }
 {
 	CreateInstance();
 #ifdef KHRONOS_VALIDATION
@@ -19,7 +20,7 @@ bool VulkanInstance::IsLayerSupported(const char* name)
 {
 	u32 propertyCount = 0;
 	VK_CHECK(vkEnumerateInstanceLayerProperties(&propertyCount, 0));
-	
+
 	std::vector<VkLayerProperties> properties(propertyCount);
 	VK_CHECK(vkEnumerateInstanceLayerProperties(&propertyCount, properties.data()));
 
@@ -58,7 +59,7 @@ void VulkanInstance::CreateInstance()
 	{
 		Logger::CriticalLog("Vulkan error : Vulkan 1." + std::to_string(VK_API_VERSION_MINOR(API_VERSION)) + " instance not found");
 	}
-	
+
 	VkApplicationInfo appInfo{ VK_STRUCTURE_TYPE_APPLICATION_INFO };
 	appInfo.apiVersion = API_VERSION;
 	appInfo.pNext = nullptr;
@@ -79,7 +80,7 @@ void VulkanInstance::CreateInstance()
 	{
 		"VK_LAYER_KHRONOS_validation"
 	};
-	
+
 	if (IsLayerSupported("VK_LAYER_KHRONOS_validation"))
 	{
 		createInfo.ppEnabledLayerNames = debugLayers.data();
@@ -105,7 +106,7 @@ void VulkanInstance::CreateInstance()
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 	extensions.push_back(VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME);
 #endif
-	
+
 	if (IsInstanceExtensionSupported(VK_EXT_DEBUG_UTILS_EXTENSION_NAME))
 		extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 
@@ -125,7 +126,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
 	void* pUserData)
 {
-	
+
 	std::cerr << "[VALIDATION LAYER] " << pCallbackData->pMessage << std::endl;
 
 	return VK_FALSE;
@@ -162,13 +163,15 @@ void VulkanInstance::CreateSurface()
 
 void VulkanInstance::Cleanup()
 {
+	VulkanDeleter::SubmitObjectDesctruction([this]() {
 #ifdef KHRONOS_VALIDATION
-	auto funcP = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(_instance, "vkDestroyDebugUtilsMessengerEXT"));
-	if (funcP == nullptr) throw std::runtime_error("[FATAL] failed to load failed to load vkDestroyDebugUtilsMessengerEXT");
+		auto funcP = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(_instance, "vkDestroyDebugUtilsMessengerEXT"));
+		if (funcP == nullptr) throw std::runtime_error("[FATAL] failed to load failed to load vkDestroyDebugUtilsMessengerEXT");
 
-	funcP(_instance, _debugMessenger, nullptr);
+		funcP(_instance, _debugMessenger, nullptr);
 #endif
-	
-	vkDestroySurfaceKHR(_instance, _surface, nullptr);
-	vkDestroyInstance(_instance, nullptr);
+
+		vkDestroySurfaceKHR(_instance, _surface, nullptr);
+		vkDestroyInstance(_instance, nullptr);
+		});
 }

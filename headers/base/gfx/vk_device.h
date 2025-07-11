@@ -47,7 +47,6 @@ public:
 	float GetMaxAnisotropyLevel() const { return _maxAnisotropy; }
 
 	std::vector<u32> GetGraphicsFamilyIndices(VkPhysicalDevice physDevice, VkQueueFlagBits flagBits) const;
-	void Cleanup();
 	VkPhysicalDevice GetPhysicalDevice() const { return _physDevice; }
 	VkDevice GetDevice() const { return _device; }
 	std::optional<VkQueue> GetQueueByType(QueueType type)
@@ -75,5 +74,7 @@ public:
 	VulkanDevice(VulkanDevice&&) = delete;
 	VulkanDevice& operator= (const VulkanDevice&) = delete;
 	VulkanDevice& operator= (VulkanDevice&&) = delete;
+
+	void Cleanup();
 };
 

@@ -1,4 +1,5 @@
 #include "../../../headers/base/gfx/vk_allocator.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 
 
 #define VMA_IMPLEMENTATION
@@ -14,7 +15,7 @@ VulkanAllocator::VulkanAllocator(VulkanInstance& instanceObj, VulkanDevice& devi
 	createInfo.device = deviceObj.GetDevice();
 	createInfo.instance = instanceObj.GetInstance();
 	createInfo.flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
-	// Means that accessible only from the one thread or synchrnized by the user ... for BDA
+	// Means that accessible only from the one thread or synchronized by the user ... for BDA
 
 	VmaVulkanFunctions vulkanFuncs{};
 	createInfo.pVulkanFunctions = &vulkanFuncs;
@@ -26,5 +27,8 @@ VulkanAllocator::VulkanAllocator(VulkanInstance& instanceObj, VulkanDevice& devi
 // Object would be destroyed after all buffers for sure so destructor is fine
 void VulkanAllocator::Cleanup()
 {
-	vmaDestroyAllocator(_allocator);
+	VmaAllocator alloc = _allocator;
+	VulkanDeleter::SubmitObjectDesctruction([alloc]() {
+		vmaDestroyAllocator(alloc);
+	});
 }

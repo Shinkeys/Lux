@@ -11,13 +11,20 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 	{
 		constexpr i32 descriptorUsageCount = 3;
 		DescriptorSpecification sceneDescSpec{};
-		sceneDescSpec.bindings.resize(2);
+		sceneDescSpec.bindings.resize(descriptorUsageCount);
 		sceneDescSpec.bindings[0].binding = 0;
 		sceneDescSpec.bindings[0].descriptorCount = 1024;
 		sceneDescSpec.bindings[0].descriptorType = DescriptorType::COMBINED_IMAGE_SAMPLER;
+
 		sceneDescSpec.bindings[1].binding = 1;
 		sceneDescSpec.bindings[1].descriptorCount = 1;
 		sceneDescSpec.bindings[1].descriptorType = DescriptorType::STORAGE_IMAGE;
+		
+
+		// depth texture binding
+		sceneDescSpec.bindings[2].descriptorType = DescriptorType::COMBINED_IMAGE_SAMPLER;
+		sceneDescSpec.bindings[2].binding = 2;
+		sceneDescSpec.bindings[2].descriptorCount = 1;
 		
 		_sceneDescriptorSets.emplace_back(_engineBase.GetDescriptorManager().CreateDescriptorSet(sceneDescSpec));
 	}
@@ -29,7 +36,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 	{
 		ImageSpecification spec;
 		spec.mipLevels = 1;
-		spec.usage  =  ImageUsage::IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT;
+		spec.usage  =  ImageUsage::IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT | ImageUsage::IMAGE_USAGE_SAMPLED;
 		spec.aspect =  ImageAspect::IMAGE_ASPECT_DEPTH;
 		spec.format =  ImageFormat::IMAGE_FORMAT_D32_SFLOAT;
 		spec.type	=  ImageType::IMAGE_TYPE_DEPTH_BUFFER;
@@ -39,17 +46,28 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 	}
 
 	// Sampler
-	SamplerSpecification samplerSpec;
-	samplerSpec.minFiltering = Filter::FILTER_LINEAR;
-	samplerSpec.magFiltering = Filter::FILTER_LINEAR;
-	samplerSpec.mipmapFiltering =  SamplerMipMapMode::SAMPLER_MIPMAP_MODE_LINEAR;
-	samplerSpec.addressMode = SamplerAddressMode::SAMPLER_ADDRESS_MODE_REPEAT;
-	samplerSpec.minLod = 0.0f;
-	samplerSpec.maxLod = 1000.0f;
-	samplerSpec.lodBias = 0.0f;
+	SamplerSpecification linearSpec;
+	linearSpec.minFiltering = Filter::FILTER_LINEAR;
+	linearSpec.magFiltering = Filter::FILTER_LINEAR;
+	linearSpec.mipmapFiltering =  SamplerMipMapMode::SAMPLER_MIPMAP_MODE_LINEAR;
+	linearSpec.addressMode = SamplerAddressMode::SAMPLER_ADDRESS_MODE_REPEAT;
+	linearSpec.minLod = 0.0f;
+	linearSpec.maxLod = 1000.0f;
+	linearSpec.lodBias = 0.0f;
 
 
-	_samplerLinear = _engineBase.GetImageManager().CreateSampler(samplerSpec);
+	_samplerLinear = _engineBase.GetImageManager().CreateSampler(linearSpec);
+
+	SamplerSpecification nearestSpec;
+	nearestSpec.minFiltering = Filter::FILTER_NEAREST;
+	nearestSpec.magFiltering = Filter::FILTER_NEAREST;
+	nearestSpec.mipmapFiltering = SamplerMipMapMode::SAMPLER_MIPMAP_MODE_NEAREST;
+	nearestSpec.addressMode = SamplerAddressMode::SAMPLER_ADDRESS_MODE_REPEAT;
+	nearestSpec.minLod = 0.0f;
+	nearestSpec.maxLod = 1000.0f;
+	nearestSpec.lodBias = 0.0f;
+
+	_samplerNearest = _engineBase.GetImageManager().CreateSampler(nearestSpec);
 
 	// Materials buffer
 	constexpr size_t baseMaterialsBuffersSize = 1024 * 4; // 4096 bytes
@@ -346,7 +364,7 @@ void SceneRenderer::UpdateDescriptors()
 		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.baseIndex,   DescriptorType::COMBINED_IMAGE_SAMPLER,   _gBuffer.baseColor.get(), _samplerLinear.get());
 		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.metallicRoughnessIndex, DescriptorType::COMBINED_IMAGE_SAMPLER, 
 			_gBuffer.metallicRoughness.get(), _samplerLinear.get());
-
+	
 
 		if (_lightCullStructures.lightsGrid->GetSpecification().layout == ImageLayout::IMAGE_LAYOUT_UNDEFINED)
 		{
@@ -366,6 +384,10 @@ void SceneRenderer::UpdateDescriptors()
 
 		// Add light's grid to get data about lights
 		_sceneDescriptorSets[descInd]->Write(1, 0, DescriptorType::STORAGE_IMAGE, _lightCullStructures.lightsGrid.get(), _samplerLinear.get());
+
+
+		// depth texture
+		_sceneDescriptorSets[descInd]->Write(2, 0, DescriptorType::COMBINED_IMAGE_SAMPLER, _currentDepthAttachment, _samplerNearest.get());
 	}
 }
 
@@ -379,42 +401,6 @@ void SceneRenderer::Draw()
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// !!!!!!!!!!!!!!!!!!!!!!!!TO REWORK PUSH CONSTANTS TO ABSTRACT VULKAN!!!!!!!!!!!!!!!!!!!!!!!!
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	////// Firsly dispatch comp. shader to fill lights buffer
-	PipelineImageBarrierInfo preComputeLayoutTransition;
-	preComputeLayoutTransition.srcStageMask = PipelineStage::FRAGMENT_SHADER;
-	preComputeLayoutTransition.dstStageMask = PipelineStage::COMPUTE_SHADER;
-	preComputeLayoutTransition.srcAccessMask = AccessFlag::SHADER_READ;
-	preComputeLayoutTransition.dstAccessMask = AccessFlag::SHADER_WRITE;
-	preComputeLayoutTransition.image = _lightCullStructures.lightsGrid.get();
-	preComputeLayoutTransition.newLayout = ImageLayout::IMAGE_LAYOUT_GENERAL; // STORAGE IMAGE SHOULD BE IN THE GENERAL LAYOUT
-	pipelineBarriers.imageBarriers.push_back(preComputeLayoutTransition);
-
-
-	LightCullPushConst* lightCullPushConst = new LightCullPushConst;
-	lightCullPushConst->lightsListAddress = _pointLightsBuffer.address;
-	lightCullPushConst->lightsCount = _pointLights.size();
-	lightCullPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer.address;
-	lightCullPushConst->cameraDataAddress = _viewDataBuffer.address;
-	lightCullPushConst->globalLightsCounterAddress = _lightCullStructures.globalLightsCountBuffer.address; // MAKE IT ZERO AFTER DISPATCH
-	lightCullPushConst->maxLightsPerCluster = _lightCullStructures.maxLightsPerCluster;
-	lightCullPushConst->tileSize = _lightCullStructures.tileSize;
-
-	PushConsts lightCullPushConstants;
-	lightCullPushConstants.data = (byte*)lightCullPushConst;
-	lightCullPushConstants.size = sizeof(LightCullPushConst);
-
-
-
-	DispatchCommand lightCullDispatch;
-	lightCullDispatch.pipeline      = _lightCullStructures.lightCullingPipeline.get();
-	lightCullDispatch.descriptor    = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
-	lightCullDispatch.pushConstants = lightCullPushConstants;
-	lightCullDispatch.numWorkgroups = { _lightCullStructures.numWorkGroups };
-
-
- 	Renderer::ExecuteBarriers(pipelineBarriers);
-
-	Renderer::DispatchCompute(lightCullDispatch);
 
 	// Update buff
 	constexpr u32 clearGlobalLightCount = 0;
@@ -438,10 +424,12 @@ void SceneRenderer::Draw()
 	preGbufferLayoutTransition.image = _gBuffer.metallicRoughness.get();
 	pipelineBarriers.imageBarriers.push_back(preGbufferLayoutTransition);
 
+
+
 	Renderer::ExecuteBarriers(pipelineBarriers);
 
 	// GEOMETRY PASS
-	Renderer::BeginRender({ _gBuffer.positions.get(), _gBuffer.normals.get(), 
+ 	Renderer::BeginRender({ _gBuffer.positions.get(), _gBuffer.normals.get(), 
 		_gBuffer.baseColor.get(), _gBuffer.metallicRoughness.get(), _currentDepthAttachment},
 		glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 
@@ -485,6 +473,57 @@ void SceneRenderer::Draw()
 	}
 	Renderer::EndRender();
 
+	////// Firsly dispatch comp. shader to fill lights buffer
+	PipelineImageBarrierInfo preComputeLayoutTransition;
+	preComputeLayoutTransition.srcStageMask = PipelineStage::FRAGMENT_SHADER;
+	preComputeLayoutTransition.dstStageMask = PipelineStage::COMPUTE_SHADER;
+	preComputeLayoutTransition.srcAccessMask = AccessFlag::SHADER_READ;
+	preComputeLayoutTransition.dstAccessMask = AccessFlag::SHADER_WRITE;
+	preComputeLayoutTransition.image = _lightCullStructures.lightsGrid.get();
+	preComputeLayoutTransition.newLayout = ImageLayout::IMAGE_LAYOUT_GENERAL; // STORAGE IMAGE SHOULD BE IN THE GENERAL LAYOUT
+	pipelineBarriers.imageBarriers.push_back(preComputeLayoutTransition);
+
+	// depth image
+	preComputeLayoutTransition.srcStageMask = PipelineStage::LATE_FRAGMENT_TESTS;
+	preComputeLayoutTransition.dstStageMask = PipelineStage::COMPUTE_SHADER;
+	preComputeLayoutTransition.srcAccessMask = AccessFlag::DEPTH_STENCIL_ATTACHMENT_WRITE;
+	preComputeLayoutTransition.dstAccessMask = AccessFlag::DEPTH_STENCIL_ATTACHMENT_READ;
+	preComputeLayoutTransition.image = _currentDepthAttachment;
+	preComputeLayoutTransition.newLayout = ImageLayout::IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+	preComputeLayoutTransition.aspect = ImageAspect::IMAGE_ASPECT_DEPTH;
+	pipelineBarriers.imageBarriers.push_back(preComputeLayoutTransition);
+
+
+
+
+	LightCullPushConst* lightCullPushConst = new LightCullPushConst;
+	lightCullPushConst->lightsListAddress = _pointLightsBuffer.address;
+	lightCullPushConst->lightsCount = _pointLights.size();
+	lightCullPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer.address;
+	lightCullPushConst->cameraDataAddress = _viewDataBuffer.address;
+	lightCullPushConst->globalLightsCounterAddress = _lightCullStructures.globalLightsCountBuffer.address; // MAKE IT ZERO AFTER DISPATCH
+	lightCullPushConst->maxLightsPerCluster = _lightCullStructures.maxLightsPerCluster;
+	lightCullPushConst->tileSize = _lightCullStructures.tileSize;
+
+	PushConsts lightCullPushConstants;
+	lightCullPushConstants.data = (byte*)lightCullPushConst;
+	lightCullPushConstants.size = sizeof(LightCullPushConst);
+
+
+
+	DispatchCommand lightCullDispatch;
+	lightCullDispatch.pipeline = _lightCullStructures.lightCullingPipeline.get();
+	lightCullDispatch.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
+	lightCullDispatch.pushConstants = lightCullPushConstants;
+	lightCullDispatch.numWorkgroups = { _lightCullStructures.numWorkGroups };
+
+
+	Renderer::ExecuteBarriers(pipelineBarriers);
+
+	Renderer::DispatchCompute(lightCullDispatch);
+
+
+	// Main shading pass
 	PipelineImageBarrierInfo imageGBufferLightPassBarrier;
 	imageGBufferLightPassBarrier.srcStageMask  = PipelineStage::COLOR_ATTACHMENT_OUTPUT;
 	imageGBufferLightPassBarrier.dstStageMask  = PipelineStage::FRAGMENT_SHADER;
@@ -500,13 +539,15 @@ void SceneRenderer::Draw()
 	imageGBufferLightPassBarrier.image = _gBuffer.metallicRoughness.get();
 	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
 
-	//imageGBufferLightPassBarrier.srcStageMask = PipelineStage::COMPUTE_SHADER;
-	//imageGBufferLightPassBarrier.dstStageMask = PipelineStage::FRAGMENT_SHADER;
-	//imageGBufferLightPassBarrier.srcAccessMask = AccessFlag::SHADER_WRITE;
-	//imageGBufferLightPassBarrier.dstAccessMask = AccessFlag::SHADER_READ;
-	//imageGBufferLightPassBarrier.newLayout = ImageLayout::IMAGE_LAYOUT_GENERAL; // STORAGE IMAGE SHOULD BE IN THE GENERAL LAYOUT
-	//imageGBufferLightPassBarrier.image = _lightCullStructures.lightsGrid.get();
+	imageGBufferLightPassBarrier.srcStageMask = PipelineStage::COMPUTE_SHADER;
+	imageGBufferLightPassBarrier.dstStageMask = PipelineStage::FRAGMENT_SHADER;
+	imageGBufferLightPassBarrier.srcAccessMask = AccessFlag::SHADER_WRITE;
+	imageGBufferLightPassBarrier.dstAccessMask = AccessFlag::SHADER_READ;
+	imageGBufferLightPassBarrier.newLayout = ImageLayout::IMAGE_LAYOUT_GENERAL; // STORAGE IMAGE SHOULD BE IN THE GENERAL LAYOUT
+	imageGBufferLightPassBarrier.image = _lightCullStructures.lightsGrid.get();
 
+
+	
 	pipelineBarriers.imageBarriers.push_back(imageGBufferLightPassBarrier);
 
 
@@ -533,7 +574,7 @@ void SceneRenderer::Draw()
 	quadDrawCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
 	quadDrawCommand.pushConstants = pushConstants;
 
-	Renderer::BeginRender({ _currentColorAttachment, _currentDepthAttachment }, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+	Renderer::BeginRender({ _currentColorAttachment }, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 	Renderer::RenderQuad(quadDrawCommand);
 	Renderer::EndRender();
 

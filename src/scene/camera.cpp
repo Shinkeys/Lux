@@ -26,6 +26,7 @@ void Camera::CalculateMatrices()
 {
 	_view = glm::lookAt(_position, _position + _forward, _up);
 	_viewProjection = _projection * _view;
+	_inverseProj = glm::inverse(_projection);
 }
 
 void Camera::Move(glm::vec3 direction)

@@ -85,11 +85,13 @@ struct ImageExtent3D
 
 enum class Filter : u8
 {
+	FILTER_NEAREST,
 	FILTER_LINEAR,
 };
 
 enum class SamplerMipMapMode : u8
 {
+	SAMPLER_MIPMAP_MODE_NEAREST,
 	SAMPLER_MIPMAP_MODE_LINEAR,
 };
 

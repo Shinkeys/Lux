@@ -1,4 +1,5 @@
 #include "../../../headers/base/gfx/vk_descriptor.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 #include "../../../headers/base/gfx/vk_frame.h"
 #include "../../../headers/base/gfx/vk_image.h"
 
@@ -41,7 +42,12 @@ VulkanDescriptor::VulkanDescriptor(const DescriptorSpecification& spec, VulkanDe
 
 VulkanDescriptor::~VulkanDescriptor()
 {
-	vkDestroyDescriptorSetLayout(_deviceObject.GetDevice(), _layout, nullptr);
+	VkDevice device = _deviceObject.GetDevice();
+	VkDescriptorSetLayout layout = _layout;
+	VulkanDeleter::SubmitObjectDesctruction([device, layout]()
+		{
+			vkDestroyDescriptorSetLayout(device, layout, nullptr);
+		});
 }
 
 void VulkanDescriptor::Write(u32 dstBinding, u32 dstArrayElem, DescriptorType type, Image* image, Sampler* sampler)

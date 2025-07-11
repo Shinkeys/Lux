@@ -20,8 +20,18 @@ private:
 
 	void CreateSurface();
 public:
+	VulkanInstance() = delete;
+	~VulkanInstance() = default;
 	VulkanInstance(Window& window);
-	void Cleanup();
+
+	VulkanInstance(const VulkanInstance&) = delete;
+	VulkanInstance(VulkanInstance&&) = delete;
+	VulkanInstance& operator= (const VulkanInstance&) = delete;
+	VulkanInstance& operator= (VulkanInstance&&) = delete;
+
+
 	VkInstance GetInstance()  const { return _instance; }
 	VkSurfaceKHR GetSurface() const { return _surface;  }
+
+	void Cleanup();
 };

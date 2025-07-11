@@ -50,8 +50,6 @@ private:
 	
 public:
 	virtual ~Sampler() {}
-
-	virtual void Destroy() = 0;
 };
 
 

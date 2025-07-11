@@ -114,6 +114,7 @@ private:
 
 	SSBOPair _baseMaterialsSSBO;
 	std::unique_ptr<Sampler> _samplerLinear;
+	std::unique_ptr<Sampler> _samplerNearest;
 
 
 	std::vector<const Entity*> _drawCommands;

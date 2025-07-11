@@ -1,5 +1,6 @@
 #include "../../../headers/base/gfx/vk_buffer.h"
 #include "../../../headers/base/gfx/vk_allocator.h"
+#include "../../../headers/base/gfx/vk_deleter.h"
 
 
 // For volk compatibility 
@@ -236,8 +237,10 @@ void MeshBuffers::FillVertexBufferAddress(VkDevice device)
 
 void MeshBuffers::Cleanup()
 {
-	vmaDestroyBuffer(_allocator, _vertexBuffer, _vertexAllocation);
-	vmaDestroyBuffer(_allocator, _indexBuffer, _indexAllocation);
+	VulkanDeleter::SubmitObjectDesctruction([this](){
+		vmaDestroyBuffer(_allocator, _vertexBuffer, _vertexAllocation);
+		vmaDestroyBuffer(_allocator, _indexBuffer, _indexAllocation);
+	});
 }
 
 
@@ -277,8 +280,16 @@ void StorageBuffer::CreateBuffer(VkDevice device, size_t size, VkBufferUsageFlag
 
 void StorageBuffer::Cleanup()
 {
-	if(_mappedData != nullptr)
-		vmaUnmapMemory(_allocator, _allocation);
+	VmaAllocator alloc = _allocator;
+	VmaAllocation allocation = _allocation;
+	VkBuffer buff = _buffer;
+	void* mappedData = _mappedData;
 
-	vmaDestroyBuffer(_allocator, _buffer, _allocation);
+
+	VulkanDeleter::SubmitObjectDesctruction([alloc, allocation, buff, mappedData]() {
+		if (mappedData != nullptr)
+			vmaUnmapMemory(alloc, allocation);
+
+		vmaDestroyBuffer(alloc, buff, allocation);
+	});
 }

@@ -49,8 +49,8 @@ namespace vkhelpers
 	}
 
 	void TransitionImageLayout(VkCommandBuffer cmd, VkImage image, VkImageLayout currentLayout, VkImageLayout newLayout,
-			VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, VkPipelineStageFlags2 dstStageMask,
-			VkImageAspectFlags aspectFlags)
+			VkAccessFlags2 srcAccessMask, VkAccessFlags2 dstAccessMask, VkPipelineStageFlags2 srcStageMask, 
+			VkPipelineStageFlags2 dstStageMask, VkImageAspectFlags aspectFlags)
 	{
 		VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
 		barrier.oldLayout = currentLayout;

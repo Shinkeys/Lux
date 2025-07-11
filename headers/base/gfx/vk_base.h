@@ -25,6 +25,13 @@ public:
 	VulkanBuffer& GetBufferObj()				{ return *_bufferObject; }
 	VulkanAllocator& GetAllocatorObj()			{ return *_allocatorObject; }
 
-	void Cleanup();
+
+	VulkanBase() = default;
+	~VulkanBase();
+	VulkanBase(const VulkanBase&) = delete;
+	VulkanBase& operator=(const VulkanBase&) = delete;
+	VulkanBase(VulkanBase&&) noexcept = delete;
+	VulkanBase& operator=(VulkanBase&&) noexcept = delete;
+
 	void Initialize(Window& windowObj);
 };
