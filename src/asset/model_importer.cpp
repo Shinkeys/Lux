@@ -85,7 +85,7 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 
 		for (auto it = asset.meshes[i].primitives.begin(); it != asset.meshes[i].primitives.end(); ++it)
 		{
-			auto* positionIt = it->findAttribute("POSITION");
+			auto* positionIt = it->findAttribute("POSITION");	
 			assert(positionIt != it->attributes.end());
 			assert(it->indicesAccessor.has_value()); // Mesh MUST have indices
 
@@ -225,6 +225,20 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(asset, normalAccesor, [&](fastgltf::math::fvec3 normal, size_t index)
 				{
 					meshVertex[index + vertexOffset].normal = glm::vec3(normal.x(), normal.y(), normal.z());
+				});
+
+			// Iterate for tangents
+			auto* tangentIt = it->findAttribute("TANGENT");
+			assert(tangentIt != it->attributes.end());
+
+			// for now MUST have tangents
+			auto& tangentAccesor = asset.accessors[tangentIt->accessorIndex];
+			if (!tangentAccesor.bufferViewIndex.has_value())
+				continue;
+
+			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(asset, tangentAccesor, [&](fastgltf::math::fvec4 tangent, size_t index)
+				{
+					meshVertex[index + vertexOffset].tangent = glm::vec3(tangent.x(), tangent.y(), tangent.z());
 				});
 
 	

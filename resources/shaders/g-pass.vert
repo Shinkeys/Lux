@@ -84,6 +84,7 @@ layout(location = 0) out vec4 outWorldPos;
 layout(location = 1) out vec4 outNormals;
 layout(location = 2) out vec2 outUV;
 layout(location = 3) out flat uint outMaterialIndex;
+layout(location = 4) out mat3 outTBN;
 
 
 void main()
@@ -91,11 +92,20 @@ void main()
 	uint index = gl_VertexIndex;
 	Vertex vertex = ptr.vertex[index];
 
+
+	vec3 T = normalize(vec3(uniformPtr.model * vec4(vertex.tangent, 0.0)));
+	vec3 N = normalize(vec3(uniformPtr.model * vec4(vertex.normal, 0.0)));
+	vec3 B = normalize(cross(T, N));
+	T = normalize(T - dot(T, N) * N);
+	mat3 TBN = mat3(T,B,N);
+
+	outTBN = TBN;
+
 	gl_Position = viewDataPtr.viewData.proj * viewDataPtr.viewData.view * uniformPtr.model * vec4(vertex.position, 1.0);
 
 	outWorldPos = uniformPtr.model * vec4(vertex.position, 1.0);
 
-	outNormals = vec4(vertex.normal, 1.0);
+	outNormals = vec4(normalize(TBN * vec3(vertex.normal)), 1.0);
 
 	outUV = vertex.UV;
 	outMaterialIndex = vertex.materialIndex;

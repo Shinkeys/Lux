@@ -75,11 +75,17 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 
 	// Temporary initialize 5 point lights, would be enough for now
 	PointLight pointLight;
-	pointLight.position = glm::vec3(0.0f, 0.0f, 0.0f);
-	pointLight.radius = 10.0f;
+	pointLight.radius = 3.0f;
 	pointLight.intenstity = 1.5f;
+	pointLight.position = glm::vec3(0.0f, 1.5f, 0.0f);
 	_pointLights.push_back(pointLight);
-	pointLight.position = glm::vec3(0.0f, 0.0f, -25.0f);
+	pointLight.position = glm::vec3(0.0f, 1.5f, 5.0f);
+	_pointLights.push_back(pointLight);
+	pointLight.position = glm::vec3(0.0f, 1.5f, -5.0f);
+	_pointLights.push_back(pointLight);
+	pointLight.position = glm::vec3(5.0f, 1.5f, 0.0f);
+	_pointLights.push_back(pointLight);
+	pointLight.position = glm::vec3(-5.0f, 1.5f, 0.0f);
 	_pointLights.push_back(pointLight);
 
 	_pointLightsBuffer = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(sizeof(PointLight) * _pointLights.size());
@@ -192,7 +198,6 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 
 		_gBufferPipeline = _engineBase.GetPipelineManager().CreatePipeline(gBufferGraphicsPipeline);
 	}
-
 
 	{
 		PipelineSpecification lightCullingComputePipeline;
@@ -487,7 +492,7 @@ void SceneRenderer::Draw()
 	preComputeLayoutTransition.srcStageMask = PipelineStage::LATE_FRAGMENT_TESTS;
 	preComputeLayoutTransition.dstStageMask = PipelineStage::COMPUTE_SHADER;
 	preComputeLayoutTransition.srcAccessMask = AccessFlag::DEPTH_STENCIL_ATTACHMENT_WRITE;
-	preComputeLayoutTransition.dstAccessMask = AccessFlag::DEPTH_STENCIL_ATTACHMENT_READ;
+	preComputeLayoutTransition.dstAccessMask = AccessFlag::SHADER_READ;
 	preComputeLayoutTransition.image = _currentDepthAttachment;
 	preComputeLayoutTransition.newLayout = ImageLayout::IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
 	preComputeLayoutTransition.aspect = ImageAspect::IMAGE_ASPECT_DEPTH;

@@ -418,7 +418,7 @@ VulkanSampler::VulkanSampler(const SamplerSpecification& spec, VulkanDevice& dev
 	samplerInfo.addressModeU = vkconversions::ToVkAddressMode(spec.addressMode);
 	samplerInfo.addressModeV = vkconversions::ToVkAddressMode(spec.addressMode);
 	samplerInfo.addressModeW = vkconversions::ToVkAddressMode(spec.addressMode);
-	samplerInfo.anisotropyEnable = anisotropyLevel == 1.0f ? VK_TRUE : VK_FALSE;
+	samplerInfo.anisotropyEnable = VK_FALSE; //anisotropyLevel > 1.0f ? VK_TRUE : VK_FALSE;
 	samplerInfo.maxAnisotropy = anisotropyLevel;
 	samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
 	samplerInfo.unnormalizedCoordinates = VK_FALSE;

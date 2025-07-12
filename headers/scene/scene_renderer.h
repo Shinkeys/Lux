@@ -136,6 +136,8 @@ private:
 
 	glm::mat4 GenerateModelMatrix(const TranslationComponent& translationComp);
 	void UpdateDescriptors();
+
+
 public:
 	/**
 	* @brief Pass the objects which would LIVE after the submission

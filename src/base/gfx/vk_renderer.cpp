@@ -172,11 +172,12 @@ void VulkanRenderer::RenderMesh(const DrawCommand& drawCommand)
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawPipeline());
 	vkCmdBindIndexBuffer(cmdBuffer, drawCommand.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawLayout(), 0, 1, &descriptorSet, 0, nullptr);
-	vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
+	if(drawCommand.pushConstants.data)
+		vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
 	vkCmdDrawIndexed(cmdBuffer, drawCommand.indexCount, 1, 0, 0, 0);
 
-
-	delete[] drawCommand.pushConstants.data;
+	if (drawCommand.pushConstants.data)
+		delete[] drawCommand.pushConstants.data;
 }
 
 // WOULD FLUSH THIS STRUCTURE
@@ -275,10 +276,12 @@ void VulkanRenderer::DispatchCompute(const DispatchCommand& dispatchCommand)
 
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rawPipeline->GetRawPipeline());
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, rawPipeline->GetRawLayout(), 0, 1, &descriptorSet, 0, nullptr);
-	vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, dispatchCommand.pushConstants.size, dispatchCommand.pushConstants.data);
+	if(dispatchCommand.pushConstants.data)
+		vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, dispatchCommand.pushConstants.size, dispatchCommand.pushConstants.data);
 	vkCmdDispatch(cmdBuffer, dispatchCommand.numWorkgroups.x, dispatchCommand.numWorkgroups.y, dispatchCommand.numWorkgroups.z);
 
-	delete[] dispatchCommand.pushConstants.data;
+	if (dispatchCommand.pushConstants.data)
+		delete[] dispatchCommand.pushConstants.data;
 }
 
 void VulkanRenderer::EndRender()

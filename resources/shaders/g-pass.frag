@@ -83,6 +83,8 @@ layout(location = 0) in vec4 inWorldPos;
 layout(location = 1) in vec4 inNormals;
 layout(location = 2) in vec2 inUV;
 layout(location = 3) in flat uint inMaterialIndex;
+layout(location = 4) in mat3 inTBN;
+
 
 
 
@@ -107,7 +109,10 @@ void main()
 	outWorldPos = inWorldPos;
 	outNormals = inNormals;
 	if(material.normalID > 0)
+	{
 		outNormals = texture(textures[material.normalID], UV);
+		outNormals = vec4(normalize(inTBN * vec3(outNormals)), 1.0);
+	}
 
 
 	vec3 albedoColor = vec3(0.5, 0.5, 0.5);

@@ -2,6 +2,7 @@
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_debug_printf : enable
 
 
 
@@ -85,9 +86,9 @@ LightCalculation CalculateLight(PointLight light, vec3 fragPos, vec3 normal)
 	float diffuseInt = max(dot(normal, lightDirection), 0.0);
 	vec3  diffuse = diffuseInt * light.color * attenuation;
 
-
+	const float ambientPower = 0.15;
 	LightCalculation result;
-	result.albedo  = diffuse;
+	result.albedo  = diffuse * ambientPower;
 	return result;
 }
 
@@ -123,9 +124,10 @@ void main()
 
 	vec3 lightingResult = albedoColor * 0.1;
 	
-	for(uint i = startIndex; i < lightsCount; ++i)
+
+	for(uint i = 0; i < lightsCount; ++i)
 	{
-		uint lightIndex = lightIndicesPtr.lightIndices[i];
+		uint lightIndex = lightIndicesPtr.lightIndices[i + startIndex];
 		PointLight pointLight = lightsPtr.pointLights[lightIndex];
 	
 		LightCalculation calcResult = CalculateLight(pointLight, positions, normals);

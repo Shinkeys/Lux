@@ -5,7 +5,7 @@
 #extension GL_EXT_debug_printf : enable
 
 
-layout(local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
 
 struct PointLight
@@ -72,7 +72,7 @@ layout(push_constant) uniform pushConst
 // https://web.ma.utexas.edu/   users/m408m/Display12-5-3.shtml
 vec4 CreatePlaneForFrustum(vec3 eyePos, vec3 tileP1, vec3 tileP2)
 {
-    vec3 p0 = tileP1 - eyePos;
+    vec3 p0 = tileP1  - eyePos;
     vec3 p1 = tileP2  - eyePos;
 
     vec4 planeNormal;
@@ -113,7 +113,7 @@ const int LOCAL_LIGHT_INDICES_MAX_SIZE = 128;
 shared int minDepth;
 shared int maxDepth;
 shared int localLightCount;
-shared vec4 frustumPlanes[4];
+shared vec4 frustumPlanes[6];
 shared int localLightIndices[LOCAL_LIGHT_INDICES_MAX_SIZE];
 
 void AppendLightOpaque(uint lightIndex)
@@ -158,34 +158,45 @@ void main()
 		vec3 eyePos   = vec3(0.0, 0.0, 0.0); // eye pos in view space is origin
 		 
     
-		vec4 pointsInScreen[4];
-        pointsInScreen[0] = vec4(gl_WorkGroupID.xy * tileSize, 0.0, 1.0);
-        pointsInScreen[1] = vec4(vec2(gl_WorkGroupID.x + 1, gl_WorkGroupID.y) * tileSize, 0.0, 1.0);
-        pointsInScreen[2] = vec4(vec2(gl_WorkGroupID.x, gl_WorkGroupID.y + 1) * tileSize, 0.0, 1.0);
-        pointsInScreen[3] = vec4(vec2(gl_WorkGroupID.x + 1, gl_WorkGroupID.y + 1) * tileSize, 0.0, 1.0);
+		vec4 pointsInScreenNear[4];
+        pointsInScreenNear[0] = vec4(gl_WorkGroupID.xy * tileSize, minDepthFloat, 1.0);
+        pointsInScreenNear[1] = vec4(vec2(gl_WorkGroupID.x + 1, gl_WorkGroupID.y) * tileSize, minDepthFloat, 1.0);
+        pointsInScreenNear[2] = vec4(vec2(gl_WorkGroupID.x, gl_WorkGroupID.y + 1) * tileSize, minDepthFloat, 1.0);
+        pointsInScreenNear[3] = vec4(vec2(gl_WorkGroupID.x + 1, gl_WorkGroupID.y + 1) * tileSize, minDepthFloat, 1.0);
         
 
-		vec3 pointsInView[4];
+		vec3 pointsInViewNear[4];
         for(int i = 0; i < 4; ++i)
         {
-            pointsInView[i] = ScreenToView(pointsInScreen[i]).xyz;
+            pointsInViewNear[i] = ScreenToView(pointsInScreenNear[i]).xyz;
         }
      
         // left
-        frustumPlanes[0] = CreatePlaneForFrustum(eyePos, pointsInView[2], pointsInView[0]);
+        frustumPlanes[0] = CreatePlaneForFrustum(eyePos, pointsInViewNear[2], pointsInViewNear[0]);
         // right
-        frustumPlanes[1] = CreatePlaneForFrustum(eyePos, pointsInView[1], pointsInView[3]);
+        frustumPlanes[1] = CreatePlaneForFrustum(eyePos, pointsInViewNear[1], pointsInViewNear[3]);
         // bottom
-        frustumPlanes[2] = CreatePlaneForFrustum(eyePos, pointsInView[0], pointsInView[1]);
+        frustumPlanes[2] = CreatePlaneForFrustum(eyePos, pointsInViewNear[0], pointsInViewNear[1]);
         // top
-        frustumPlanes[3] = CreatePlaneForFrustum(eyePos, pointsInView[3], pointsInView[2]);
+        frustumPlanes[3] = CreatePlaneForFrustum(eyePos, pointsInViewNear[3], pointsInViewNear[2]);
+
+
+        vec4 pointsInScreenFar[2];
+        pointsInScreenFar[0] = vec4(vec2(gl_WorkGroupID.x, gl_WorkGroupID.y + 1) * tileSize, maxDepthFloat, 1.0);
+        pointsInScreenFar[1] = vec4(vec2(gl_WorkGroupID.x + 1, gl_WorkGroupID.y + 1) * tileSize, maxDepthFloat, 1.0);
+
+        vec3 pointsInViewFar[2];
+        pointsInViewFar[0] = ScreenToView(pointsInScreenFar[0]).xyz;
+        pointsInViewFar[1] = ScreenToView(pointsInScreenFar[1]).xyz;
+
+        // far
+        frustumPlanes[4] = CreatePlaneForFrustum(eyePos, pointsInViewFar[0], pointsInViewFar[1]);
+
+        // near
+        frustumPlanes[5] = CreatePlaneForFrustum(eyePos, pointsInViewNear[3], pointsInViewNear[2]);
 	}
     
     barrier();
-    
-    float minDepthVS = ClipToView(vec4(0.0, 0.0,   minDepth, 1.0)).z;
-    float maxDepthVS = ClipToView(vec4(0.0, 0.0,   maxDepth, 1.0)).z;
-    vec4  minPlane   = vec4(0.0, 0.0, -1.0, -minDepthVS);
 
     int lightStep = int(gl_WorkGroupSize.x * gl_WorkGroupSize.y);
     for(uint i = gl_LocalInvocationIndex; i < lightsCount; i += lightStep)
@@ -196,14 +207,14 @@ void main()
         vec4 lightPosView = viewDataPtr.viewData.view * vec4(pos, 1.0);
 
         float nearPlane = 0.0;
-        // Depth test. Values inverted because in vulkan 0 is the front face
-        if(lightPosView.z + radius < minDepthVS || lightPosView.z - radius > maxDepthVS)
-             continue;
+        // 
+        // if(lightPosView.z - radius > nearPlane)
+        //     continue;
 
 
         float dist = -1.0;
     
-        for(uint j = 0; j < 4; ++j)
+        for(uint j = 0; j < 6; ++j)
         {
             dist = dot(frustumPlanes[j].xyz, lightPosView.xyz) - frustumPlanes[j].w;
             
@@ -230,7 +241,10 @@ void main()
     
         uint startIndex = offset;
     
-        ivec2 coords = ivec2(gl_WorkGroupID.xy);
+        ivec2 coords = ivec2(gl_WorkGroupID.x, gl_NumWorkGroups.y - gl_WorkGroupID.y);
         imageStore(lightsGrid, coords, uvec4(startIndex, localLightCount, 0, 0));
+
+        if(gl_WorkGroupID.x == 80 && gl_WorkGroupID.y == 45)
+            debugPrintfEXT("Count: %u", localLightCount);
     }
 }
