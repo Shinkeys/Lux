@@ -22,12 +22,16 @@ struct VertexDescription
 	u32 indexCount{ 0 };
 };
 
-
 struct MaterialTexturesDesc
 {
+	glm::vec3 baseColorFactor{ glm::vec3(0.0f) };
+	float metallicFactor{ 0.0f };
+	float roughnessFactor{ 0.0f };
+
 	u32 albedoID{ 0 };
 	u32 normalID{ 0 };
 	u32 metalRoughnessID{ 0 };
+
 };
 
 struct MaterialDescription
@@ -68,6 +72,7 @@ struct TexturesData
 
 	TextureType textureType = TextureType::TEXTURE_NONE;
 
+	float factor{ 0.0f };
 	fs::path path = ""; // if URI
 	std::vector<u8> bytes; // if embedded type
 };
@@ -75,8 +80,11 @@ struct TexturesData
 // Values to store in asset storage about materials to load images later and create a buffer ot textures per material
 struct MeshMaterial
 {
-	u32 materialIndex{ 0 };
 	std::vector<TexturesData> materialTextures;
+	glm::vec3 baseColorFactor{ glm::vec3(0.0f) };
+	float metallicFactor{ 0.0f };
+	float roughnessFactor{ 0.0f };
+	u32 materialIndex{ 0 };
 };
 
 

@@ -208,8 +208,8 @@ void main()
 
         float nearPlane = 0.0;
         // 
-        // if(lightPosView.z - radius > nearPlane)
-        //     continue;
+        if(lightPosView.z - radius > nearPlane)
+            continue;
 
 
         float dist = -1.0;
@@ -243,8 +243,5 @@ void main()
     
         ivec2 coords = ivec2(gl_WorkGroupID.x, gl_NumWorkGroups.y - gl_WorkGroupID.y);
         imageStore(lightsGrid, coords, uvec4(startIndex, localLightCount, 0, 0));
-
-        if(gl_WorkGroupID.x == 80 && gl_WorkGroupID.y == 45)
-            debugPrintfEXT("Count: %u", localLightCount);
     }
 }

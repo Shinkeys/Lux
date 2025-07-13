@@ -53,10 +53,11 @@ struct LightCullPushConst
 	u32 tileSize{ 0 };
 };
 
-struct LightPassPushConst
+struct PBRPassPushConst
 {
 	VkDeviceAddress lightAddress{ 0 };
 	VkDeviceAddress lightsIndicesAddress{ 0 };
+	VkDeviceAddress cameraDataAddress{ 0 };
 	u32 positionTextureIdx{ 0 };
 	u32 normalsTextureIdx{ 0 };
 	u32 baseColorTextureIdx{ 0 };
@@ -96,7 +97,6 @@ struct ViewData
 	float farPlane{ 0.0f };
 };
 
-
 class Entity;
 class SceneRenderer
 {
@@ -105,7 +105,7 @@ private:
 	VulkanBase& _vulkanBackend;
 	EngineBase& _engineBase;
 
-	std::unique_ptr<Pipeline> _baseShadingPipeline;
+	std::unique_ptr<Pipeline> _pbrShadingPipeline;
 	std::unique_ptr<Pipeline> _gBufferPipeline;
 
 	std::vector<std::unique_ptr<Descriptor>> _sceneDescriptorSets;

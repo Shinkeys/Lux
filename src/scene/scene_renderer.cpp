@@ -165,19 +165,19 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 			return descriptors;
 		};
 	{
-		PipelineSpecification baseShadingPipeline;
-		baseShadingPipeline.type = PipelineType::GRAPHICS_PIPELINE;
-		baseShadingPipeline.shaderName = "shading";
-		baseShadingPipeline.cullMode = CullMode::CULL_MODE_BACK;
-		baseShadingPipeline.pushConstantSizeBytes = sizeof(LightPassPushConst);
-		baseShadingPipeline.descriptorSets = { extractRawPtrsLambda() };
-		baseShadingPipeline.depthCompare = CompareOP::COMPARE_OP_LESS;
-		baseShadingPipeline.depthWriteEnable = true;
-		baseShadingPipeline.depthTestEnable  = true;
-		baseShadingPipeline.colorFormats = { ImageFormat::IMAGE_FORMAT_B8G8R8A8_SRGB };
+		PipelineSpecification pbrShadingPipeline;
+		pbrShadingPipeline.type = PipelineType::GRAPHICS_PIPELINE;
+		pbrShadingPipeline.shaderName = "PBR_shading";
+		pbrShadingPipeline.cullMode = CullMode::CULL_MODE_BACK;
+		pbrShadingPipeline.pushConstantSizeBytes = sizeof(PBRPassPushConst);
+		pbrShadingPipeline.descriptorSets = { extractRawPtrsLambda() };
+		pbrShadingPipeline.depthCompare = CompareOP::COMPARE_OP_LESS;
+		pbrShadingPipeline.depthWriteEnable = true;
+		pbrShadingPipeline.depthTestEnable  = true;
+		pbrShadingPipeline.colorFormats = { ImageFormat::IMAGE_FORMAT_B8G8R8A8_SRGB };
 
 		// other data is aight
-		_baseShadingPipeline = _engineBase.GetPipelineManager().CreatePipeline(baseShadingPipeline);
+		_pbrShadingPipeline = _engineBase.GetPipelineManager().CreatePipeline(pbrShadingPipeline);
 	}
 
 	{
@@ -202,7 +202,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 	{
 		PipelineSpecification lightCullingComputePipeline;
 		lightCullingComputePipeline.type = PipelineType::COMPUTE_PIPELINE;
-		lightCullingComputePipeline.shaderName = "light-cull";
+		lightCullingComputePipeline.shaderName = "light_cull";
 		lightCullingComputePipeline.descriptorSets = { extractRawPtrsLambda() };
 		lightCullingComputePipeline.pushConstantSizeBytes = sizeof(LightCullPushConst);
 
@@ -272,9 +272,14 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 		{
 			allMeshMaterials.push_back(AssetManager::Get()->TryToLoadMaterial(imageManager, material));
 		}
-
+	
 		const auto materialsStoreResult = AssetManager::Get()->StoreLoadedMaterials(allMeshMaterials);
 		meshComp->materialIndex = materialsStoreResult.materialID;
+
+		// Update buffer with materials
+		const std::vector<MaterialTexturesDesc>& allMaterials = AssetManager::Get()->GetAllSceneMaterialsDesc();
+		bufferManager.UpdateSSBOBuffer(allMaterials.data(), allMaterials.size() * sizeof(MaterialTexturesDesc), _baseMaterialsSSBO.index);
+
 	}
 
 
@@ -321,10 +326,6 @@ void SceneRenderer::Update(const Camera& camera)
 	_currentDepthAttachment = _depthAttachments[frameManager.GetCurrentImageIndex()].get();
 
 	UpdateDescriptors();
-
-
-	const std::vector<MaterialTexturesDesc>& allMaterials = AssetManager::Get()->GetAllSceneMaterialsDesc();
-	bufferManager.UpdateSSBOBuffer(allMaterials.data(), allMaterials.size() * sizeof(MaterialTexturesDesc), _baseMaterialsSSBO.index);
 	
 	//// Camera data buffer
 	ViewData viewData;
@@ -559,23 +560,24 @@ void SceneRenderer::Draw()
 	Renderer::ExecuteBarriers(pipelineBarriers);
 
 
-	LightPassPushConst* lightPassPushConst = new LightPassPushConst;
-	lightPassPushConst->lightAddress = _pointLightsBuffer.address;
-	lightPassPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer.address;
-	lightPassPushConst->pointLightsCount = _pointLights.size();
-	lightPassPushConst->positionTextureIdx = _gBuffer.posIndex;
-	lightPassPushConst->normalsTextureIdx = _gBuffer.normalIndex;
-	lightPassPushConst->baseColorTextureIdx = _gBuffer.baseIndex;
-	lightPassPushConst->metallicRoughnessTextureIdx = _gBuffer.metallicRoughnessIndex;
-	lightPassPushConst->tileSize = _lightCullStructures.tileSize;
+	PBRPassPushConst* pbrPassPushConst = new PBRPassPushConst;
+	pbrPassPushConst->lightAddress = _pointLightsBuffer.address;
+	pbrPassPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer.address;
+	pbrPassPushConst->cameraDataAddress = _viewDataBuffer.address;
+	pbrPassPushConst->pointLightsCount = _pointLights.size();
+	pbrPassPushConst->positionTextureIdx = _gBuffer.posIndex;
+	pbrPassPushConst->normalsTextureIdx = _gBuffer.normalIndex;
+	pbrPassPushConst->baseColorTextureIdx = _gBuffer.baseIndex;
+	pbrPassPushConst->metallicRoughnessTextureIdx = _gBuffer.metallicRoughnessIndex;
+	pbrPassPushConst->tileSize = _lightCullStructures.tileSize;
 
 	PushConsts pushConstants;
-	pushConstants.data = (byte*)lightPassPushConst;
-	pushConstants.size = sizeof(LightPassPushConst);
+	pushConstants.data = (byte*)pbrPassPushConst;
+	pushConstants.size = sizeof(PBRPassPushConst);
 
 	// LIGHT PASS
 	DrawCommand quadDrawCommand;
-	quadDrawCommand.pipeline   = _baseShadingPipeline.get();
+	quadDrawCommand.pipeline   = _pbrShadingPipeline.get();
 	quadDrawCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
 	quadDrawCommand.pushConstants = pushConstants;
 

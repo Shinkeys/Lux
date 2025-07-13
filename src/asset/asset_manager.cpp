@@ -26,6 +26,7 @@ size_t AssetManager::GetAllSceneSize()
 }
 
 // WORKS ONLY WITH GLTF
+// TO REWORK THIS CLASS A LITTLE BIT
 std::optional<MeshStorageBackData> AssetManager::TryToLoadAndStoreMesh(const fs::path& folder)
 {
 	fs::path pathToLoad = ConvertToPath(folder);
@@ -98,6 +99,7 @@ MaterialTexturesDesc AssetManager::TryToLoadMaterial(const ImageManager& imageMa
 				if (res)
 				{
 					description.albedoID = availableIndex;
+					description.baseColorFactor = material.baseColorFactor;
 					_textures.emplace_back(availableIndex, std::move(res));
 				}
 				else
@@ -120,6 +122,8 @@ MaterialTexturesDesc AssetManager::TryToLoadMaterial(const ImageManager& imageMa
 				if (res)
 				{
 					description.metalRoughnessID = availableIndex;
+					description.metallicFactor = material.metallicFactor;
+					description.roughnessFactor = material.roughnessFactor;
 					_textures.emplace_back(availableIndex, std::move(res));
 				}
 				else

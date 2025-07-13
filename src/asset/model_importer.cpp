@@ -70,8 +70,6 @@ void ModelImporter::StoreTextureData(const fastgltf::Image& image, TexturesData&
 	}, image.data);
 }
 
-
-
 // This system works only for one mesh for now. To add a support of multiple meshes need to account some kind of indices.
 // It's good for the purpose of this engine for now: to learn graphics techniques
 bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfData)
@@ -138,7 +136,6 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 						isMaterialAlreadyStored = true;
 				}
 
-				static int cnt = 0;
 				if (!isMaterialAlreadyStored)
 				{
 					// Normal
@@ -161,6 +158,10 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 							StoreTextureData(image, baseTexReference);
 
 							meshMaterial.materialTextures.emplace_back(std::move(baseTexReference));
+
+							const auto& fBaseFactor = material.pbrData.baseColorFactor;
+
+							meshMaterial.baseColorFactor = glm::vec3(fBaseFactor.x(), fBaseFactor.y(), fBaseFactor.z());
 						}
 					}
 
@@ -192,8 +193,12 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 
 							StoreTextureData(image, metallicRoughnessTexReference);
 
+
 							meshMaterial.materialTextures.emplace_back(std::move(metallicRoughnessTexReference));
 
+							meshMaterial.metallicFactor  = material.pbrData.metallicFactor;
+							meshMaterial.roughnessFactor = material.pbrData.roughnessFactor;
+ 
 						}
 					}
 					gltfData.materials.emplace_back(std::move(meshMaterial));
@@ -245,7 +250,7 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 			auto& indicesAccessor = asset.accessors[it->indicesAccessor.value()];
 			if (!indicesAccessor.bufferViewIndex.has_value())
 				return false;
-			// dont care about size, would assume every index is u32
+			// don't care about size, would assume every index is u32
 			std::vector<u32> tempIndices(indicesAccessor.count);
 
 			fastgltf::copyFromAccessor<u32>(asset, indicesAccessor, tempIndices.data());

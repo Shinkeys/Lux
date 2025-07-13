@@ -2,7 +2,7 @@
 #extension GL_EXT_buffer_reference2 : require
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_nonuniform_qualifier : enable
-
+#extension GL_EXT_debug_printf : enable
 
 
 struct Vertex
@@ -27,6 +27,10 @@ layout(scalar, buffer_reference, buffer_reference_align = 4) buffer EntityUnifor
 
 struct Material
 {
+	vec3  baseColorFactor;
+	float metallicFactor;
+	float roughnessFactor;
+
 	uint albedoID;
 	uint normalID;
 	uint metalRoughnessID;
@@ -115,7 +119,7 @@ void main()
 	}
 
 
-	vec3 albedoColor = vec3(0.5, 0.5, 0.5);
+	vec3 albedoColor = vec3(material.baseColorFactor);
 	if(material.albedoID > 0)
 	{
 		albedoColor = texture(textures[material.albedoID],  UV).xyz;
@@ -126,9 +130,11 @@ void main()
 	if(material.metalRoughnessID > 0)
 	{
 		metallicRoughnessColor = texture(textures[material.metalRoughnessID],  UV).xyz;
+		// Apply factors directly in the g buffer pass, so just need to work with the textures directly in main shading pass
+		metallicRoughnessColor.b *= material.metallicFactor;
+		metallicRoughnessColor.g *= material.roughnessFactor;
 	}
 
 	outAlbedo = vec4(albedoColor, 1.0);
 	outMetallicRoughness = vec4(metallicRoughnessColor, 1.0);
-
 }

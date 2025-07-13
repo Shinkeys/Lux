@@ -27,6 +27,10 @@ layout(scalar, buffer_reference, buffer_reference_align = 4) buffer EntityUnifor
 
 struct Material
 {
+	vec3  baseColorFactor;
+	float metallicFactor;
+	float roughnessFactor;
+
 	uint albedoID;
 	uint normalID;
 	uint metalRoughnessID;
@@ -56,8 +60,7 @@ struct ViewData
 	mat4 view;
 	mat4 proj;
 	mat4 viewProj;
-    mat4 inverseProjection;
-
+	mat4 inverseProjection;
 	vec3 position;
 
 	ivec2 extent;
@@ -95,8 +98,9 @@ void main()
 
 	vec3 T = normalize(vec3(uniformPtr.model * vec4(vertex.tangent, 0.0)));
 	vec3 N = normalize(vec3(uniformPtr.model * vec4(vertex.normal, 0.0)));
-	vec3 B = normalize(cross(T, N));
+	// Gram-Schmidt process to make vectors orthogonal back
 	T = normalize(T - dot(T, N) * N);
+	vec3 B = normalize(cross(T, N));
 	mat3 TBN = mat3(T,B,N);
 
 	outTBN = TBN;
