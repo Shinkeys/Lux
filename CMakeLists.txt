@@ -1,12 +1,12 @@
 ﻿cmake_minimum_required (VERSION 3.18)
 
+include(${CMAKE_SOURCE_DIR}/CMake/slang-setup.cmake)
 
 project (Lux)
 
 
 
 # Collecting all headers/cpp/glsl files
-file(GLOB_RECURSE GLSL_SOURCE_FILES "resources/shaders/*.vert" "resources/shaders/*.frag" "resources/shaders/*.comp")
 file(GLOB_RECURSE HEADER_FILES "headers/*.h")
 file(GLOB_RECURSE CPP_SOURCE_FILES "src/*.cpp")
 
@@ -17,6 +17,9 @@ add_executable(Lux ${CPP_SOURCE_FILES} )
 # Setting CPP Version
 set_target_properties(Lux PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS YES)
 
+
+# Download slang
+download_slang()
 
 # Platform specific compile definitions
 if(UNIX)
@@ -35,15 +38,9 @@ endif()
 
 # Compiler for spir-v
 if(UNIX)
-  if(DEFINED ENV{VULKAN_SDK})
-    set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/bin/glslangValidator")
-  else()
-    set(GLSL_VALIDATOR "glslangValidator")
-  endif()
+    set(GLSL_VALIDATOR "${SLANG_BINARY_DIR}/slangc")
 elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "AMD64")
-  set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin/glslangValidator.exe")
-else()
-  set(GLSL_VALIDATOR "$ENV{VULKAN_SDK}/Bin32/glslangValidator.exe")
+    set(GLSL_VALIDATOR "${SLANG_BINARY_DIR}/slangc.exe")
 endif()
 
 # Adding subdirectories so that they would build by itself
@@ -70,7 +67,14 @@ target_link_libraries(imgui PUBLIC volk SDL3::SDL3)
 
 
 # Include directories
-target_include_directories(Lux PRIVATE "vendor/imgui" "vendor/glm" "vendor/VulkanMemoryAllocator/include" "vendor/fastgltf/include" "vendor/stb")
+target_include_directories(Lux PRIVATE 
+    "vendor/imgui"
+    "vendor/glm"
+    "vendor/VulkanMemoryAllocator/include"
+    "vendor/fastgltf/include"
+    "vendor/stb"
+    ${SLANG_INCLUDE_DIR})
+
 
 # Compile definitions
 target_compile_definitions(Lux PRIVATE 
@@ -87,24 +91,15 @@ add_custom_command(TARGET Lux POST_BUILD
     "$<TARGET_FILE_DIR:Lux>"
 )
 
-# Make spirv files from basic glsl
-# Thanks: https://gist.github.com/evilactually/a0d191701cb48f157b05be7f74d79396
-foreach(GLSL ${GLSL_SOURCE_FILES})
-  get_filename_component(FILE_NAME ${GLSL} NAME)
-  set(SPIRV "${PROJECT_BINARY_DIR}/resources/shaders/${FILE_NAME}.spv")
-  add_custom_command(
-    OUTPUT ${SPIRV}
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/resources/shaders"
-    COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV}
-    DEPENDS ${GLSL})
-  list(APPEND SPIRV_BINARY_FILES ${SPIRV})
-endforeach(GLSL)
-
 add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
 add_dependencies(Lux Shaders)
 
+# Link directories
+target_link_directories(Lux PRIVATE ${SLANG_LIBRARY_DIR})
+
+
 # Linking libraries
-target_link_libraries(Lux PRIVATE SDL3::SDL3 imgui volk fastgltf::fastgltf -fsanitize=address -fsanitize=undefined)
+target_link_libraries(Lux PRIVATE SDL3::SDL3 imgui volk fastgltf::fastgltf slang)
 
 
 #-fsanitize=address -fsanitize=undefined remove that to make it possible to work with renderdoc, otherwise place in target libs

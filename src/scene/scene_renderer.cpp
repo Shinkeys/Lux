@@ -167,7 +167,8 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 	{
 		PipelineSpecification pbrShadingPipeline;
 		pbrShadingPipeline.type = PipelineType::GRAPHICS_PIPELINE;
-		pbrShadingPipeline.shaderName = "PBR_shading";
+		pbrShadingPipeline.shaderName = "PBR-shading";
+		pbrShadingPipeline.entryPoints = {"VertexMain", "FragmentMain"};
 		pbrShadingPipeline.cullMode = CullMode::CULL_MODE_BACK;
 		pbrShadingPipeline.pushConstantSizeBytes = sizeof(PBRPassPushConst);
 		pbrShadingPipeline.descriptorSets = { extractRawPtrsLambda() };
@@ -185,6 +186,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 		gBufferGraphicsPipeline.type = PipelineType::GRAPHICS_PIPELINE;
 		gBufferGraphicsPipeline.shaderName = "g-pass";
 		gBufferGraphicsPipeline.cullMode = CullMode::CULL_MODE_BACK;
+		gBufferGraphicsPipeline.entryPoints = { "VertexMain", "FragmentMain" };
 		gBufferGraphicsPipeline.pushConstantSizeBytes = sizeof(GBufferPushConst);
 		gBufferGraphicsPipeline.descriptorSets = { extractRawPtrsLambda() }; // Now only one descriptor layout, to DO
 		gBufferGraphicsPipeline.depthCompare = CompareOP::COMPARE_OP_LESS;
@@ -202,7 +204,8 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 	{
 		PipelineSpecification lightCullingComputePipeline;
 		lightCullingComputePipeline.type = PipelineType::COMPUTE_PIPELINE;
-		lightCullingComputePipeline.shaderName = "light_cull";
+		lightCullingComputePipeline.shaderName = "light-cull";
+		lightCullingComputePipeline.entryPoints = { "ComputeMain" };
 		lightCullingComputePipeline.descriptorSets = { extractRawPtrsLambda() };
 		lightCullingComputePipeline.pushConstantSizeBytes = sizeof(LightCullPushConst);
 

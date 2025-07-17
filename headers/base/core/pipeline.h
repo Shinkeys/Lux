@@ -17,6 +17,8 @@ struct PipelineSpecification
 	PipelineType type{ PipelineType::UNDEFINED };
 
 	std::filesystem::path shaderName{};
+	std::vector<std::string> entryPoints;
+
 	PrimitiveTopology topology{ PrimitiveTopology::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST };
 	PolygonMode polygonMode{ PolygonMode::POLYGON_MODE_FILL };
 	CullMode cullMode{ CullMode::CULL_MODE_NONE };

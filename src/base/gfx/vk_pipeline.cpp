@@ -2,10 +2,11 @@
 #include "../../../headers/util/gfx/vk_helpers.h"
 #include "../../../headers/base/gfx/vk_descriptor.h"
 #include "../../../headers/base/gfx/vk_deleter.h"
+#include "../../../headers/base/gfx/vk_shader.h"
 #include "../../../headers/base/gfx/vk_image.h"
 
-VulkanPipeline::VulkanPipeline(const PipelineSpecification& spec, VulkanDevice& deviceObj) :
-	_specification{ spec },	  _deviceObject { deviceObj }
+VulkanPipeline::VulkanPipeline(const PipelineSpecification& spec, VulkanDevice& deviceObj, VulkanShader& shaderObj) :
+	_specification{ spec },	  _deviceObject { deviceObj }, _shaderObject{shaderObj}
 {
 	switch (spec.type)
 	{
@@ -39,23 +40,31 @@ void VulkanPipeline::CreateGraphicsPipeline()
 {
 	const VkDevice device = _deviceObject.GetDevice();
 
-	fs::path vertexPath   = _specification.shaderName;
-	fs::path fragmentPath = _specification.shaderName;
+	fs::path shaderPath = _specification.shaderName;
 
-	vertexPath += ".vert.spv";
-	fragmentPath += ".frag.spv";
+	shaderPath += ".slang";
 
-	auto vertShaderModule = vkhelpers::ReadShaderFile(vertexPath, device);
-	auto fragShaderModule = vkhelpers::ReadShaderFile(fragmentPath, device);
+	slang::IModule* slangModule = _shaderObject.LoadModule(shaderPath);
+	
+	if (_specification.entryPoints.empty())
+	{
+		std::cout << "Entrypoints for shader are empty: " << shaderPath.string() << '\n';
+		assert(false);
+	}
 
-	Logger::Log("Cannot create vertex shader module which is required in graphics pipeline", vertShaderModule.has_value(), LogLevel::Fatal);
+	auto vertShaderModule = _shaderObject.CreateShaderModule(slangModule, _specification.entryPoints[0]);
+	std::optional<VkShaderModule> fragShaderModule;
+	if (_specification.entryPoints.size() > 1)
+		fragShaderModule.emplace(_shaderObject.CreateShaderModule(slangModule, _specification.entryPoints[1]));
+	else
+		fragShaderModule = std::nullopt;
 
 	// Assign shaders to the specific pipeline stage
 	// Vertex shader
 	VkPipelineShaderStageCreateInfo vertStageInfo{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
 	vertStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertStageInfo.module = vertShaderModule.value();
-	vertStageInfo.pName = "main"; // Entrypoint
+	vertStageInfo.module = vertShaderModule;
+	vertStageInfo.pName = "main"; // Entrypoint. Slang would convert it automatically
 	// Very useful feature - use it later. Allows you to specify
 	// all the constants which would be used in the shader directly
 	// from the CPU so you don't need to synchronize their values,
@@ -240,7 +249,7 @@ void VulkanPipeline::CreateGraphicsPipeline()
 
 	Logger::Log("[PIPELINE] Created pipeline object", _pipeline, LogLevel::Debug);
 
-	vkDestroyShaderModule(device, vertShaderModule.value(), nullptr);
+	vkDestroyShaderModule(device, vertShaderModule, nullptr);
 
 	if(fragShaderModule.has_value())
 		vkDestroyShaderModule(device, fragShaderModule.value(), nullptr);
@@ -253,17 +262,27 @@ void VulkanPipeline::CreateComputePipeline()
 
 	fs::path computePath = _specification.shaderName;
 
-	computePath += ".comp.spv";
+	computePath += ".slang";
 
-	auto compShaderModule = vkhelpers::ReadShaderFile(computePath, device);
 
-	Logger::Log("Cannot create vertex shader module which is required in graphics pipeline", compShaderModule.has_value(), LogLevel::Fatal);
+	if (_specification.entryPoints.empty())
+	{
+		std::cout << "Entrypoints for shader are empty: " << computePath.string() << '\n';
+		assert(false);
+	}
+
+
+	slang::IModule* slangModule = _shaderObject.LoadModule(computePath);
+
+	constexpr i32 computeEntryPoint = 0;
+
+	auto compShaderModule = _shaderObject.CreateShaderModule(slangModule, _specification.entryPoints[0]);
 
 
 	VkPipelineShaderStageCreateInfo shaderStageInfo{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
-	shaderStageInfo.module = compShaderModule.value();
+	shaderStageInfo.module = compShaderModule;
 	shaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
-	shaderStageInfo.pName = "main"; // enty point
+	shaderStageInfo.pName = "main"; // entry point
 
 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
@@ -309,7 +328,7 @@ void VulkanPipeline::CreateComputePipeline()
 
 	Logger::Log("[PIPELINE] Created compute pipeline object", _pipeline, LogLevel::Debug);
 
-	vkDestroyShaderModule(device, compShaderModule.value(), nullptr);
+	vkDestroyShaderModule(device, compShaderModule, nullptr);
 }
 
 

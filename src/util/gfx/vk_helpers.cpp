@@ -3,34 +3,13 @@
 
 namespace vkhelpers
 {
-	std::optional<VkShaderModule> ReadShaderFile(const fs::path& shaderPath, VkDevice device)
+	VkShaderModule ReadShaderFile(const u32* data, size_t size, VkDevice device)
 	{
-		fs::path completePath = "resources\\shaders\\" / shaderPath;
-		completePath = fs::absolute(completePath);
-
-		std::ifstream fileInput;
-		fileInput.open(completePath, std::ios::ate | std::ios::binary);
-
-		if (!fileInput.is_open())
-		{
-			Logger::CriticalLog("Can't load shader file by path: " + completePath.string());
-		}
-
-		size_t fileSize = static_cast<size_t>(fileInput.tellg());
-		// File size is the size till the end. This buffer basically should be char
-		// but then would need to use reinterpret_cast, so this approach is aight.
-		std::vector<u32> buffer(fileSize / sizeof(u32));
-
-		// Cursor at the beginning
-		fileInput.seekg(0);
-		fileInput.read((char*)buffer.data(), fileSize);
-
-		fileInput.close();
-
 		VkShaderModuleCreateInfo createInfo{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
 		// Should be in BYTES
-		createInfo.codeSize = buffer.size() * static_cast<size_t>(sizeof(u32));
-		createInfo.pCode = buffer.data();
+		createInfo.pCode = data;
+		createInfo.codeSize = size;
+
 
 		VkShaderModule shaderModule;
 		VK_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));

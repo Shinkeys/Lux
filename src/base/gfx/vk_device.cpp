@@ -249,7 +249,7 @@ void VulkanDevice::CreateLogicalDevice()
 		.descriptorBindingStorageImageUpdateAfterBind = VK_TRUE,
 		.descriptorBindingPartiallyBound = VK_TRUE,
 		.runtimeDescriptorArray = VK_TRUE,
-
+	
 		.scalarBlockLayout = VK_TRUE,
 		.bufferDeviceAddress = VK_TRUE,
 	};
@@ -262,6 +262,7 @@ void VulkanDevice::CreateLogicalDevice()
 	};
 
 	VkPhysicalDeviceFeatures2 deviceFeatures2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
+	deviceFeatures2.features.fragmentStoresAndAtomics = VK_TRUE; // to remove or create slang issue on git
 	deviceFeatures2.pNext = &vulkan13Features;
 
 	VkDeviceCreateInfo deviceCreateInfo{ VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };

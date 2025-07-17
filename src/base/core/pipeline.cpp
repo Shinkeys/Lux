@@ -9,5 +9,5 @@ PipelineManager::PipelineManager(VulkanBase& vulkanBase) : _vulkanBase{vulkanBas
 
 std::unique_ptr<Pipeline> PipelineManager::CreatePipeline(const PipelineSpecification& spec)
 {
-	return std::make_unique<VulkanPipeline>(spec, _vulkanBase.GetVulkanDeviceObj());
+	return std::make_unique<VulkanPipeline>(spec, _vulkanBase.GetVulkanDeviceObj(), _vulkanBase.GetShaderObj());
 }

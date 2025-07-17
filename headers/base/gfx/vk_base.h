@@ -3,6 +3,7 @@
 #include "vk_descriptor.h"
 #include "vk_allocator.h"
 #include "vk_image.h"
+#include "vk_shader.h"
 
 // Purpose: class-holder of the various vulkan structures. Would implement basic initialization.
 // This is the only place where volk would be included, as well as the only place
@@ -16,6 +17,7 @@ private:
 	std::unique_ptr<VulkanFrame> _frameObject;
 	std::unique_ptr<VulkanBuffer> _bufferObject;
 	std::unique_ptr<VulkanAllocator> _allocatorObject;
+	std::unique_ptr<VulkanShader> _shaderObject;
 
 public:
 	VulkanInstance& GetVulkanInstanceObj()		{ return *_instanceObject; }
@@ -24,6 +26,7 @@ public:
 	VulkanFrame& GetFrameObj()					{ return *_frameObject; }
 	VulkanBuffer& GetBufferObj()				{ return *_bufferObject; }
 	VulkanAllocator& GetAllocatorObj()			{ return *_allocatorObject; }
+	VulkanShader& GetShaderObj()				{ return *_shaderObject; }
 
 
 	VulkanBase() = default;

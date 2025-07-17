@@ -15,6 +15,7 @@ void VulkanBase::Initialize(Window& windowObj)
 	_frameObject = std::make_unique<VulkanFrame>(*_deviceObject, *_presentationObject);
 	_allocatorObject = std::make_unique<VulkanAllocator>(*_instanceObject, *_deviceObject);
 	_bufferObject = std::make_unique<VulkanBuffer>(*_instanceObject, *_deviceObject, *_allocatorObject);
+	_shaderObject = std::make_unique<VulkanShader>(*_deviceObject);
 }
 
 

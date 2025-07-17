@@ -13,11 +13,14 @@ namespace vkconversions
 	VkPipelineStageFlags2 ToVkPipelineStageFlags2(PipelineStage stages);
 }
 
+class VulkanShader;
 // DON'T CREATE IT MANUALLY, IT SHOULD BE CREATED VIA PIPELINE BASE CLASS
 class VulkanPipeline : public Pipeline
 {
 private:
 	VulkanDevice& _deviceObject;
+	VulkanShader& _shaderObject;
+
 	VkPipeline _pipeline{ VK_NULL_HANDLE };
 	VkPipelineLayout _layout{ VK_NULL_HANDLE };
 
@@ -28,7 +31,7 @@ private:
 public:
 	const PipelineSpecification& GetSpecification() override { return _specification; }
 
-	VulkanPipeline(const PipelineSpecification& spec, VulkanDevice& deviceObj);
+	VulkanPipeline(const PipelineSpecification& spec, VulkanDevice& deviceObj, VulkanShader& shaderObj);
 	
 	VulkanPipeline() = delete;
 	~VulkanPipeline();
