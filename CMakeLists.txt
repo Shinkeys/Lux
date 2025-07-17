@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required (VERSION 3.18)
 
-include(${CMAKE_SOURCE_DIR}/CMake/slang-setup.cmake)
+include(${CMAKE_SOURCE_DIR}/CMakeScripts/slang-setup.cmake)
 
 project (Lux)
 

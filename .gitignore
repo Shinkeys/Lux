@@ -12,7 +12,6 @@ CMakeCache.txt
 build.ninja
 .ninja_*
 compile_commands.json
-*.cmake
 
 imgui.ini
 
@@ -33,6 +32,6 @@ imgui.ini
 # Built Visual Studio Code Extensions
 *.vsix
 
-
 # Slang
 slangdconfig.json
+vendor/slang
