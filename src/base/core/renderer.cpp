@@ -38,6 +38,11 @@ void Renderer::RenderMesh(const DrawCommand& command)
 	_renderAPI->RenderMesh(command);
 }
 
+void Renderer::RenderIndirect(const DrawIndirect& command)
+{
+	_renderAPI->RenderIndirect(command);
+}
+
 void Renderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
 {
 	_renderAPI->ExecuteBarriers(barriers);

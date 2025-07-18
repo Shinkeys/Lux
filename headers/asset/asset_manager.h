@@ -31,7 +31,7 @@ private:
 	using MaterialID = u32;
 	AssetID _currentAvailableIndex{ 1 }; // 0 is reserved
 	MaterialID _availableMaterialIndex{ 1 };
-	std::unordered_map<AssetID, VertexDescription> _vertexDescription;
+
 	std::unordered_map<MaterialID, MaterialDescription> _materialDescription;
 
 	std::vector<std::pair<u32, std::unique_ptr<Image>>> _textures;
@@ -58,7 +58,7 @@ public:
 
 	size_t GetAllSceneSize();
 
-	const VertexDescription* GetVertexDesc(AssetID id) const;
+	const std::vector<SubmeshDescription>* GetAssetSubmeshes(AssetID id) const;
 
 	const std::vector<MaterialTexturesDesc>& GetAllSceneMaterialsDesc() const;
 

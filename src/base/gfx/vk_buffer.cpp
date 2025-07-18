@@ -19,7 +19,7 @@ VulkanBuffer::VulkanBuffer(VulkanInstance& instanceObj, VulkanDevice& deviceObj,
 	createInfo.device = deviceObj.GetDevice();
 	createInfo.instance = instanceObj.GetInstance();
 	createInfo.flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT | VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT; 
-	// Means that accessible only from the one thread or synchrnized by the user ... for BDA
+	// Means that accessible only from the one thread or synchronized by the user ... for BDA
 
 	VmaVulkanFunctions vulkanFuncs{};
 	createInfo.pVulkanFunctions = &vulkanFuncs;
@@ -30,13 +30,22 @@ VulkanBuffer::VulkanBuffer(VulkanInstance& instanceObj, VulkanDevice& deviceObj,
 
 MeshBuffers& VulkanBuffer::CreateMeshBuffers(const MeshVertexBufferCreateDesc& vertexDesc, const MeshIndexBufferCreateDesc& indexDesc, EntityIndex handleIndex)
 {
-	MeshBuffers meshBuffers(_allocatorObj.GetAllocatorHandle());
+	MeshBuffers meshBuffers	(_allocatorObj.GetAllocatorHandle());
 
 	meshBuffers.CreateBuffers(_deviceObj.GetDevice(), vertexDesc, indexDesc);
 	// Copy constructors are not allowed in mesh buffers
-	auto it = _meshBuffers.emplace(handleIndex, std::move(meshBuffers));
-
-	return it.first->second;
+	if (_meshBuffers.find(handleIndex) == _meshBuffers.end())
+	{
+		std::vector<MeshBuffers> vec;
+		vec.emplace_back(std::move(meshBuffers));
+		auto it = _meshBuffers.emplace(handleIndex,  std::move(vec) );
+		return it.first->second.back();
+	}
+	else
+	{
+		auto& emplacedBuffer = _meshBuffers[handleIndex].emplace_back(std::move(meshBuffers));
+		return emplacedBuffer;
+	}
 }
 
 
@@ -60,7 +69,7 @@ StagingPair VulkanBuffer::CreateStagingBuffer(void* data, size_t size)
 	return pair;
 }
 
-const MeshBuffers* VulkanBuffer::GetMeshBuffers(EntityIndex handleIndex) const
+const std::vector<MeshBuffers>* VulkanBuffer::GetMeshBuffers(EntityIndex handleIndex) const
 {
 	auto it = _meshBuffers.find(handleIndex);
 
@@ -107,7 +116,8 @@ void VulkanBuffer::Cleanup()
 {
 	for (auto& [index, meshBuffers] : _meshBuffers)
 	{
-		meshBuffers.Cleanup();
+		for(auto& buffer : meshBuffers)
+			buffer.Cleanup();
 	}
 
 	for (auto& [index, uniformBuffer] : _uniformBuffers)

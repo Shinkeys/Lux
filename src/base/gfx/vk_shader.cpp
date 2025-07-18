@@ -2,7 +2,6 @@
 #include "../../../headers/base/gfx/vk_device.h"
 #include "../../../headers/util/gfx/vk_helpers.h"
 
-#include <../../vendor/slang/source/core/slang-list.h>
 
 using Slang::ComPtr;
 

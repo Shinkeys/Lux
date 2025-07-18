@@ -22,6 +22,30 @@ struct VertexDescription
 	u32 indexCount{ 0 };
 };
 
+// for materials to differentiate their types
+struct AlphaMode
+{
+	enum class AlphaType : u8
+	{
+		ALPHA_OPAQUE,
+		ALPHA_MASK,
+		ALPHA_BLEND,
+	};
+
+	AlphaType type{ AlphaType::ALPHA_OPAQUE };
+
+	float alphaCutoff{ 0.0f };
+
+};
+
+struct SubmeshDescription
+{
+	VertexDescription vertexDesc{};
+	AlphaMode alphaMode{};
+};
+
+
+
 struct MaterialTexturesDesc
 {
 	glm::vec3 baseColorFactor{ glm::vec3(0.0f) };
@@ -37,6 +61,7 @@ struct MaterialTexturesDesc
 struct MaterialDescription
 {
 	const MaterialTexturesDesc* materialTexturesPtr{ nullptr };
+	std::vector<AlphaMode> alphaDesc;
 	u32 materialsCount{ 0 };
 };
 
@@ -51,6 +76,8 @@ struct LoadedMesh
 {
 	std::vector<Vertex> vertex;
 	std::vector<u32> indices;
+
+	AlphaMode alphaMode{};
 };
 
 enum class TextureType : u8
@@ -76,6 +103,7 @@ struct TexturesData
 	fs::path path = ""; // if URI
 	std::vector<u8> bytes; // if embedded type
 };
+
 
 // Values to store in asset storage about materials to load images later and create a buffer ot textures per material
 struct MeshMaterial

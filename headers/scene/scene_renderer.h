@@ -97,6 +97,19 @@ struct ViewData
 	float farPlane{ 0.0f };
 };
 
+enum class MeshType : u8
+{
+	MESH_OPAQUE,
+	MESH_MASK,
+};
+
+struct RenderInstance
+{
+	VkDeviceAddress materialAddress{ 0 };
+	u32 meshIndex{ 0 };
+	const TranslationComponent* translation{ nullptr };
+};
+
 class Entity;
 class SceneRenderer
 {
@@ -137,7 +150,7 @@ private:
 	glm::mat4 GenerateModelMatrix(const TranslationComponent& translationComp);
 	void UpdateDescriptors();
 
-
+	std::map<MeshType, std::vector<RenderInstance>> _drawQueue;
 public:
 	/**
 	* @brief Pass the objects which would LIVE after the submission

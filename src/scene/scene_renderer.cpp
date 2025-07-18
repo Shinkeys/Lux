@@ -244,19 +244,22 @@ void SceneRenderer::UpdateBuffers(const Entity& entity)
 		meshComp->meshIndex = meshIndex;
 		if (meshIndex != 0)
 		{
-			const VertexDescription* desc = AssetManager::Get()->GetVertexDesc(meshIndex);
-			if (desc != nullptr)
+			const std::vector<SubmeshDescription>* submeshes = AssetManager::Get()->GetAssetSubmeshes(meshIndex);
+			if (submeshes == nullptr)
+				return;
+
+			for (auto submeshIt = submeshes->begin(); submeshIt != submeshes->end(); ++submeshIt)
 			{
 				MeshVertexBufferCreateDesc vertexDesc;
-				vertexDesc.vertexPtr = desc->vertexPtr;
-				vertexDesc.elementsCount = desc->vertexCount;
+				vertexDesc.vertexPtr = submeshIt->vertexDesc.vertexPtr;
+				vertexDesc.elementsCount = submeshIt->vertexDesc.vertexCount;
 				vertexDesc.bufferUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 				vertexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 				vertexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
 				MeshIndexBufferCreateDesc indexDesc;
-				indexDesc.indicesPtr = desc->indicesPtr;
-				indexDesc.elementsCount = desc->indexCount;
+				indexDesc.indicesPtr = submeshIt->vertexDesc.indicesPtr;
+				indexDesc.elementsCount = submeshIt->vertexDesc.indexCount;
 				indexDesc.bufferUsage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 				indexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 				indexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
@@ -447,9 +450,6 @@ void SceneRenderer::Draw()
 		if (entity == nullptr)
 			continue;
 
-		const MeshBuffers* meshBuffers = bufferManager.GetMeshBuffers(entity->GetID());
-		assert(meshBuffers && "Mesh buffer for entity is empty");
-
 		const MeshComponent* meshComp = entity->GetComponent<MeshComponent>();
 		if (meshComp != nullptr)
 		{
@@ -457,27 +457,37 @@ void SceneRenderer::Draw()
 			if (meshAssetIndex == 0)
 				continue;
 
-			const VertexDescription* vertexDesc = AssetManager::Get()->GetVertexDesc(meshAssetIndex);
-			if (vertexDesc == nullptr)
+			const std::vector<MeshBuffers>* meshBuffersPtr = bufferManager.GetMeshBuffers(entity->GetID());
+			assert(meshBuffersPtr && "Mesh buffer for entity is empty");
+
+			const std::vector<SubmeshDescription>* submeshDescPtr = AssetManager::Get()->GetAssetSubmeshes(meshAssetIndex);
+			if (submeshDescPtr == nullptr)
 				continue;
 
-			GBufferPushConst* gBuffPushConst = new GBufferPushConst;
-			gBuffPushConst->vertexAddress = meshBuffers->GetDeviceAddress();
-			gBuffPushConst->entityUniformAddress = _baseTransformationBuffer.address;
-			gBuffPushConst->materialAddress = _baseMaterialsSSBO.address;
-			gBuffPushConst->cameraDataAddress = _viewDataBuffer.address;
-						   
-			PushConsts pushConstants;
-			pushConstants.data = (byte*)gBuffPushConst;
-			pushConstants.size = sizeof(GBufferPushConst);
+			const auto& meshBuffers = *meshBuffersPtr;
+			const auto& submeshDesc = *submeshDescPtr;
 
-			DrawCommand command;
-			command.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
-			command.pushConstants = pushConstants;
-			command.indexCount = vertexDesc->indexCount;
-			command.indexBuffer = bufferManager.GetMeshBuffers(entity->GetID())->GetVkIndexBuffer();
-			command.pipeline = _gBufferPipeline.get();
-			Renderer::RenderMesh(command);
+			// Submesh desc and mesh buffers sizes are equal because they're created with each other
+			for (u32 i = 0; i < meshBuffers.size(); ++i)
+			{
+				GBufferPushConst* gBuffPushConst = new GBufferPushConst;
+				gBuffPushConst->vertexAddress = meshBuffers[i].GetDeviceAddress();
+				gBuffPushConst->entityUniformAddress = _baseTransformationBuffer.address;
+				gBuffPushConst->materialAddress = _baseMaterialsSSBO.address;
+				gBuffPushConst->cameraDataAddress = _viewDataBuffer.address;
+
+				PushConsts pushConstants;
+				pushConstants.data = (byte*)gBuffPushConst;
+				pushConstants.size = sizeof(GBufferPushConst);
+
+				DrawCommand command;
+				command.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
+				command.pushConstants = pushConstants;
+				command.indexCount = submeshDesc[i].vertexDesc.indexCount;
+				command.indexBuffer = meshBuffers[i].GetVkIndexBuffer();
+				command.pipeline = _gBufferPipeline.get();
+				Renderer::RenderMesh(command);
+			}
 		}
 	}
 	Renderer::EndRender();
@@ -597,6 +607,32 @@ void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
 
 	UpdateBuffers(entity);
+
+
+	const MeshComponent* meshComp = entity.GetComponent<MeshComponent>();
+	const TranslationComponent* transComp = entity.GetComponent<TranslationComponent>();
+	if (meshComp != nullptr)
+	{
+		const u32 meshAssetIndex = meshComp->meshIndex;
+		if (meshAssetIndex == 0)
+			return;
+
+		const std::vector<MeshBuffers>* meshBuffersPtr = bufferManager.GetMeshBuffers(entity.GetID());
+		assert(meshBuffersPtr && "Mesh buffer for entity is empty");
+
+		const std::vector<SubmeshDescription>* submeshDescPtr = AssetManager::Get()->GetAssetSubmeshes(meshAssetIndex);
+		if (submeshDescPtr == nullptr)
+			return;
+
+		const auto& meshBuffers = *meshBuffersPtr;
+		const auto& submeshDesc = *submeshDescPtr;
+
+		RenderInstance instance;
+		instance.materialAddress = _baseMaterialsSSBO.address;
+		instance.meshIndex = meshAssetIndex; // to do
+		instance.translation = transComp ? transComp : nullptr;
+
+
 
 	_drawCommands.push_back(&entity);
 

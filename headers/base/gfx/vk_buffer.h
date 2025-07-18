@@ -188,7 +188,7 @@ private:
 	using EntityIndex = u32;
 	using BufferIndex = i32;
 	// TO REFACTOR
-	std::unordered_map<EntityIndex, MeshBuffers> _meshBuffers;
+	std::unordered_map<EntityIndex, std::vector<MeshBuffers>> _meshBuffers;
 	std::unordered_map<EntityIndex, StorageBuffer> _uniformBuffers;
 
 	i32 _stagingBufferAvailableIndex{ 1 };
@@ -199,7 +199,7 @@ private:
 public:
 	// Mesh
 	MeshBuffers& CreateMeshBuffers(const MeshVertexBufferCreateDesc& vertexDesc, const MeshIndexBufferCreateDesc& indexDesc, EntityIndex handleIndex);
-	const MeshBuffers* GetMeshBuffers(EntityIndex handleIndex) const;
+	const std::vector<MeshBuffers>* GetMeshBuffers(EntityIndex handleIndex) const;
 	
 	// Uniform
 	UBOPair CreateUniformBuffer(size_t size);

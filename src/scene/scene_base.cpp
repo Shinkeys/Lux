@@ -27,7 +27,8 @@ void SceneBase::Initialize()
 	sponza.AddComponent<TagComponent>("Sponza");
 	sponza.AddComponent<CameraComponent>(_camera, cameraIsActive);
 	sponza.AddComponent<MeshComponent>();
-	sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f), glm::vec3(0.0f), glm::vec3(0.01f));
+	//sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f), glm::vec3(0.0f), glm::vec3(0.01f));
+	sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f));
 	sponza.GetComponent<MeshComponent>()->folderName = "Sponza";
 }
 

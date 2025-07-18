@@ -40,16 +40,10 @@ std::optional<MeshStorageBackData> AssetManager::TryToLoadAndStoreMesh(const fs:
 	}
 
 	AssetID index = _currentAvailableIndex;
-	StoreVertexResult result = _storage.StoreVertex(loadedGLTF, index);
-	if (result.shouldUpdateVertexPtrs || result.shouldUpdateIndicesPtrs) // update em both at once. doesnt affect performance anyway
-		UpdateDataPointers();
+	_storage.StoreVertex(loadedGLTF, index);
 	
-	assert(result.desc.vertexCount > 0 && result.desc.indexCount > 0 && "Vertex or index count is 0 in TryToLoadAndStoreMesh(). Check the logic");
-	assert(result.desc.vertexPtr != nullptr && result.desc.indicesPtr != nullptr && "Vertex ptr or indices ptr is nullptr in TryToLoadAndStoreMesh(). Check the logic");
 
 	ConvertMaterialsPathToAbsolute(folder, loadedGLTF);
-
-	_vertexDescription.insert({ index, result.desc });
 
 	++_currentAvailableIndex;
 
@@ -72,6 +66,7 @@ MaterialStorageBackData AssetManager::StoreLoadedMaterials(const std::vector<Mat
 	MaterialStorageBackData backData;
 	backData.materialID = availableIndex;
 	backData.materials = storeResult.desc;
+	backData.materials.alphaDesc = storeResult.desc.alphaDesc;
 
 	return backData;
 }
@@ -198,13 +193,10 @@ fs::path AssetManager::FindGLTFByPath(const fs::path& path)
 	return {};
 }
 
-void AssetManager::UpdateDataPointers()
+
+const std::vector<SubmeshDescription>* AssetManager::GetAssetSubmeshes(AssetID id) const
 {
-	for (auto& assetDesc : _vertexDescription)
-	{
-		assetDesc.second.vertexPtr = _storage.GetRawVertex(assetDesc.first);
-		assetDesc.second.indicesPtr = _storage.GetRawIndices(assetDesc.first);
-	}
+	return _storage.GetAssetSubmeshes(id);
 }
 
 void AssetManager::UpdateMaterialPointers()
@@ -213,16 +205,4 @@ void AssetManager::UpdateMaterialPointers()
 	{
 		materialDesc.second.materialTexturesPtr = _storage.GetRawMaterials(materialDesc.first);
 	}
-}
-
-const VertexDescription* AssetManager::GetVertexDesc(AssetID id) const
-{
-	auto it = _vertexDescription.find(id);
-	if (it == _vertexDescription.end())
-	{
-		std::cout << "Unable to get geometry desc by id, the data is not stored previously, important error - check call stack! " << id << '\n';
-		return nullptr;
-	}
-	
-	return &it->second;
 }

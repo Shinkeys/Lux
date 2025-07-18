@@ -19,15 +19,18 @@ struct TagComponent
 
 struct TranslationComponent
 {
-	glm::mat4 rotation{ glm::mat4(1.0f) }; // To do: quats
-	glm::vec3 translation{ glm::vec3(0.0f) };
-	glm::vec3 scale{ glm::vec3(0.0f) };
+	//glm::mat4 rotation{ glm::mat4(1.0f) }; // To do: quats
+	//glm::vec3 translation{ glm::vec3(0.0f) };
+	//glm::vec3 scale{ glm::vec3(0.0f) };
+
+	glm::mat4 model{ glm::mat4(1.0f) };
 
 	TranslationComponent() = default;
-	TranslationComponent(const glm::mat4& newRot, glm::vec3 newTranslation, glm::vec3 newScale) :
+	TranslationComponent(const glm::mat4& newModel) : model{newModel}{}
+	/*TranslationComponent(const glm::mat4& newRot, glm::vec3 newTranslation, glm::vec3 newScale) :
 		rotation{newRot}, translation{newTranslation}, scale{newScale}
 	{
-	}
+	}*/
 };
 
 struct CameraComponent

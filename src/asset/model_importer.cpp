@@ -74,15 +74,16 @@ void ModelImporter::StoreTextureData(const fastgltf::Image& image, TexturesData&
 // It's good for the purpose of this engine for now: to learn graphics techniques
 bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfData)
 {
-	gltfData.meshes.resize(asset.meshes.size());
-
 	for (u32 i = 0; i < asset.meshes.size(); ++i)
 	{
-		auto& meshVertex = gltfData.meshes[i].vertex;
-		auto& meshIndices  = gltfData.meshes[i].indices;
-
+		u32 j = 0;
 		for (auto it = asset.meshes[i].primitives.begin(); it != asset.meshes[i].primitives.end(); ++it)
 		{
+			gltfData.meshes.resize(gltfData.meshes.size() + 1);
+
+			auto& meshVertex = gltfData.meshes[j].vertex;
+			auto& meshIndices = gltfData.meshes[j].indices;
+
 			auto* positionIt = it->findAttribute("POSITION");	
 			assert(positionIt != it->attributes.end());
 			assert(it->indicesAccessor.has_value()); // Mesh MUST have indices
@@ -112,7 +113,7 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 			if (it->materialIndex.has_value())
 			{
 				auto& material = asset.materials[it->materialIndex.value()];
-
+		
 				// Albedo
 				auto& baseColorTex = material.pbrData.baseColorTexture;
 				if (baseColorTex.has_value())
@@ -128,7 +129,6 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 						baseColorTexCoordIdx = material.pbrData.baseColorTexture->texCoordIndex;
 					}
 				}
-
 				bool isMaterialAlreadyStored = false;
 				for (const auto& material : gltfData.materials)
 				{
@@ -201,11 +201,33 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
  
 						}
 					}
+
+					auto& meshAlphaMode = gltfData.meshes[j].alphaMode;
+					switch (material.alphaMode)
+					{
+					case fastgltf::AlphaMode::Opaque:
+						meshAlphaMode.type = AlphaMode::AlphaType::ALPHA_OPAQUE;
+						break;
+
+					case fastgltf::AlphaMode::Mask:
+						meshAlphaMode.type = AlphaMode::AlphaType::ALPHA_MASK;
+						break;
+
+					case fastgltf::AlphaMode::Blend:
+						meshAlphaMode.type = AlphaMode::AlphaType::ALPHA_MASK; /// FOR NOW LIKE THAT BECAUSE HALF TRANSPARENT OBJECTS ARE NOT SUPPORTED!!!!!!
+						break;
+
+					default: std::unreachable();
+					}
+
+					// Store alpha mode of the object to separate them later by type: opaque, mask, blend(TO DO)
+					meshAlphaMode.alphaCutoff = material.alphaCutoff;
+
 					gltfData.materials.emplace_back(std::move(meshMaterial));
 				}
 			}
-			
 
+			
 			auto texCoordAttribute = std::string("TEXCOORD_") + std::to_string(baseColorTexCoordIdx);
 			if (const auto* texCoordIt = it->findAttribute(texCoordAttribute); texCoordIt != it->attributes.end())
 			{
@@ -259,7 +281,11 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 				index += static_cast<u32>(vertexOffset);
 			}
 			meshIndices.insert(meshIndices.end(), std::make_move_iterator(tempIndices.begin()), std::make_move_iterator(tempIndices.end()));
+
+			// increment current submesh index
+			++j;
 		}
 	}
+
 	return true;
 }

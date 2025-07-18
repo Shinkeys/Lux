@@ -1,79 +1,82 @@
 #include "../../headers/asset/asset_storage.h"
 
 
-StoreVertexResult AssetStorage::StoreVertex(const LoadedGLTF& loadedGLTF, AssetID assetID)
-{	
-	StoreVertexResult result;
-	GeometryDataProps geometryProps;
+void AssetStorage::StoreVertex(const LoadedGLTF& loadedGLTF, AssetID assetID)
+{
+	StoreVertexResult result{};
+	result.desc.resize(loadedGLTF.meshes.size());
 
-	u32 vertexTotalSize = 0;
-	u32 indexTotalSize = 0;
-
-	std::vector<Vertex> tempVertexStorage;
-	std::vector<u32> tempIndexStorage;
-	for (const auto& mesh : loadedGLTF.meshes)
+	for (u32 i = 0; i < loadedGLTF.meshes.size(); ++i)
 	{
-		const size_t vertexSize = mesh.vertex.size();
-		const size_t indicesSize = mesh.indices.size();
+		for (const auto& mesh : loadedGLTF.meshes)
+		{
+			const size_t vertexSize = mesh.vertex.size();
+			const size_t indicesSize = mesh.indices.size();
 
-		tempVertexStorage.insert(tempVertexStorage.end(), std::make_move_iterator(mesh.vertex.begin()), std::make_move_iterator(mesh.vertex.end()));
-		tempIndexStorage.insert(tempIndexStorage.end(), std::make_move_iterator(mesh.indices.begin()), std::make_move_iterator(mesh.indices.end()));
+			assert(vertexSize > 0 && indicesSize && "Trying to store some model with empty vertices/indices");
 
-		
-		vertexTotalSize += vertexSize;
-		indexTotalSize += indicesSize;
+			//// If storage is reallocated need to update pointers in asset manager class
+			//if (_allVertexStorage.capacity() < _allVertexStorage.size() + vertexSize)
+			//	result.shouldUpdateVertexPtrs = true;
+
+			//if (_allIndicesStorage.capacity() < _allIndicesStorage.size() + indicesSize)
+			//	result.shouldUpdateIndicesPtrs = true;
+
+			// Insert all the data into storages
+			_allVertexStorage.insert(_allVertexStorage.end(), std::make_move_iterator(mesh.vertex.begin()), std::make_move_iterator(mesh.vertex.end()));
+			_allIndicesStorage.insert(_allIndicesStorage.end(), std::make_move_iterator(mesh.indices.begin()), std::make_move_iterator(mesh.indices.end()));
+
+
+			const u32 insertVertexIndex = _allVertexStorage.size();
+			const u32 insertIndex = _allIndicesStorage.size();
+
+
+			// Store geometry data properties to retrieve them later if would need from this class.
+			result.desc[i].vertexDesc.vertexPtr = nullptr;
+			result.desc[i].vertexDesc.indicesPtr = nullptr;
+			result.desc[i].vertexDesc.vertexCount = vertexSize;
+			result.desc[i].vertexDesc.indexCount = indicesSize;
+
+			if (auto it = _submeshesDesc.find(assetID); it != _submeshesDesc.end())
+				it->second.push_back(result.desc[i]);
+			else
+				_submeshesDesc.insert({ assetID, { result.desc[i] } });
+
+		}
 	}
-	// If storage is reallocated need to update pointers in asset manager class
-	if (_allVertexStorage.capacity() < _allVertexStorage.size() + vertexTotalSize)
-		result.shouldUpdateVertexPtrs = true;
+	
+	UpdateGeometryPropsStorage();
 
-	if (_allIndicesStorage.capacity() < _allIndicesStorage.size() + indexTotalSize)
-		result.shouldUpdateIndicesPtrs = true;
-
-	assert(!tempVertexStorage.empty() && !tempIndexStorage.empty() && "Trying to store some model with empty vertices/indices");
-
-	geometryProps.vertexCount = vertexTotalSize;
-	geometryProps.indexCount = indexTotalSize;
-
-	const u32 insertVertexIndex = _allVertexStorage.size();
-	const u32 insertIndex = _allIndicesStorage.size();
-
-	// Insert all the data into storages
-	_allVertexStorage.insert(_allVertexStorage.end(), std::make_move_iterator(tempVertexStorage.begin()), std::make_move_iterator(tempVertexStorage.end()));
-	_allIndicesStorage.insert(_allIndicesStorage.end(), std::make_move_iterator(tempIndexStorage.begin()), std::make_move_iterator(tempIndexStorage.end()));
-
-
-	geometryProps.startVertex = &_allVertexStorage[insertVertexIndex];
-	geometryProps.startIndex = &_allIndicesStorage[insertIndex];
-
-
-	if (result.shouldUpdateVertexPtrs || result.shouldUpdateIndicesPtrs)
-		UpdateGeometryPropsStorage();
-
-
-	_geometryProps.emplace(assetID, geometryProps);
-
-	result.desc.vertexPtr = geometryProps.startVertex;
-	result.desc.indicesPtr = geometryProps.startIndex;
-	result.desc.vertexCount = vertexTotalSize;
-	result.desc.indexCount = indexTotalSize;
-
-	return result;
 }
 
+const std::vector<SubmeshDescription>* AssetStorage::GetAssetSubmeshes(AssetID id) const
+{
+	auto it = _submeshesDesc.find(id);
+
+	if (it == _submeshesDesc.end())
+		return nullptr;
+
+	return &it->second;
+}
+
+// Purpose: method to update all the pointers to the data inside of storage after reallocation
 void AssetStorage::UpdateGeometryPropsStorage()
 {
 	size_t vertexIndex = 0;
 	size_t indicesIndex = 0;
-	for (auto& data : _geometryProps)
+	for (auto& meshes : _submeshesDesc)
 	{
-		data.second.startVertex = &_allVertexStorage[vertexIndex];
-		data.second.startIndex = &_allIndicesStorage[indicesIndex];
+		for (auto& mesh : meshes.second)
+		{
+			mesh.vertexDesc.vertexPtr = &_allVertexStorage[vertexIndex];
+			mesh.vertexDesc.indicesPtr = &_allIndicesStorage[indicesIndex];
 
-		vertexIndex += data.second.vertexCount;
-		indicesIndex += data.second.indexCount;
 
-		assert(vertexIndex > 0 && indicesIndex > 0 && "Trying to update ptr to the data in asset storage, but some model contains <= 0 elements");
+			vertexIndex  += mesh.vertexDesc.vertexCount;
+			indicesIndex += mesh.vertexDesc.indexCount;
+
+			assert(vertexIndex > 0 && indicesIndex > 0 && "Trying to update ptr to the data in asset storage, but some model contains <= 0 elements");
+		}
 	}
 }
 
@@ -132,28 +135,4 @@ const MaterialTexturesDesc* AssetStorage::GetRawMaterials(MaterialsAssetID id) c
 	}
 
 	return it->second.desc.materialTexturesPtr;
-}
-
-const Vertex* AssetStorage::GetRawVertex(AssetID id) const
-{
-	auto it = _geometryProps.find(id);
-	if (it == _geometryProps.end())
-	{
-		std::cout << "Unable to get pointer to the raw geometry!\n";
-		return nullptr;
-	}
-
-	return it->second.startVertex;
-}
-
-const u32* AssetStorage::GetRawIndices(AssetID id) const
-{
-	auto it = _geometryProps.find(id);
-	if (it == _geometryProps.end())
-	{
-		std::cout << "Unable to get pointer to the raw indices!\n";
-		return nullptr;
-	}
-
-	return it->second.startIndex;
 }
