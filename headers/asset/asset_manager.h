@@ -6,8 +6,8 @@
 
 struct MeshStorageBackData
 {
-	u32 assetID{ 0 };
-	std::vector<MeshMaterial> unloadedMaterials;
+	u32 meshIndex{ 0 };
+	u32 materialIndex{ 0 };
 };
 
 struct MaterialStorageBackData
@@ -39,8 +39,6 @@ private:
 	fs::path ConvertToPath(const fs::path& folder);
 	fs::path FindGLTFByPath(const fs::path& path);
 	void ConvertMaterialsPathToAbsolute(const fs::path& modelFolderName, LoadedGLTF& loadedGLTF);
-	void UpdateDataPointers();
-	void UpdateMaterialPointers();
 public:
 
 	static void Initialize();
@@ -65,7 +63,7 @@ public:
 	/**
 	* @brief Write models FOLDER to load the file from it. There's should be files only for one model
 	*/
-	std::optional<MeshStorageBackData> TryToLoadAndStoreMesh(const fs::path& folder);
+	std::optional<MeshStorageBackData> TryToLoadAndStoreMesh(const fs::path& folder, ImageManager* imageManager = nullptr);
 	MaterialTexturesDesc TryToLoadMaterial(const ImageManager& imageManager, const MeshMaterial& material);
-	MaterialStorageBackData StoreLoadedMaterials(const std::vector<MaterialTexturesDesc>& materialsDesc);
+	MaterialID StoreLoadedMaterials(const std::vector<MaterialTexturesDesc>& materialsDesc);
 };

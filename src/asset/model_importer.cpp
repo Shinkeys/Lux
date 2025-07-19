@@ -96,16 +96,13 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 			const size_t vertexOffset = meshVertex.size();
 			meshVertex.resize(vertexOffset + positionAccessor.count);
 
-			const u32 materialIndex = it->materialIndex.has_value() ? it->materialIndex.value() : 0;
+		
 			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(asset, positionAccessor, [&](fastgltf::math::fvec3 pos, size_t index)
 				{
 					meshVertex[index + vertexOffset].position = glm::vec3(pos.x(), pos.y(), pos.z());
 					meshVertex[index + vertexOffset].normal = glm::vec3();    
 					meshVertex[index + vertexOffset].tangent = glm::vec3();   // left it empty in case it doesn't present
 					meshVertex[index + vertexOffset].UV = glm::vec2();
-
-					// Offset those indices later 
-					meshVertex[index + vertexOffset].materialIndex = materialIndex;
 				});
 
 			size_t baseColorTexCoordIdx = 0;
@@ -129,6 +126,9 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 						baseColorTexCoordIdx = material.pbrData.baseColorTexture->texCoordIndex;
 					}
 				}
+
+				const u32 materialIndex = it->materialIndex.has_value() ? it->materialIndex.value() : 0;
+
 				bool isMaterialAlreadyStored = false;
 				for (const auto& material : gltfData.materials)
 				{
@@ -286,6 +286,11 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 			++j;
 		}
 	}
+
+	//std::sort(gltfData.meshes.begin(), gltfData.meshes.end(), [](const LoadedMesh& fst, const LoadedMesh& scd)
+	//	{
+	//		return fst.alphaMode.type < scd.alphaMode.type;
+	//	});
 
 	return true;
 }

@@ -4,27 +4,6 @@
 
 #include <vk_mem_alloc.h>
 
-struct SSBOPair
-{
-	VkDeviceAddress address{ 0 };
-	i32 index{ -1 };
-};
-
-struct UBOPair
-{
-	VkDeviceAddress address{ 0 };
-	i32 index{ -1 };
-};
-
-class StorageBuffer;
-struct StagingPair
-{
-	StorageBuffer* buffer{ nullptr };
-	i32 index{ -1 };
-};
-
-
-
 // IMAGES
 
 enum class VulkanImageUsage : u8

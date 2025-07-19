@@ -6,9 +6,10 @@
 
 EngineBase::EngineBase(VulkanBase& vulkanBase) : _vulkanBase{ vulkanBase }
 {
-	_imageManager = std::make_unique<ImageManager>(_vulkanBase);
+	_imageManager      = std::make_unique<ImageManager>(_vulkanBase);
 	_descriptorManager = std::make_unique<DescriptorManager>(_vulkanBase);
-	_pipelineManager = std::make_unique<PipelineManager>(_vulkanBase);
+	_pipelineManager   = std::make_unique<PipelineManager>(_vulkanBase);
+	_bufferManager     = std::make_unique<BufferManager>(_vulkanBase);
 }
 
 EngineBase::~EngineBase()

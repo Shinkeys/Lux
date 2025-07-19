@@ -15,7 +15,6 @@ private:
 	std::unique_ptr<VulkanDevice> _deviceObject;
 	std::unique_ptr<VulkanPresentation> _presentationObject;
 	std::unique_ptr<VulkanFrame> _frameObject;
-	std::unique_ptr<VulkanBuffer> _bufferObject;
 	std::unique_ptr<VulkanAllocator> _allocatorObject;
 	std::unique_ptr<VulkanShader> _shaderObject;
 
@@ -24,7 +23,6 @@ public:
 	VulkanDevice& GetVulkanDeviceObj()		    { return *_deviceObject; }
 	VulkanPresentation& GetPresentationObj()    { return *_presentationObject; }
 	VulkanFrame& GetFrameObj()					{ return *_frameObject; }
-	VulkanBuffer& GetBufferObj()				{ return *_bufferObject; }
 	VulkanAllocator& GetAllocatorObj()			{ return *_allocatorObject; }
 	VulkanShader& GetShaderObj()				{ return *_shaderObject; }
 

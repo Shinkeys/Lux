@@ -8,45 +8,40 @@ void AssetStorage::StoreVertex(const LoadedGLTF& loadedGLTF, AssetID assetID)
 
 	for (u32 i = 0; i < loadedGLTF.meshes.size(); ++i)
 	{
-		for (const auto& mesh : loadedGLTF.meshes)
-		{
-			const size_t vertexSize = mesh.vertex.size();
-			const size_t indicesSize = mesh.indices.size();
+		const auto& mesh = loadedGLTF.meshes[i];
+		const size_t vertexSize = mesh.vertex.size();
+		const size_t indicesSize = mesh.indices.size();
 
-			assert(vertexSize > 0 && indicesSize && "Trying to store some model with empty vertices/indices");
+		assert(vertexSize > 0 && indicesSize && "Trying to store some model with empty vertices/indices");
 
-			//// If storage is reallocated need to update pointers in asset manager class
-			//if (_allVertexStorage.capacity() < _allVertexStorage.size() + vertexSize)
-			//	result.shouldUpdateVertexPtrs = true;
+		//// If storage is reallocated need to update pointers in asset manager class
+		//if (_allVertexStorage.capacity() < _allVertexStorage.size() + vertexSize)
+		//	result.shouldUpdateVertexPtrs = true;
 
-			//if (_allIndicesStorage.capacity() < _allIndicesStorage.size() + indicesSize)
-			//	result.shouldUpdateIndicesPtrs = true;
+		//if (_allIndicesStorage.capacity() < _allIndicesStorage.size() + indicesSize)
+		//	result.shouldUpdateIndicesPtrs = true;
 
-			// Insert all the data into storages
-			_allVertexStorage.insert(_allVertexStorage.end(), std::make_move_iterator(mesh.vertex.begin()), std::make_move_iterator(mesh.vertex.end()));
-			_allIndicesStorage.insert(_allIndicesStorage.end(), std::make_move_iterator(mesh.indices.begin()), std::make_move_iterator(mesh.indices.end()));
-
-
-			const u32 insertVertexIndex = _allVertexStorage.size();
-			const u32 insertIndex = _allIndicesStorage.size();
+		// Insert all the data into storages
+		_allVertexStorage.insert(_allVertexStorage.end(), std::make_move_iterator(mesh.vertex.begin()), std::make_move_iterator(mesh.vertex.end()));
+		_allIndicesStorage.insert(_allIndicesStorage.end(), std::make_move_iterator(mesh.indices.begin()), std::make_move_iterator(mesh.indices.end()));
 
 
-			// Store geometry data properties to retrieve them later if would need from this class.
-			result.desc[i].vertexDesc.vertexPtr = nullptr;
-			result.desc[i].vertexDesc.indicesPtr = nullptr;
-			result.desc[i].vertexDesc.vertexCount = vertexSize;
-			result.desc[i].vertexDesc.indexCount = indicesSize;
+		// Store geometry data properties to retrieve them later if would need from this class.
+		result.desc[i].vertexDesc.vertexPtr = nullptr;
+		result.desc[i].vertexDesc.indicesPtr = nullptr;
+		result.desc[i].vertexDesc.vertexCount = vertexSize;
+		result.desc[i].vertexDesc.indexCount = indicesSize;
+		result.desc[i].alphaMode = mesh.alphaMode;	
 
-			if (auto it = _submeshesDesc.find(assetID); it != _submeshesDesc.end())
-				it->second.push_back(result.desc[i]);
-			else
-				_submeshesDesc.insert({ assetID, { result.desc[i] } });
 
-		}
+		if (auto it = _submeshesDesc.find(assetID); it != _submeshesDesc.end())
+			it->second.emplace_back(result.desc[i]);
+		else
+			_submeshesDesc.insert({ assetID, {result.desc[i]} });
 	}
+
 	
 	UpdateGeometryPropsStorage();
-
 }
 
 const std::vector<SubmeshDescription>* AssetStorage::GetAssetSubmeshes(AssetID id) const
@@ -68,7 +63,7 @@ void AssetStorage::UpdateGeometryPropsStorage()
 	{
 		for (auto& mesh : meshes.second)
 		{
-			mesh.vertexDesc.vertexPtr = &_allVertexStorage[vertexIndex];
+			mesh.vertexDesc.vertexPtr  = &_allVertexStorage[vertexIndex];
 			mesh.vertexDesc.indicesPtr = &_allIndicesStorage[indicesIndex];
 
 
@@ -83,56 +78,63 @@ void AssetStorage::UpdateGeometryPropsStorage()
 void AssetStorage::UpdateMaterialPropsStorage()
 {
 	size_t materialIndex = 0;
-	for (auto& data : _createdMaterialsProps)
+	for (auto& data : _submeshesDesc)
 	{
-		data.second.desc.materialTexturesPtr = &_allCreatedMaterialsStorage[materialIndex];
+		for(auto& submesh : data.second)
+		{
+			submesh.materialDesc.materialTexturesPtr = &_allCreatedMaterialsStorage[materialIndex];
+			
+			materialIndex += submesh.materialDesc.materialsCount;
 
-		materialIndex += data.second.desc.materialsCount;
-
-		assert(materialIndex > 0 && "Trying to update stored materials props, but some descriptor contains <= 0 elements");
+			assert(materialIndex > 0 && "Trying to update stored materials props, but some descriptor contains <= 0 elements");
+		}
 	}
 }
 
 
-StoreMaterialResult AssetStorage::StoreMeshMaterials(const std::vector<MaterialTexturesDesc>& materialsDesc, MaterialsAssetID assetID)
+void AssetStorage::StoreMeshMaterials(const std::vector<MaterialTexturesDesc>& materialsDesc, MaterialsAssetID assetID)
 {
-	StoreMaterialResult result;
-
-	size_t indexBeforeInsertion = _allCreatedMaterialsStorage.size();
-	for (const auto& material : materialsDesc)
+	for (u32 i = 0; i < materialsDesc.size(); ++i)
 	{
+		StoreMaterialResult result{};
+
 		if (_allCreatedMaterialsStorage.capacity() < _allCreatedMaterialsStorage.size() + 1)
 		{
 			const size_t currentCapacity = _allCreatedMaterialsStorage.capacity();
 			const size_t exponentedCapacity = currentCapacity + currentCapacity / 2;
 			_allCreatedMaterialsStorage.reserve(exponentedCapacity); // to avoid a lot of reallocations
-			result.shouldUpdatePtrs = true;
 		}
-		_allCreatedMaterialsStorage.push_back(material);
+
+		result.desc.materialTexturesPtr = nullptr;
+		result.desc.materialsCount = 1; // 1 material per submesh
+
+		_allCreatedMaterialsStorage.push_back(materialsDesc[i]);
+
+
+		if (auto it = _submeshesDesc.find(assetID); it != _submeshesDesc.end())
+		{
+			if (i < it->second.size())
+			{
+				it->second[i].materialDesc = result.desc;
+			}
+			else
+			{
+				SubmeshDescription submeshDesc{};
+				submeshDesc.materialDesc = result.desc;
+				it->second.push_back(submeshDesc);
+			}
+		}
+		else
+		{
+			SubmeshDescription submeshDesc{};
+			submeshDesc.materialDesc = result.desc;
+			_submeshesDesc.insert({ assetID, { submeshDesc } });
+		}
+
 	}
-	
+
 	assert(_allCreatedMaterialsStorage.size() > 0 && "Trying to store materials data for some mesh, but it is empty");
 
-	result.desc.materialTexturesPtr = &_allCreatedMaterialsStorage[indexBeforeInsertion];
-	result.desc.materialsCount = materialsDesc.size();
+	UpdateMaterialPropsStorage();
 
-	_createdMaterialsProps.emplace(assetID, result);
-
-	if (result.shouldUpdatePtrs)
-		UpdateMaterialPropsStorage();
-
-
-	return result;
-}
-
-const MaterialTexturesDesc* AssetStorage::GetRawMaterials(MaterialsAssetID id) const
-{
-	auto it = _createdMaterialsProps.find(id);
-	if (it == _createdMaterialsProps.end())
-	{
-		std::cout << "Unable to get pointer to the raw materials!\n";
-		return nullptr;
-	}
-
-	return it->second.desc.materialTexturesPtr;
 }

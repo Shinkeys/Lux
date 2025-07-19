@@ -47,7 +47,7 @@ private:
 	void CreateTexture();
 	void CreateRenderTarget();
 public:
-	VulkanImage(const ImageSpecification& spec, VulkanDevice& deviceObject, VulkanBuffer& bufferObj, VulkanFrame& frameObj, VulkanAllocator& allocatorObj);
+	VulkanImage(const ImageSpecification& spec, VulkanDevice& deviceObject, VulkanFrame& frameObj, VulkanAllocator& allocatorObj);
 	VulkanImage(const ImageSpecification& spec, VkImage image, VkImageView imageView);
 	~VulkanImage();
 

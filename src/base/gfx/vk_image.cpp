@@ -1,13 +1,14 @@
 #include "../../../headers/base/gfx/vk_image.h"
 #include "../../../headers/base/gfx/vk_buffer.h"	
 #include "../../../headers/base/gfx/vk_deleter.h"
+#include "../../../headers/base/gfx/vk_allocator.h"
 #include "../../../headers/util/gfx/vk_helpers.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-VulkanImage::VulkanImage(const ImageSpecification& spec, VulkanDevice& deviceObj, VulkanBuffer& bufferObj, VulkanFrame& frameObj, VulkanAllocator& allocatorObj) : 
-	_specification{ spec }, _deviceObject { &deviceObj }, _bufferObject{ &bufferObj }, _frameObject{ &frameObj }, _allocatorObject{ &allocatorObj }
+VulkanImage::VulkanImage(const ImageSpecification& spec, VulkanDevice& deviceObj, VulkanFrame& frameObj, VulkanAllocator& allocatorObj) : 
+	_specification{ spec }, _deviceObject { &deviceObj }, _frameObject{ &frameObj }, _allocatorObject{ &allocatorObj }
 {
 	switch (spec.type)
 	{
@@ -89,8 +90,18 @@ void VulkanImage::CreateTexture()
 
 	const size_t imageSize = texWidth * texHeight * 4; // 4 bytes
 
-	//!!!!!!!!!!!! TO REWORK BUFFER CLASS BY THE SAME ANALOGY AS IMAGE CLASS !!!!!!!!!!!!!!!!!!!!!
-	StagingPair stagingPair = _bufferObject->CreateStagingBuffer(pixelsVoid, imageSize);
+	BufferSpecification spec{};
+	spec.usage = BufferUsage::TRANSFER_DST | BufferUsage::TRANSFER_SRC;
+	spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+	spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+	spec.allocCreate = AllocationCreate::NONE;
+	spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+	spec.size = imageSize;
+
+	assert(_deviceObject && _allocatorObject && _frameObject && "Trying to create a texture with raw created(without base class) vulkan image");
+
+	VulkanBuffer stagingBuffer(spec, *_deviceObject, *_allocatorObject, *_frameObject);
+	stagingBuffer.UploadData(0, pixelsVoid, imageSize);
 
 	stbi_image_free(pixels);
 
@@ -170,8 +181,7 @@ void VulkanImage::CreateTexture()
 		copyRegion.imageExtent = imageExtent;
 
 
-		assert(stagingPair.buffer && "Staging buffer is nullptr, unable to copy buffer to image");
-		vkCmdCopyBufferToImage(cmdBuffer, stagingPair.buffer->GetVkBuffer(),
+		vkCmdCopyBufferToImage(cmdBuffer, stagingBuffer.GetRawBuffer(),
 			_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
 
 

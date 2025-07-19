@@ -16,7 +16,7 @@ private:
 
 	void RenderMesh(const DrawCommand& command) override;
 	void RenderQuad(const DrawCommand& drawCommand) override;
-	void RenderIndirect(const DrawIndirect& command) override;
+	void RenderIndirect(const RenderIndirectCountCommand& command) override;
 
 	void ExecuteCurrentCommands() override;
 	void ExecuteBarriers(PipelineBarrierStorage& barriers) override;

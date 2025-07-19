@@ -243,6 +243,7 @@ void VulkanDevice::CreateLogicalDevice()
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
 		.pNext = nullptr,
+		.drawIndirectCount = VK_TRUE,
 		.descriptorIndexing = VK_TRUE, // BINDLESS
 		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
 		.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE,
@@ -261,9 +262,16 @@ void VulkanDevice::CreateLogicalDevice()
 		.dynamicRendering = VK_TRUE,
 	};
 
+	VkPhysicalDeviceVulkan11Features vulkan11Features =
+	{
+		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+		.pNext = &vulkan13Features,
+		.shaderDrawParameters = VK_TRUE
+	};
+
 	VkPhysicalDeviceFeatures2 deviceFeatures2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2};
 	deviceFeatures2.features.fragmentStoresAndAtomics = VK_TRUE; // to remove or create slang issue on git
-	deviceFeatures2.pNext = &vulkan13Features;
+	deviceFeatures2.pNext = &vulkan11Features;
 
 	VkDeviceCreateInfo deviceCreateInfo{ VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
 	deviceCreateInfo.pNext = &deviceFeatures2;

@@ -7,9 +7,10 @@ class VulkanDeleter
 {
 private:
 	using Func = std::function<void()>;
+	using FramesSinceSubmission = u32;
 
-	static std::queue<Func> _deletionQueue;
+	static std::vector<std::pair<FramesSinceSubmission, Func>> _deletionQueue;
 public:
 	static void SubmitObjectDesctruction(Func&& function);
-	static void ExecuteDeletion();
+	static void ExecuteDeletion(bool deviceIdle = false);
 };

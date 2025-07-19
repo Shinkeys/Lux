@@ -10,8 +10,6 @@ struct Vertex
 	glm::vec3 normal{ glm::vec3(0.0f) };
 	glm::vec3 tangent{ glm::vec3(0.0f) };
 	glm::vec2 UV{ glm::vec2(0.0f) };
-
-	u32 materialIndex{ 0 };
 };
 
 struct VertexDescription
@@ -38,14 +36,6 @@ struct AlphaMode
 
 };
 
-struct SubmeshDescription
-{
-	VertexDescription vertexDesc{};
-	AlphaMode alphaMode{};
-};
-
-
-
 struct MaterialTexturesDesc
 {
 	glm::vec3 baseColorFactor{ glm::vec3(0.0f) };
@@ -61,13 +51,20 @@ struct MaterialTexturesDesc
 struct MaterialDescription
 {
 	const MaterialTexturesDesc* materialTexturesPtr{ nullptr };
-	std::vector<AlphaMode> alphaDesc;
 	u32 materialsCount{ 0 };
 };
 
+struct SubmeshDescription
+{
+	VertexDescription vertexDesc{};
+	MaterialDescription materialDesc{};
+	AlphaMode alphaMode{};
+};
+
+
 struct Mesh
 {
-	TranslationComponent* transform;
+	TransformComponent* transform;
 	Vertex vertexDesc;
 	//ptr* materialPtr;
 };

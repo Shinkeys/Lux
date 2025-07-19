@@ -38,7 +38,7 @@ void Renderer::RenderMesh(const DrawCommand& command)
 	_renderAPI->RenderMesh(command);
 }
 
-void Renderer::RenderIndirect(const DrawIndirect& command)
+void Renderer::RenderIndirect(const RenderIndirectCountCommand& command)
 {
 	_renderAPI->RenderIndirect(command);
 }

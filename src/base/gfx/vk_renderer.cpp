@@ -308,25 +308,47 @@ void VulkanRenderer::RenderQuad(const DrawCommand& drawCommand)
 
 	vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
 
-	delete[] drawCommand.pushConstants.data;
+	if (drawCommand.pushConstants.data)
+	{
+		delete[] drawCommand.pushConstants.data;
+	}
 }
 
-void VulkanRenderer::RenderIndirect(const DrawIndirect& command)
+void VulkanRenderer::RenderIndirect(const RenderIndirectCountCommand& command)
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
 	VulkanPipeline* rawPipeline = static_cast<VulkanPipeline*>(command.pipeline);
 	VulkanDescriptor* rawDescriptorSet = static_cast<VulkanDescriptor*>(command.descriptor);
 
-	assert(rawPipeline && rawDescriptorSet && "After trying to cast from base to derived object VulkanPipeline or VulkanDescriptor is null in RenderQuad()");
+	assert(rawPipeline && rawDescriptorSet && command.indexBuffer && 
+		"After trying to cast from base to derived object VulkanPipeline or VulkanDescriptor is null in RenderQuad()");
 
 
-	vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, 
-		command.pushConstants.size, command.pushConstants.data);
+	VulkanBuffer* rawIndirectBuffer = static_cast<VulkanBuffer*>(command.buffer);
+
+	VulkanBuffer* rawIndexBuffer = static_cast<VulkanBuffer*>(command.indexBuffer);
+
+	if (command.pushConstants.data)
+	{
+		vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, 
+			command.pushConstants.size, command.pushConstants.data);
+	}
+
+	VkDescriptorSet descriptor = rawDescriptorSet->GetRawSet();
+
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawLayout(), 0, 1, &descriptor, 0, nullptr);
+	vkCmdBindIndexBuffer(cmdBuffer, rawIndexBuffer->GetRawBuffer(), 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawPipeline());
-	vkCmdDrawIndirectCount(cmdBuffer, command.buffer, 0, command.countBuffer, 0, command.maxDrawCount, command.stride);
+	vkCmdDrawIndexedIndirectCount(cmdBuffer, rawIndirectBuffer->GetRawBuffer(), 0, 
+		rawIndirectBuffer->GetRawBuffer(), 
+		command.countBufferOffsetBytes, // count buffer is the same buffer, but in the end
+		command.maxDrawCount, sizeof(VkDrawIndexedIndirectCommand));
 
-	delete[] command.pushConstants.data;
+	if (command.pushConstants.data)
+	{
+		delete[] command.pushConstants.data;
+	}
 }
 
 

@@ -4,6 +4,7 @@
 #include "../../headers/base/core/renderer.h"
 #include "../../headers/scene/entity.h"
 
+#include <glm/gtc/matrix_transform.hpp>
 
 SceneBase::SceneBase(SceneRenderer& renderer, SceneStorage& storage) : _rendererInstance{renderer}, _storageInstance{storage}
 {
@@ -28,8 +29,12 @@ void SceneBase::Initialize()
 	sponza.AddComponent<CameraComponent>(_camera, cameraIsActive);
 	sponza.AddComponent<MeshComponent>();
 	//sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f), glm::vec3(0.0f), glm::vec3(0.01f));
-	sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f));
+	glm::mat4 transform = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
+	sponza.AddComponent<TransformComponent>(transform);
 	sponza.GetComponent<MeshComponent>()->folderName = "Sponza";
+
+	_rendererInstance.SubmitEntityToDraw(sponza);
+
 }
 
 
@@ -37,7 +42,7 @@ void SceneBase::Update()
 {
 	for (const auto& [ett, comps] : _storageInstance.GetRegistry())
 	{
-		_rendererInstance.SubmitEntityToDraw(ett);
+		//_rendererInstance.SubmitEntityToDraw(ett);
 	}	
 }
 

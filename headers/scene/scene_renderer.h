@@ -5,12 +5,8 @@
 #include "../base/core/image.h"
 #include "../base/core/descriptor.h"
 #include "lights.h"
-
-// TO replace
-struct EntityUniformData
-{
-	glm::mat4 model = glm::mat4(1.0f);
-};
+#include "../constructed_types/device_indexed_buffer.h"
+#include "../constructed_types/device_indirect_buffer.h"
 
 struct RenderData
 {
@@ -32,21 +28,12 @@ struct GBuffer
 	u32 metallicRoughnessIndex{ 0 };
 };
 
-struct GBufferPushConst
-{
-	VkDeviceAddress vertexAddress{ 0 };
-	VkDeviceAddress entityUniformAddress{ 0 };
-	VkDeviceAddress materialAddress{ 0 };
-	VkDeviceAddress cameraDataAddress{ 0 };
-};
-
 // Totally fine, would fit in 128 bytes easily.
 struct LightCullPushConst
 {
 	VkDeviceAddress lightsListAddress{ 0 };
 	VkDeviceAddress lightsIndicesAddress{ 0 };
 	VkDeviceAddress cameraDataAddress{ 0 };
-	VkDeviceAddress globalLightsCounterAddress{ 0 };
 
 	u32 lightsCount{ 0 };
 	u32 maxLightsPerCluster{ 0 };
@@ -66,18 +53,15 @@ struct PBRPassPushConst
 	u32 tileSize{ 0 };
 };
 
-
 struct LightCullingStructures
 {
 	std::unique_ptr<Pipeline>  lightCullingPipeline{};
 
 	std::unique_ptr<Image> lightsGrid;
-	SSBOPair lightIndicesBuffer{};
+	std::unique_ptr<Buffer> lightIndicesBuffer{};
 
 	glm::ivec3 numWorkGroups{ glm::ivec3(0) };
 	u32 tilesPerScreen{ 0 }; // WOULD BE NUM WORK GROUPS.X * Y * Z
-
-	UBOPair globalLightsCountBuffer{};
 
 	const u32 maxLightsPerCluster{ 64 };
 	const u32 tileSize{ 16 };
@@ -105,10 +89,32 @@ enum class MeshType : u8
 
 struct RenderInstance
 {
-	VkDeviceAddress materialAddress{ 0 };
+	u32 materialIndex{ 0 };
 	u32 meshIndex{ 0 };
-	const TranslationComponent* translation{ nullptr };
+	const TransformComponent* translation{ nullptr };
 };
+
+struct DrawIndexedIndirectCommand
+{
+	u32    indexCount{ 0 };
+	u32    instanceCount{ 0 };
+	u32    firstIndex{ 0 };
+	i32    vertexOffset{ 0 };
+	u32    firstInstance{ 0 };
+};
+
+struct CommonIndirectIndices
+{
+	u32 commonDataIndex{ 0 };
+};
+
+
+struct CommonIndirectData
+{
+	MaterialTexturesDesc materialsDesc{};
+	TransformComponent transformDesc{};
+};
+
 
 class Entity;
 class SceneRenderer
@@ -125,12 +131,10 @@ private:
 
 	LightCullingStructures _lightCullStructures;
 
-	SSBOPair _baseMaterialsSSBO;
+	std::unique_ptr<Buffer> _baseMaterialsSSBO;
 	std::unique_ptr<Sampler> _samplerLinear;
 	std::unique_ptr<Sampler> _samplerNearest;
 
-
-	std::vector<const Entity*> _drawCommands;
 
 	// To rework image class
 	std::vector<std::unique_ptr<Image>> _depthAttachments;
@@ -140,24 +144,26 @@ private:
 
 
 	std::vector<PointLight> _pointLights;
-	SSBOPair _pointLightsBuffer;
+	std::unique_ptr<Buffer> _pointLightsBuffer;
 
 	GBuffer _gBuffer;
 
-	UBOPair _viewDataBuffer;
-	UBOPair _baseTransformationBuffer;
+	std::unique_ptr<Buffer> _viewDataBuffer;
 
-	glm::mat4 GenerateModelMatrix(const TranslationComponent& translationComp);
 	void UpdateDescriptors();
 
-	std::map<MeshType, std::vector<RenderInstance>> _drawQueue;
+	DeviceIndirectBuffer _indirectBuffer;
+	DeviceIndexedBuffer  _meshDeviceBuffer;
+
+	std::queue<const Entity*> _entityCreateQueue;
+
+	void ExecuteEntityCreateQueue();
 public:
 	/**
 	* @brief Pass the objects which would LIVE after the submission
 	* @param entity reference
 	*/
 	void SubmitEntityToDraw(const Entity& entity);
-	void UpdateBuffers(const Entity& entity);
 	//template<typename T>
 	//void SubmitDataToBind();
 	void Update(const Camera& camera);

@@ -7,8 +7,11 @@ struct Vertex
     float3 normal;
     float3 tangent;
     float2 UV;
+};
 
-    uint materialIndex;
+struct Transform
+{
+    float4x4 model;
 };
 
 struct Material
@@ -22,14 +25,26 @@ struct Material
     uint metalRoughnessID;
 };
 
+struct CommonMeshData
+{
+    Material materialsDesc;
+    Transform transformDesc;
+};
+
+struct CommonMeshIndices
+{
+    uint commonDataIndex;
+};
 
 [[vk::push_constant]]
 cbuffer PushConstants
 {
-    Vertex* vertexPtr;
-    float4x4* modelPtr; // for now just a model matrix
-    Material* materialsPtr;
-    ViewData* viewDataPtr;
+    Vertex *vertexPtr;
+    CommonMeshData *commonMeshDataPtr;
+    CommonMeshIndices *commonMeshIndicesPtr;
+    ViewData *viewDataPtr;
+
+    uint baseDrawOffset;
 };
 
 struct VertexOutput
@@ -37,21 +52,29 @@ struct VertexOutput
     float4 position : SV_Position;
     float4 normals; 
     float2 texCoord;
-    uint materialIdx;
     float4 worldPos;
     float3x3 TBN;
+    Material material;
 };
 
 [shader("vertex")]
-VertexOutput VertexMain(uint vertexIndex: SV_VertexID)
+VertexOutput VertexMain(uint vertexIndex: SV_VertexID, uint indirectIndex: SV_DrawIndex)
 {
+
     VertexOutput output = (VertexOutput)0;
+    CommonMeshIndices meshDataIndices = commonMeshIndicesPtr[indirectIndex + baseDrawOffset];
 
-    uint index = vertexIndex;
-    Vertex vertex = vertexPtr[index];
+    // indirect index is just a current draw index of indirect buffer, base draw offset is needed to adjust
+    // between different types of indirect buffers
 
-    float3 T = normalize(mul(*modelPtr, float4(vertex.tangent, 0.0)).xyz);
-    float3 N = normalize(mul(*modelPtr, float4(vertex.normal, 0.0)).xyz);
+    Material material = commonMeshDataPtr[meshDataIndices.commonDataIndex].materialsDesc;
+    Transform transform = commonMeshDataPtr[meshDataIndices.commonDataIndex].transformDesc;
+
+    Vertex vertex = vertexPtr[vertexIndex];
+
+    float3 T = normalize(mul(transform.model, float4(vertex.tangent, 0.0)).xyz);
+    float3 N = normalize(mul(transform.model, float4(vertex.normal, 0.0)).xyz);
+
     // Gram-Schmidt process to make vectors orthogonal back
     T = normalize(T - dot(T, N) * N);
     float3 B = normalize(cross(T, N));
@@ -59,14 +82,15 @@ VertexOutput VertexMain(uint vertexIndex: SV_VertexID)
     TBN = transpose(TBN);  // important in slang
     output.TBN = TBN;
 
-    output.position = mul(mul(viewDataPtr.viewProj, *modelPtr), float4(vertex.position, 1.0));
+    output.position = mul(mul(viewDataPtr.viewProj, transform.model), float4(vertex.position, 1.0));
 
-    output.worldPos = mul(*modelPtr, float4(vertex.position, 1.0));
+    output.worldPos = mul(transform.model, float4(vertex.position, 1.0));
 
     output.normals =  normalize(float4(mul(TBN, float3(vertex.normal)), 1.0));
 
     output.texCoord = vertex.UV;
-    output.materialIdx = vertex.materialIndex;
+
+    output.material = material;
 
     return output;
 }
@@ -88,7 +112,7 @@ FragmentOutput FragmentMain(VertexOutput input)
 {
     FragmentOutput output = (FragmentOutput)0;
 
-    Material material = materialsPtr[input.materialIdx];
+    Material material = input.material;
 
     float2 UV = input.texCoord;
     UV.y = -UV.y;
@@ -98,7 +122,7 @@ FragmentOutput FragmentMain(VertexOutput input)
     if (material.normalID > 0)
     {
         output.outNormals = textures[material.normalID].Sample(UV);
-        output.outNormals = float4(normalize(mul(input.TBN, output.outNormals.xyz)), 1.0);
+        output.outNormals = float4(normalize(mul(input.TBN, output.outNormals.xyz)), 1.0);   
     }
                           // base color is vec3 due to the renderdoc display bug, for now it's totally fine to store it like that
     float4 albedoColor = float4(material.baseColorFactor, 1.0);

@@ -4,7 +4,7 @@
 
 std::unique_ptr<Image> ImageManager::CreateImage(const ImageSpecification& spec)	   const
 {
-	return std::make_unique<VulkanImage>(spec, _vulkanBase.GetVulkanDeviceObj(), _vulkanBase.GetBufferObj(), _vulkanBase.GetFrameObj(), _vulkanBase.GetAllocatorObj());
+	return std::make_unique<VulkanImage>(spec, _vulkanBase.GetVulkanDeviceObj(), _vulkanBase.GetFrameObj(), _vulkanBase.GetAllocatorObj());
 }
 
 std::unique_ptr<Sampler> ImageManager::CreateSampler(const SamplerSpecification& spec) const

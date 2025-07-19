@@ -8,7 +8,6 @@ cbuffer PushConstants
     PointLight *lightsPtr;
     int *lightIndicesPtr;
     ViewData *viewDataPtr;
-    uint *lightCounterPtr;
 
     uint lightsCount;
     uint maxLightsPerCluster;
@@ -88,6 +87,7 @@ uint3 GetWorkgroupCount()
            };
     }
 }
+
 
 [shader("compute")]
 [numthreads(BLOCK_SIZE, BLOCK_SIZE, 1)]
@@ -194,9 +194,9 @@ void ComputeMain(uint3 threadId: SV_DispatchThreadID, uint3 workGroupID: SV_Grou
 
     if (groupIndex == 0)
     {
-        uint offset;
-                        // Unlucky, can't just dereference a ptr
-        InterlockedAdd(lightCounterPtr[0], localLightCount, offset);
+        uint3 workgroupSize = GetWorkgroupCount();
+
+        uint offset = (workGroupID.y * workgroupSize.x + workGroupID.x) * maxLightsPerCluster;
         for (uint i = 0; i < localLightCount; ++i)
         {
             lightIndicesPtr[offset + i] = localLightIndices[i];
@@ -204,7 +204,7 @@ void ComputeMain(uint3 threadId: SV_DispatchThreadID, uint3 workGroupID: SV_Grou
 
         uint startIndex = offset;
 
-        int2 coords = int2(workGroupID.x, GetWorkgroupCount().y - workGroupID.y);
+        int2 coords = int2(workGroupID.x, workgroupSize.y - workGroupID.y);
         lightsGrid.Store(uint2(coords), uint2(startIndex, localLightCount));
     }
 }

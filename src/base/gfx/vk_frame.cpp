@@ -94,7 +94,6 @@ void VulkanFrame::BeginFrame()
 
 	WaitForFence();
 
-
 	VulkanDeleter::ExecuteDeletion();
 
 

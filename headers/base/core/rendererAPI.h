@@ -10,16 +10,27 @@ struct PushConsts
 	u32 size{ 0 };
 };
 
-struct DrawIndirect
+struct RenderIndirectCountCommand
 {
 	Pipeline* pipeline{ nullptr };
 	Descriptor* descriptor{ nullptr };
 	PushConsts pushConstants{};
-	// TO ABSTRACT BUFFERS!!!!!
-	VkBuffer buffer{ VK_NULL_HANDLE };
-	VkBuffer countBuffer{ VK_NULL_HANDLE };
-	u32 stride{ 0 };
-	u32 maxDrawCount{ 2048 };
+	Buffer* buffer{ nullptr };
+	u32 maxDrawCount{ 1 };
+
+	Buffer* indexBuffer{ nullptr };
+
+	u32 countBufferOffsetBytes{ 0 };
+};
+
+struct IndirectPushConst
+{
+	u64 vertexAddress{ 0 };
+	u64 commonMeshDataAddress{ 0 };
+	u64 commonMeshIndicesAddress{ 0 };
+	u64 viewDataAddress{ 0 };
+
+	u32 baseDrawOffset{ 0 };
 };
 
 struct DrawCommand
@@ -55,7 +66,7 @@ public:
 	virtual void ExecuteCurrentCommands() = 0;
 	virtual void RenderMesh(const DrawCommand& drawCommand) = 0;
 	virtual void RenderQuad(const DrawCommand& drawCommand) = 0;
-	virtual void RenderIndirect(const DrawIndirect& command) = 0;
+	virtual void RenderIndirect(const RenderIndirectCountCommand& command) = 0;
 	virtual void ExecuteBarriers(PipelineBarrierStorage& barriers) = 0;
 	virtual void DispatchCompute(const DispatchCommand& dispatchCommand) = 0;
 

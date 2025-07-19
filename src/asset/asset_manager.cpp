@@ -27,7 +27,7 @@ size_t AssetManager::GetAllSceneSize()
 
 // WORKS ONLY WITH GLTF
 // TO REWORK THIS CLASS A LITTLE BIT
-std::optional<MeshStorageBackData> AssetManager::TryToLoadAndStoreMesh(const fs::path& folder)
+std::optional<MeshStorageBackData> AssetManager::TryToLoadAndStoreMesh(const fs::path& folder, ImageManager* imageManager)
 {
 	fs::path pathToLoad = ConvertToPath(folder);
 	fs::path finalPath = FindGLTFByPath(pathToLoad);
@@ -47,28 +47,33 @@ std::optional<MeshStorageBackData> AssetManager::TryToLoadAndStoreMesh(const fs:
 
 	++_currentAvailableIndex;
 
-	MeshStorageBackData backData;
-	backData.assetID = index;
-	backData.unloadedMaterials = std::move(loadedGLTF.materials);
+	MeshStorageBackData backData{};
+	backData.meshIndex = index;
+
+
+	// If image manager is passed load materials as well
+	if (imageManager)
+	{
+		std::vector<MaterialTexturesDesc> allMeshMaterials;
+		for (const auto& unloadedMaterial : loadedGLTF.materials)
+		{
+			allMeshMaterials.push_back(TryToLoadMaterial(*imageManager, unloadedMaterial));
+		}
+
+		// store material index which is the same as mesh index for now but might be changed later(very likely)
+		backData.materialIndex = AssetManager::Get()->StoreLoadedMaterials(allMeshMaterials);
+	}
 
 	return backData;
 }
 
-MaterialStorageBackData AssetManager::StoreLoadedMaterials(const std::vector<MaterialTexturesDesc>& materialsDesc)
+AssetManager::MaterialID AssetManager::StoreLoadedMaterials(const std::vector<MaterialTexturesDesc>& materialsDesc)
 {
 	const u32 availableIndex = _availableMaterialIndex;
 	++_availableMaterialIndex;
-	StoreMaterialResult storeResult = _storage.StoreMeshMaterials(materialsDesc, availableIndex);
+	_storage.StoreMeshMaterials(materialsDesc, availableIndex);
 
-	if (storeResult.shouldUpdatePtrs)
-		UpdateMaterialPointers();
-
-	MaterialStorageBackData backData;
-	backData.materialID = availableIndex;
-	backData.materials = storeResult.desc;
-	backData.materials.alphaDesc = storeResult.desc.alphaDesc;
-
-	return backData;
+	return availableIndex;
 }
 
 MaterialTexturesDesc AssetManager::TryToLoadMaterial(const ImageManager& imageManager, const MeshMaterial& material)
@@ -197,12 +202,4 @@ fs::path AssetManager::FindGLTFByPath(const fs::path& path)
 const std::vector<SubmeshDescription>* AssetManager::GetAssetSubmeshes(AssetID id) const
 {
 	return _storage.GetAssetSubmeshes(id);
-}
-
-void AssetManager::UpdateMaterialPointers()
-{
-	for (auto& materialDesc : _materialDescription)
-	{
-		materialDesc.second.materialTexturesPtr = _storage.GetRawMaterials(materialDesc.first);
-	}
 }

@@ -69,28 +69,43 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 
 	_samplerNearest = _engineBase.GetImageManager().CreateSampler(nearestSpec);
 
-	// Materials buffer
-	constexpr size_t baseMaterialsBuffersSize = 1024 * 4; // 4096 bytes
-	_baseMaterialsSSBO = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(baseMaterialsBuffersSize);
+	{
+		// Materials buffer
+		constexpr size_t baseMaterialsBuffersSize = 1024 * 4; // 4096 bytes
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = baseMaterialsBuffersSize;
+		_baseMaterialsSSBO = _engineBase.GetBufferManager().CreateBuffer(spec);
+	}
 
 	// Temporary initialize 5 point lights, would be enough for now
-	PointLight pointLight;
-	pointLight.radius = 3.0f;
-	pointLight.intenstity = 1.5f;
-	pointLight.position = glm::vec3(0.0f, 1.5f, 0.0f);
-	_pointLights.push_back(pointLight);
-	pointLight.position = glm::vec3(0.0f, 1.5f, 5.0f);
-	_pointLights.push_back(pointLight);
-	pointLight.position = glm::vec3(0.0f, 1.5f, -5.0f);
-	_pointLights.push_back(pointLight);
-	pointLight.position = glm::vec3(5.0f, 1.5f, 0.0f);
-	_pointLights.push_back(pointLight);
-	pointLight.position = glm::vec3(-5.0f, 1.5f, 0.0f);
-	_pointLights.push_back(pointLight);
+	{
+		PointLight pointLight;
+		pointLight.radius = 3.0f;
+		pointLight.intenstity = 1.5f;
+		pointLight.position = glm::vec3(0.0f, 1.5f, 0.0f);
+		_pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(0.0f, 1.5f, 5.0f);
+		_pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(0.0f, 1.5f, -5.0f);
+		_pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(5.0f, 1.5f, 0.0f);
+		_pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(-5.0f, 1.5f, 0.0f);
+		_pointLights.push_back(pointLight);
 
-	_pointLightsBuffer = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(sizeof(PointLight) * _pointLights.size());
-	_vulkanBackend.GetBufferObj().UpdateSSBOBuffer(_pointLights.data(), sizeof(PointLight) * _pointLights.size(), _pointLightsBuffer.index);
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::STORAGE_BUFFER |  BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = sizeof(PointLight) * _pointLights.size();
 
+		_pointLightsBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+	}
 
 	const u32 windowWidth  = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.width;
 	const u32 windowHeight = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.height;
@@ -105,21 +120,73 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 		u32& tilesPerScreen = _lightCullStructures.tilesPerScreen;
 		tilesPerScreen = static_cast<u32>(numWorkGroups.x * numWorkGroups.y * numWorkGroups.z);
 
-		_lightCullStructures.lightIndicesBuffer = _vulkanBackend.GetBufferObj().CreateSSBOBuffer(sizeof(i32) 
-			* tilesPerScreen * _lightCullStructures.maxLightsPerCluster);
-		// It should be empty. Would be filled later
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = sizeof(i32) * tilesPerScreen * _lightCullStructures.maxLightsPerCluster;
 
-		// This buffer is needed for global lights counter among all comp. shader invocations
-		constexpr u32 globalLightsInitialCount = 0;
-		_lightCullStructures.globalLightsCountBuffer = _vulkanBackend.GetBufferObj().CreateUniformBuffer(sizeof(u32));
-		_vulkanBackend.GetBufferObj().UpdateUniformBuffer(&globalLightsInitialCount, sizeof(u32), _lightCullStructures.globalLightsCountBuffer.index);
+
+		// It should be empty. Would be filled later
+		_lightCullStructures.lightIndicesBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
 	}
 
 	// Camera buffer
 	{
-		_viewDataBuffer = _vulkanBackend.GetBufferObj().CreateUniformBuffer(sizeof(ViewData));
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = sizeof(ViewData);
+
+		_viewDataBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
 	}
 	
+	// Buffer for indirect draws
+	{
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::INDIRECT_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = 1024 * sizeof(DrawIndexedIndirectCommand); // +1 for count buffer
+
+		
+		_indirectBuffer.opaqueBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+		_indirectBuffer.maskBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+
+		// count buffer is at the end
+		_indirectBuffer.countBufferOffset = spec.size - sizeof(DrawIndexedIndirectCommand);
+	}
+	
+	// All scene meshes buffer
+	{
+		constexpr u32 size = sizeof(Vertex) * 1024 * 1024; // about 1 million vertices
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::VERTEX_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = size;
+
+		_meshDeviceBuffer.vertexBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+
+		spec.usage = BufferUsage::INDEX_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		_meshDeviceBuffer.indexBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+
+
+
+		// common buffer with transformations, materials and their indices
+		spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.size = sizeof(CommonIndirectData) * 1024; // 1024 materials, transformations etc
+		_indirectBuffer.commonDataBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+
+		spec.size = sizeof(CommonIndirectIndices) * 1024; // 1024 indices of materials, transformations etc
+		_indirectBuffer.commonIndicesBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+	}
+
 
 	const ImageManager& imageManager = _engineBase.GetImageManager();
 
@@ -154,7 +221,6 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 		_lightCullStructures.lightsGrid = imageManager.CreateImage(lightsGridImage);
 	}
 
-
 	auto extractRawPtrsLambda = [&]()
 		{
 			std::vector<Descriptor*> descriptors;
@@ -187,7 +253,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 		gBufferGraphicsPipeline.shaderName = "g-pass";
 		gBufferGraphicsPipeline.cullMode = CullMode::CULL_MODE_BACK;
 		gBufferGraphicsPipeline.entryPoints = { "VertexMain", "FragmentMain" };
-		gBufferGraphicsPipeline.pushConstantSizeBytes = sizeof(GBufferPushConst);
+		gBufferGraphicsPipeline.pushConstantSizeBytes = sizeof(IndirectPushConst);
 		gBufferGraphicsPipeline.descriptorSets = { extractRawPtrsLambda() }; // Now only one descriptor layout, to DO
 		gBufferGraphicsPipeline.depthCompare = CompareOP::COMPARE_OP_LESS;
 		gBufferGraphicsPipeline.depthWriteEnable = true;
@@ -215,122 +281,18 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 
 }
 
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
-
-void SceneRenderer::UpdateBuffers(const Entity& entity)
-{
-	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
-	const ImageManager& imageManager = _engineBase.GetImageManager();
-
-	MeshComponent* meshComp = entity.GetComponent<MeshComponent>();
-	// Check if buffer exist
-	if (meshComp != nullptr && bufferManager.GetMeshBuffers(entity.GetID()) == nullptr)
-	{
-		auto loadingResult = AssetManager::Get()->TryToLoadAndStoreMesh(meshComp->folderName);
-		if (!loadingResult.has_value())
-			return;
-
-		u32 meshIndex = loadingResult->assetID;
-		meshComp->meshIndex = meshIndex;
-		if (meshIndex != 0)
-		{
-			const std::vector<SubmeshDescription>* submeshes = AssetManager::Get()->GetAssetSubmeshes(meshIndex);
-			if (submeshes == nullptr)
-				return;
-
-			for (auto submeshIt = submeshes->begin(); submeshIt != submeshes->end(); ++submeshIt)
-			{
-				MeshVertexBufferCreateDesc vertexDesc;
-				vertexDesc.vertexPtr = submeshIt->vertexDesc.vertexPtr;
-				vertexDesc.elementsCount = submeshIt->vertexDesc.vertexCount;
-				vertexDesc.bufferUsage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-				vertexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-				vertexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
-				MeshIndexBufferCreateDesc indexDesc;
-				indexDesc.indicesPtr = submeshIt->vertexDesc.indicesPtr;
-				indexDesc.elementsCount = submeshIt->vertexDesc.indexCount;
-				indexDesc.bufferUsage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-				indexDesc.bufferSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-				indexDesc.bufferMemoryPropertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-
-				bufferManager.CreateMeshBuffers(vertexDesc, indexDesc, entity.GetID());
-			}
-		}
-		else
-		{
-			std::cout << "Unable to create mesh buffers, asset manager returned index 0\n";
-		}
-
-		// MATERIAL
-		std::vector<MaterialTexturesDesc> allMeshMaterials;
-		for (const auto& material : loadingResult->unloadedMaterials)
-		{
-			allMeshMaterials.push_back(AssetManager::Get()->TryToLoadMaterial(imageManager, material));
-		}
-	
-		const auto materialsStoreResult = AssetManager::Get()->StoreLoadedMaterials(allMeshMaterials);
-		meshComp->materialIndex = materialsStoreResult.materialID;
-
-		// Update buffer with materials
-		const std::vector<MaterialTexturesDesc>& allMaterials = AssetManager::Get()->GetAllSceneMaterialsDesc();
-		bufferManager.UpdateSSBOBuffer(allMaterials.data(), allMaterials.size() * sizeof(MaterialTexturesDesc), _baseMaterialsSSBO.index);
-
-	}
-
-
-	if (_baseTransformationBuffer.index != -1)
-	{
-		const TranslationComponent* transComp = entity.GetComponent<TranslationComponent>();
-		glm::mat4 model = transComp ? GenerateModelMatrix(*transComp) : glm::mat4(1.0f);
-		EntityUniformData uniform{};
-		uniform.model = model;
-		bufferManager.UpdateUniformBuffer(&uniform, sizeof(EntityUniformData), _baseTransformationBuffer.index);
-		
-	}
-	else // create
-	{
-		EntityUniformData uniform{};
-		const TranslationComponent* transComp = entity.GetComponent<TranslationComponent>();
-		glm::mat4 model = transComp ? GenerateModelMatrix(*transComp) : glm::mat4(1.0f);
-		uniform.model = model;
-
-		_baseTransformationBuffer = bufferManager.CreateUniformBuffer(static_cast<size_t>(sizeof(EntityUniformData)));
-		bufferManager.UpdateUniformBuffer(&uniform, static_cast<size_t>(sizeof(EntityUniformData)), _baseTransformationBuffer.index);
-	}
-}
-
-// Return value: NRVO would return it so no copy needed.
-glm::mat4 SceneRenderer::GenerateModelMatrix(const TranslationComponent& translationComp)
-{
-	glm::mat4 model(1.0f);
-	model = glm::scale(model, translationComp.scale);
-	model = translationComp.rotation * model;
-	model = glm::translate(model, translationComp.translation);
-
-	return model;
-}
 
 void SceneRenderer::Update(const Camera& camera)
 {
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
 	VulkanPresentation& presentationManager = _vulkanBackend.GetPresentationObj();
-	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 
 
 	_currentColorAttachment = presentationManager.GetSwapchainDesc().images[frameManager.GetCurrentImageIndex()].get();
 	_currentDepthAttachment = _depthAttachments[frameManager.GetCurrentImageIndex()].get();
 
+
+	ExecuteEntityCreateQueue();
 	UpdateDescriptors();
 	
 	//// Camera data buffer
@@ -344,12 +306,11 @@ void SceneRenderer::Update(const Camera& camera)
 	viewData.farPlane = camera.GetFarPlane();
 	viewData.viewportExt = { _currentColorAttachment->GetSpecification().extent.x, _currentColorAttachment->GetSpecification().extent.y };
 
-	bufferManager.UpdateUniformBuffer(&viewData, sizeof(ViewData), _viewDataBuffer.index);
+	_viewDataBuffer->UploadData(0, &viewData, sizeof(ViewData)); // to verify this buffer
 }
 
 void SceneRenderer::UpdateDescriptors()
 {
-	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 	DescriptorManager& descriptorManager = _engineBase.GetDescriptorManager();
 
 	for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
@@ -357,6 +318,7 @@ void SceneRenderer::UpdateDescriptors()
 		u32 availableIndex = 0;
 		// Main shading pass
 		const auto& allTextures = AssetManager::Get()->GetAllTextures(); // TEMPORARY SOLUTION. TO REWORK
+
 		assert(!allTextures.empty() && "Images size is zero");
 		for (u32 i = 0; i < allTextures.size(); ++i)
 		{
@@ -371,8 +333,8 @@ void SceneRenderer::UpdateDescriptors()
 		_gBuffer.metallicRoughnessIndex = availableIndex++;
 
 		// Write g buffer descriptors
-		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.posIndex,    DescriptorType::COMBINED_IMAGE_SAMPLER,    _gBuffer.positions.get(), _samplerLinear.get());
-		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.normalIndex, DescriptorType::COMBINED_IMAGE_SAMPLER, _gBuffer.normals.get(),   _samplerLinear.get());
+		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.posIndex,    DescriptorType::COMBINED_IMAGE_SAMPLER,   _gBuffer.positions.get(), _samplerLinear.get());
+		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.normalIndex, DescriptorType::COMBINED_IMAGE_SAMPLER,   _gBuffer.normals.get(),   _samplerLinear.get());
 		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.baseIndex,   DescriptorType::COMBINED_IMAGE_SAMPLER,   _gBuffer.baseColor.get(), _samplerLinear.get());
 		_sceneDescriptorSets[descInd]->Write(0, _gBuffer.metallicRoughnessIndex, DescriptorType::COMBINED_IMAGE_SAMPLER, 
 			_gBuffer.metallicRoughness.get(), _samplerLinear.get());
@@ -406,21 +368,9 @@ void SceneRenderer::UpdateDescriptors()
 void SceneRenderer::Draw()
 {
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
-	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 
 	PipelineBarrierStorage pipelineBarriers;
 
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	// !!!!!!!!!!!!!!!!!!!!!!!!TO REWORK PUSH CONSTANTS TO ABSTRACT VULKAN!!!!!!!!!!!!!!!!!!!!!!!!
-	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-	// Update buff
-	constexpr u32 clearGlobalLightCount = 0;
-	_vulkanBackend.GetBufferObj().UpdateUniformBuffer(&clearGlobalLightCount, sizeof(u32), _lightCullStructures.globalLightsCountBuffer.index);
-
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	//!!!!!!!!!!!!!!!!!!!!! TO DO: VULKAN ABSTRACTION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	PipelineImageBarrierInfo preGbufferLayoutTransition;
 	preGbufferLayoutTransition.srcStageMask =  PipelineStage::FRAGMENT_SHADER;
 	preGbufferLayoutTransition.dstStageMask =  PipelineStage::COLOR_ATTACHMENT_OUTPUT;
@@ -440,57 +390,64 @@ void SceneRenderer::Draw()
 
 	Renderer::ExecuteBarriers(pipelineBarriers);
 
+	
 	// GEOMETRY PASS
- 	Renderer::BeginRender({ _gBuffer.positions.get(), _gBuffer.normals.get(), 
-		_gBuffer.baseColor.get(), _gBuffer.metallicRoughness.get(), _currentDepthAttachment},
-		glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
-
-	for (auto entity : _drawCommands)
 	{
-		if (entity == nullptr)
-			continue;
+		Renderer::BeginRender({ _gBuffer.positions.get(), _gBuffer.normals.get(),
+		_gBuffer.baseColor.get(), _gBuffer.metallicRoughness.get(), _currentDepthAttachment },
+			glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
 
-		const MeshComponent* meshComp = entity->GetComponent<MeshComponent>();
-		if (meshComp != nullptr)
-		{
-			const u32 meshAssetIndex = meshComp->meshIndex;
-			if (meshAssetIndex == 0)
-				continue;
+		// Opaque objects
+		IndirectPushConst* opaqPushConst = new IndirectPushConst;
+		opaqPushConst->vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
+		opaqPushConst->commonMeshIndicesAddress = _indirectBuffer.commonIndicesBuffer->GetBufferAddress();
+		opaqPushConst->commonMeshDataAddress = _indirectBuffer.commonDataBuffer->GetBufferAddress();
+		opaqPushConst->viewDataAddress = _viewDataBuffer->GetBufferAddress();
+		opaqPushConst->baseDrawOffset = 0;
 
-			const std::vector<MeshBuffers>* meshBuffersPtr = bufferManager.GetMeshBuffers(entity->GetID());
-			assert(meshBuffersPtr && "Mesh buffer for entity is empty");
 
-			const std::vector<SubmeshDescription>* submeshDescPtr = AssetManager::Get()->GetAssetSubmeshes(meshAssetIndex);
-			if (submeshDescPtr == nullptr)
-				continue;
+		PushConsts opaqPushConstants;
+		opaqPushConstants.data = (byte*)opaqPushConst;
+		opaqPushConstants.size = sizeof(IndirectPushConst);
 
-			const auto& meshBuffers = *meshBuffersPtr;
-			const auto& submeshDesc = *submeshDescPtr;
+		RenderIndirectCountCommand opaqueCommand;
+		opaqueCommand.buffer = _indirectBuffer.opaqueBuffer.get();
+		opaqueCommand.indexBuffer = _meshDeviceBuffer.indexBuffer.get();
+		opaqueCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
+		opaqueCommand.pipeline = _gBufferPipeline.get();
+		opaqueCommand.pushConstants = opaqPushConstants;
+		opaqueCommand.maxDrawCount = _indirectBuffer.currentOpaqueSize; // count of different materials basically
+		opaqueCommand.countBufferOffsetBytes = _indirectBuffer.countBufferOffset;
 
-			// Submesh desc and mesh buffers sizes are equal because they're created with each other
-			for (u32 i = 0; i < meshBuffers.size(); ++i)
-			{
-				GBufferPushConst* gBuffPushConst = new GBufferPushConst;
-				gBuffPushConst->vertexAddress = meshBuffers[i].GetDeviceAddress();
-				gBuffPushConst->entityUniformAddress = _baseTransformationBuffer.address;
-				gBuffPushConst->materialAddress = _baseMaterialsSSBO.address;
-				gBuffPushConst->cameraDataAddress = _viewDataBuffer.address;
+		Renderer::RenderIndirect(opaqueCommand);
 
-				PushConsts pushConstants;
-				pushConstants.data = (byte*)gBuffPushConst;
-				pushConstants.size = sizeof(GBufferPushConst);
 
-				DrawCommand command;
-				command.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
-				command.pushConstants = pushConstants;
-				command.indexCount = submeshDesc[i].vertexDesc.indexCount;
-				command.indexBuffer = meshBuffers[i].GetVkIndexBuffer();
-				command.pipeline = _gBufferPipeline.get();
-				Renderer::RenderMesh(command);
-			}
-		}
+
+		// Masked objects
+		IndirectPushConst* maskedPushConst = new IndirectPushConst;
+		maskedPushConst->vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
+		maskedPushConst->commonMeshIndicesAddress = _indirectBuffer.commonIndicesBuffer->GetBufferAddress();
+		maskedPushConst->commonMeshDataAddress = _indirectBuffer.commonDataBuffer->GetBufferAddress();
+		maskedPushConst->viewDataAddress = _viewDataBuffer->GetBufferAddress();
+		maskedPushConst->baseDrawOffset  = _indirectBuffer.currentOpaqueSize;
+
+		PushConsts maskedPushConstants;
+		maskedPushConstants.data = (byte*)maskedPushConst;
+		maskedPushConstants.size = sizeof(IndirectPushConst);
+
+		RenderIndirectCountCommand maskedCommand;
+		maskedCommand.buffer = _indirectBuffer.maskBuffer.get();
+		maskedCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
+		maskedCommand.pipeline = _gBufferPipeline.get();
+		maskedCommand.indexBuffer = _meshDeviceBuffer.indexBuffer.get();
+		maskedCommand.maxDrawCount = _indirectBuffer.currentMaskedSize;
+		maskedCommand.pushConstants = maskedPushConstants;////////////////////////
+		maskedCommand.countBufferOffsetBytes = _indirectBuffer.countBufferOffset;
+
+		Renderer::RenderIndirect(maskedCommand);
+
+		Renderer::EndRender();
 	}
-	Renderer::EndRender();
 
 	////// Firsly dispatch comp. shader to fill lights buffer
 	PipelineImageBarrierInfo preComputeLayoutTransition;
@@ -516,11 +473,10 @@ void SceneRenderer::Draw()
 
 
 	LightCullPushConst* lightCullPushConst = new LightCullPushConst;
-	lightCullPushConst->lightsListAddress = _pointLightsBuffer.address;
+	lightCullPushConst->lightsListAddress = _pointLightsBuffer->GetBufferAddress();
 	lightCullPushConst->lightsCount = _pointLights.size();
-	lightCullPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer.address;
-	lightCullPushConst->cameraDataAddress = _viewDataBuffer.address;
-	lightCullPushConst->globalLightsCounterAddress = _lightCullStructures.globalLightsCountBuffer.address; // MAKE IT ZERO AFTER DISPATCH
+	lightCullPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer->GetBufferAddress();
+	lightCullPushConst->cameraDataAddress = _viewDataBuffer->GetBufferAddress();
 	lightCullPushConst->maxLightsPerCluster = _lightCullStructures.maxLightsPerCluster;
 	lightCullPushConst->tileSize = _lightCullStructures.tileSize;
 
@@ -574,15 +530,16 @@ void SceneRenderer::Draw()
 
 
 	PBRPassPushConst* pbrPassPushConst = new PBRPassPushConst;
-	pbrPassPushConst->lightAddress = _pointLightsBuffer.address;
-	pbrPassPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer.address;
-	pbrPassPushConst->cameraDataAddress = _viewDataBuffer.address;
-	pbrPassPushConst->pointLightsCount = _pointLights.size();
+	pbrPassPushConst->lightAddress = _pointLightsBuffer->GetBufferAddress();
+	pbrPassPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer->GetBufferAddress();
+	pbrPassPushConst->cameraDataAddress = _viewDataBuffer->GetBufferAddress();
 	pbrPassPushConst->positionTextureIdx = _gBuffer.posIndex;
 	pbrPassPushConst->normalsTextureIdx = _gBuffer.normalIndex;
 	pbrPassPushConst->baseColorTextureIdx = _gBuffer.baseIndex;
 	pbrPassPushConst->metallicRoughnessTextureIdx = _gBuffer.metallicRoughnessIndex;
+	pbrPassPushConst->pointLightsCount = _pointLights.size();
 	pbrPassPushConst->tileSize = _lightCullStructures.tileSize;
+
 
 	PushConsts pushConstants;
 	pushConstants.data = (byte*)pbrPassPushConst;
@@ -598,43 +555,168 @@ void SceneRenderer::Draw()
 	Renderer::RenderQuad(quadDrawCommand);
 	Renderer::EndRender();
 
-	_drawCommands.clear();
 }
 
+void SceneRenderer::ExecuteEntityCreateQueue()
+{
+	while (!_entityCreateQueue.empty())
+	{
+		if (_entityCreateQueue.front() == nullptr)
+		{
+			_entityCreateQueue.pop();
+			continue;
+		}
+
+		const Entity& entity = *_entityCreateQueue.front();
+
+		MeshComponent* meshComp = entity.GetComponent<MeshComponent>();
+		// Check if buffer exist
+		if (meshComp != nullptr)
+		{
+			auto loadingResult = AssetManager::Get()->TryToLoadAndStoreMesh(meshComp->folderName, &_engineBase.GetImageManager());
+			if (!loadingResult.has_value())
+				return;
+
+			u32 meshIndex = loadingResult->meshIndex;
+			meshComp->meshIndex = meshIndex;
+			meshComp->materialIndex = loadingResult->materialIndex;
+			if (meshIndex != 0)
+			{
+				const std::vector<SubmeshDescription>* submeshes = AssetManager::Get()->GetAssetSubmeshes(meshIndex);
+				if (submeshes == nullptr)
+					return;
+
+				for (auto submeshIt = submeshes->begin(); submeshIt != submeshes->end(); ++submeshIt)
+				{
+
+					const size_t vertexSize = submeshIt->vertexDesc.vertexCount * sizeof(Vertex);
+					const size_t indexSize = submeshIt->vertexDesc.indexCount   * sizeof(u32);
+					const size_t materialSize = submeshIt->materialDesc.materialsCount * sizeof(MaterialTexturesDesc);
+					const size_t translationSize = sizeof(TransformComponent);
+
+					// Add vertex buffer of this submesh to the end of the global mesh buffer
+					_meshDeviceBuffer.vertexBuffer->UploadData(_meshDeviceBuffer.currentVertexOffset * sizeof(Vertex),
+						submeshIt->vertexDesc.vertexPtr, vertexSize);
+
+					_meshDeviceBuffer.indexBuffer->UploadData(_meshDeviceBuffer.currentIndexOffset   * sizeof(u32),
+						submeshIt->vertexDesc.indicesPtr, indexSize);
+
+
+					// Update common data buffer, it contains all the transformations, materials DATA
+					CommonIndirectData commonData{};
+
+					// Push all common mesh data into single buffer: material index, transformation index and their data
+					const TransformComponent* transComp = entity.GetComponent<TransformComponent>();
+					commonData.transformDesc = transComp ? *transComp : TransformComponent{};
+
+					commonData.materialsDesc = submeshIt->materialDesc.materialTexturesPtr
+						? *submeshIt->materialDesc.materialTexturesPtr : MaterialTexturesDesc{};
+
+
+					_indirectBuffer.commonDataBuffer->UploadData(_indirectBuffer.currentCommonDataOffset * sizeof(CommonIndirectData),
+						&commonData, sizeof(CommonIndirectData));
+
+					_indirectBuffer.currentCommonDataOffset += 1;
+
+
+					// Update common indices buffer, it contains all the transformation, materials INDICES
+					CommonIndirectIndices commonIndices{};
+					commonIndices.commonDataIndex = _indirectBuffer.currentCommonIndicesOffset;
+
+
+					_indirectBuffer.commonIndicesBuffer->UploadData(_indirectBuffer.currentCommonIndicesOffset 
+						* sizeof(CommonIndirectIndices),
+						&commonIndices, sizeof(CommonIndirectIndices));
+
+
+					_indirectBuffer.currentCommonIndicesOffset += 1;
+
+
+
+					DrawIndexedIndirectCommand drawCommand;
+					drawCommand.firstIndex = _meshDeviceBuffer.currentIndexOffset;
+					drawCommand.firstInstance = 0;
+					drawCommand.instanceCount = 1;
+					drawCommand.indexCount = submeshIt->vertexDesc.indexCount;
+					drawCommand.vertexOffset = _meshDeviceBuffer.currentVertexOffset;
+
+					_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.currentOpaqueSize * sizeof(DrawIndexedIndirectCommand),
+						&drawCommand, sizeof(DrawCommand));
+					_indirectBuffer.currentOpaqueSize += 1;
+
+					// update count buffer
+					_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.countBufferOffset,
+						&_indirectBuffer.currentOpaqueSize, sizeof(u32));
+					//switch (submeshIt->alphaMode.type)
+					//{
+					//case AlphaMode::AlphaType::ALPHA_OPAQUE:
+					//{
+					//	_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.currentOpaqueSize * sizeof(DrawIndexedIndirectCommand),
+					//		&drawCommand, sizeof(DrawCommand));
+					//	_indirectBuffer.currentOpaqueSize += 1;
+
+					//	// update count buffer
+					//	_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.countBufferOffset,
+					//		&_indirectBuffer.currentOpaqueSize, sizeof(u32));
+
+					//	break;
+					//}
+
+					//case AlphaMode::AlphaType::ALPHA_MASK:
+					//{
+					//	_indirectBuffer.maskBuffer->UploadData(_indirectBuffer.currentMaskedSize * sizeof(DrawIndexedIndirectCommand),
+					//		&drawCommand, sizeof(DrawCommand));
+
+					//	_indirectBuffer.currentMaskedSize += 1;
+
+					//	// update count buffer
+					//	_indirectBuffer.maskBuffer->UploadData(_indirectBuffer.countBufferOffset,
+					//		&_indirectBuffer.currentMaskedSize, sizeof(u32));
+					//	break;
+					//}
+
+					//default:
+					//	std::unreachable();
+					//}
+
+
+					_meshDeviceBuffer.currentVertexOffset += submeshIt->vertexDesc.vertexCount;
+					_meshDeviceBuffer.currentIndexOffset  += submeshIt->vertexDesc.indexCount;
+				}
+			}
+			else
+			{
+				std::cout << "Unable to create mesh buffers, asset manager returned index 0\n";
+			}
+		}
+
+		// TO REPLACE!!!!!!!!!!!!
+		_pointLightsBuffer->UploadData(0, _pointLights.data(), sizeof(PointLight)* _pointLights.size());
+
+		_entityCreateQueue.pop();
+	}
+}
+
+
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
+// THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
 void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 {
-	VulkanBuffer& bufferManager = _vulkanBackend.GetBufferObj();
 	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
 
-	UpdateBuffers(entity);
+	BufferManager& bufferManager = _engineBase.GetBufferManager();
+	const ImageManager& imageManager = _engineBase.GetImageManager();
 
 
-	const MeshComponent* meshComp = entity.GetComponent<MeshComponent>();
-	const TranslationComponent* transComp = entity.GetComponent<TranslationComponent>();
-	if (meshComp != nullptr)
-	{
-		const u32 meshAssetIndex = meshComp->meshIndex;
-		if (meshAssetIndex == 0)
-			return;
-
-		const std::vector<MeshBuffers>* meshBuffersPtr = bufferManager.GetMeshBuffers(entity.GetID());
-		assert(meshBuffersPtr && "Mesh buffer for entity is empty");
-
-		const std::vector<SubmeshDescription>* submeshDescPtr = AssetManager::Get()->GetAssetSubmeshes(meshAssetIndex);
-		if (submeshDescPtr == nullptr)
-			return;
-
-		const auto& meshBuffers = *meshBuffersPtr;
-		const auto& submeshDesc = *submeshDescPtr;
-
-		RenderInstance instance;
-		instance.materialAddress = _baseMaterialsSSBO.address;
-		instance.meshIndex = meshAssetIndex; // to do
-		instance.translation = transComp ? transComp : nullptr;
-
-
-
-	_drawCommands.push_back(&entity);
-
+	_entityCreateQueue.push(&entity);
 
 }

@@ -23,7 +23,7 @@ public:
 	static void BeginRender(const std::vector<Image*>& attachments, glm::vec4 clearColor);
 	static void EndRender();
 	static void RenderMesh(const DrawCommand& command);
-	static void RenderIndirect(const DrawIndirect& command);
+	static void RenderIndirect(const RenderIndirectCountCommand& command);
 	static void RenderQuad(const DrawCommand& drawCommand);
 	// WOULD FLUSH THIS STRUCTURE
 	static void ExecuteBarriers(PipelineBarrierStorage& barriers);

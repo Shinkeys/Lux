@@ -17,7 +17,7 @@ struct TagComponent
 };
 
 
-struct TranslationComponent
+struct TransformComponent
 {
 	//glm::mat4 rotation{ glm::mat4(1.0f) }; // To do: quats
 	//glm::vec3 translation{ glm::vec3(0.0f) };
@@ -25,8 +25,8 @@ struct TranslationComponent
 
 	glm::mat4 model{ glm::mat4(1.0f) };
 
-	TranslationComponent() = default;
-	TranslationComponent(const glm::mat4& newModel) : model{newModel}{}
+	TransformComponent() = default;
+	TransformComponent(const glm::mat4& newModel) : model{newModel}{}
 	/*TranslationComponent(const glm::mat4& newRot, glm::vec3 newTranslation, glm::vec3 newScale) :
 		rotation{newRot}, translation{newTranslation}, scale{newScale}
 	{
@@ -57,7 +57,7 @@ class ComponentList
 {
 private:
 	std::optional<TagComponent> _tagComponent;
-	std::optional<TranslationComponent> _translationComponent;
+	std::optional<TransformComponent> _translationComponent;
 	std::optional<CameraComponent> _cameraComponent;
 	std::optional<MeshComponent> _meshComponent;
 public:
@@ -68,7 +68,7 @@ public:
 		{
 			return _tagComponent.emplace(args...);
 		}
-		else if constexpr (std::is_same<Component, TranslationComponent>::value)
+		else if constexpr (std::is_same<Component, TransformComponent>::value)
 		{
 			return _translationComponent.emplace(args...);
 		}
@@ -95,7 +95,7 @@ public:
 			Logger::Log("Trying to get some component which is not initialized! Nullptr returned\n");
 			return nullptr;
 		}
-		else if constexpr (std::is_same<Component, TranslationComponent>::value)
+		else if constexpr (std::is_same<Component, TransformComponent>::value)
 		{
 			if (_translationComponent.has_value())
 				return &(*_translationComponent);
