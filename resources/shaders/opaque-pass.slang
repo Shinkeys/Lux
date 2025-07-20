@@ -1,47 +1,12 @@
 import common.common;
+import common.g_pass;
 import common.camera;
-
-struct Vertex
-{
-    float3 position;
-    float3 normal;
-    float3 tangent;
-    float2 UV;
-};
-
-struct Transform
-{
-    float4x4 model;
-};
-
-struct Material
-{
-    float3 baseColorFactor;
-    float metallicFactor;
-    float roughnessFactor;
-
-    uint albedoID;
-    uint normalID;
-    uint metalRoughnessID;
-};
-
-struct CommonMeshData
-{
-    Material materialsDesc;
-    Transform transformDesc;
-};
-
-struct CommonMeshIndices
-{
-    uint commonDataIndex;
-};
 
 [[vk::push_constant]]
 cbuffer PushConstants
 {
     Vertex *vertexPtr;
     CommonMeshData *commonMeshDataPtr;
-    CommonMeshIndices *commonMeshIndicesPtr;
     ViewData *viewDataPtr;
 
     uint baseDrawOffset;
@@ -50,7 +15,7 @@ cbuffer PushConstants
 struct VertexOutput
 {
     float4 position : SV_Position;
-    float4 normals; 
+    float4 normals;
     float2 texCoord;
     float4 worldPos;
     float3x3 TBN;
@@ -62,13 +27,12 @@ VertexOutput VertexMain(uint vertexIndex: SV_VertexID, uint indirectIndex: SV_Dr
 {
 
     VertexOutput output = (VertexOutput)0;
-    CommonMeshIndices meshDataIndices = commonMeshIndicesPtr[indirectIndex + baseDrawOffset];
 
     // indirect index is just a current draw index of indirect buffer, base draw offset is needed to adjust
     // between different types of indirect buffers
 
-    Material material = commonMeshDataPtr[meshDataIndices.commonDataIndex].materialsDesc;
-    Transform transform = commonMeshDataPtr[meshDataIndices.commonDataIndex].transformDesc;
+    Material material = commonMeshDataPtr[indirectIndex].materialsDesc;
+    Transform transform = commonMeshDataPtr[indirectIndex].transformDesc;
 
     Vertex vertex = vertexPtr[vertexIndex];
 
@@ -79,14 +43,14 @@ VertexOutput VertexMain(uint vertexIndex: SV_VertexID, uint indirectIndex: SV_Dr
     T = normalize(T - dot(T, N) * N);
     float3 B = normalize(cross(T, N));
     float3x3 TBN = float3x3(T, B, N);
-    TBN = transpose(TBN);  // important in slang
+    TBN = transpose(TBN); // important in slang
     output.TBN = TBN;
 
     output.position = mul(mul(viewDataPtr.viewProj, transform.model), float4(vertex.position, 1.0));
 
     output.worldPos = mul(transform.model, float4(vertex.position, 1.0));
 
-    output.normals =  normalize(float4(mul(TBN, float3(vertex.normal)), 1.0));
+    output.normals = normalize(float4(mul(TBN, float3(vertex.normal)), 1.0));
 
     output.texCoord = vertex.UV;
 
@@ -95,7 +59,7 @@ VertexOutput VertexMain(uint vertexIndex: SV_VertexID, uint indirectIndex: SV_Dr
     return output;
 }
 
-struct FragmentOutput 
+struct FragmentOutput
 {
     [[vk::location(0)]] float4 outWorldPos : SV_Target0;
     [[vk::location(1)]] float4 outNormals : SV_Target1;
@@ -105,7 +69,6 @@ struct FragmentOutput
 
 [vk::binding(0, 0)]
 public Sampler2D textures[];
-
 
 [shader("fragment")]
 FragmentOutput FragmentMain(VertexOutput input)
@@ -118,13 +81,13 @@ FragmentOutput FragmentMain(VertexOutput input)
     UV.y = -UV.y;
 
     output.outWorldPos = input.worldPos;
-    output.outNormals  = input.normals;
+    output.outNormals = input.normals;
     if (material.normalID > 0)
     {
         output.outNormals = textures[material.normalID].Sample(UV);
-        output.outNormals = float4(normalize(mul(input.TBN, output.outNormals.xyz)), 1.0);   
+        output.outNormals = float4(normalize(mul(input.TBN, output.outNormals.xyz)), 1.0);
     }
-                          // base color is vec3 due to the renderdoc display bug, for now it's totally fine to store it like that
+    // base color is vec3 due to the renderdoc display bug, for now it's totally fine to store it like that
     float4 albedoColor = float4(material.baseColorFactor, 1.0);
     if (material.albedoID > 0)
     {

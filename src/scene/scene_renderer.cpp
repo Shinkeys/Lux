@@ -181,10 +181,13 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 		// common buffer with transformations, materials and their indices
 		spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
 		spec.size = sizeof(CommonIndirectData) * 1024; // 1024 materials, transformations etc
-		_indirectBuffer.commonDataBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
 
-		spec.size = sizeof(CommonIndirectIndices) * 1024; // 1024 indices of materials, transformations etc
-		_indirectBuffer.commonIndicesBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+		// opaque
+		_indirectBuffer.commonOpaqueData = _engineBase.GetBufferManager().CreateBuffer(spec);
+
+		// masked
+		_indirectBuffer.commonMaskedData = _engineBase.GetBufferManager().CreateBuffer(spec);
+
 	}
 
 
@@ -250,7 +253,7 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 	{
 		PipelineSpecification gBufferGraphicsPipeline;
 		gBufferGraphicsPipeline.type = PipelineType::GRAPHICS_PIPELINE;
-		gBufferGraphicsPipeline.shaderName = "g-pass";
+		gBufferGraphicsPipeline.shaderName = "opaque-pass";
 		gBufferGraphicsPipeline.cullMode = CullMode::CULL_MODE_BACK;
 		gBufferGraphicsPipeline.entryPoints = { "VertexMain", "FragmentMain" };
 		gBufferGraphicsPipeline.pushConstantSizeBytes = sizeof(IndirectPushConst);
@@ -264,7 +267,10 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 
 		// other data is aight
 
-		_gBufferPipeline = _engineBase.GetPipelineManager().CreatePipeline(gBufferGraphicsPipeline);
+		_gBufferPipelines.opaquePipeline = _engineBase.GetPipelineManager().CreatePipeline(gBufferGraphicsPipeline);
+
+		gBufferGraphicsPipeline.shaderName = "mask-pass";
+		_gBufferPipelines.maskPipeline = _engineBase.GetPipelineManager().CreatePipeline(gBufferGraphicsPipeline);
 	}
 
 	{
@@ -395,13 +401,12 @@ void SceneRenderer::Draw()
 	{
 		Renderer::BeginRender({ _gBuffer.positions.get(), _gBuffer.normals.get(),
 		_gBuffer.baseColor.get(), _gBuffer.metallicRoughness.get(), _currentDepthAttachment },
-			glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+			glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
 		// Opaque objects
 		IndirectPushConst* opaqPushConst = new IndirectPushConst;
 		opaqPushConst->vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
-		opaqPushConst->commonMeshIndicesAddress = _indirectBuffer.commonIndicesBuffer->GetBufferAddress();
-		opaqPushConst->commonMeshDataAddress = _indirectBuffer.commonDataBuffer->GetBufferAddress();
+		opaqPushConst->commonMeshDataAddress = _indirectBuffer.commonOpaqueData->GetBufferAddress();
 		opaqPushConst->viewDataAddress = _viewDataBuffer->GetBufferAddress();
 		opaqPushConst->baseDrawOffset = 0;
 
@@ -414,7 +419,7 @@ void SceneRenderer::Draw()
 		opaqueCommand.buffer = _indirectBuffer.opaqueBuffer.get();
 		opaqueCommand.indexBuffer = _meshDeviceBuffer.indexBuffer.get();
 		opaqueCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
-		opaqueCommand.pipeline = _gBufferPipeline.get();
+		opaqueCommand.pipeline = _gBufferPipelines.opaquePipeline.get();
 		opaqueCommand.pushConstants = opaqPushConstants;
 		opaqueCommand.maxDrawCount = _indirectBuffer.currentOpaqueSize; // count of different materials basically
 		opaqueCommand.countBufferOffsetBytes = _indirectBuffer.countBufferOffset;
@@ -426,8 +431,7 @@ void SceneRenderer::Draw()
 		// Masked objects
 		IndirectPushConst* maskedPushConst = new IndirectPushConst;
 		maskedPushConst->vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
-		maskedPushConst->commonMeshIndicesAddress = _indirectBuffer.commonIndicesBuffer->GetBufferAddress();
-		maskedPushConst->commonMeshDataAddress = _indirectBuffer.commonDataBuffer->GetBufferAddress();
+		maskedPushConst->commonMeshDataAddress = _indirectBuffer.commonMaskedData->GetBufferAddress();
 		maskedPushConst->viewDataAddress = _viewDataBuffer->GetBufferAddress();
 		maskedPushConst->baseDrawOffset  = _indirectBuffer.currentOpaqueSize;
 
@@ -438,7 +442,7 @@ void SceneRenderer::Draw()
 		RenderIndirectCountCommand maskedCommand;
 		maskedCommand.buffer = _indirectBuffer.maskBuffer.get();
 		maskedCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
-		maskedCommand.pipeline = _gBufferPipeline.get();
+		maskedCommand.pipeline = _gBufferPipelines.maskPipeline.get();
 		maskedCommand.indexBuffer = _meshDeviceBuffer.indexBuffer.get();
 		maskedCommand.maxDrawCount = _indirectBuffer.currentMaskedSize;
 		maskedCommand.pushConstants = maskedPushConstants;////////////////////////
@@ -551,7 +555,7 @@ void SceneRenderer::Draw()
 	quadDrawCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
 	quadDrawCommand.pushConstants = pushConstants;
 
-	Renderer::BeginRender({ _currentColorAttachment }, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+	Renderer::BeginRender({ _currentColorAttachment }, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 	Renderer::RenderQuad(quadDrawCommand);
 	Renderer::EndRender();
 
@@ -613,24 +617,7 @@ void SceneRenderer::ExecuteEntityCreateQueue()
 						? *submeshIt->materialDesc.materialTexturesPtr : MaterialTexturesDesc{};
 
 
-					_indirectBuffer.commonDataBuffer->UploadData(_indirectBuffer.currentCommonDataOffset * sizeof(CommonIndirectData),
-						&commonData, sizeof(CommonIndirectData));
-
-					_indirectBuffer.currentCommonDataOffset += 1;
-
-
-					// Update common indices buffer, it contains all the transformation, materials INDICES
-					CommonIndirectIndices commonIndices{};
-					commonIndices.commonDataIndex = _indirectBuffer.currentCommonIndicesOffset;
-
-
-					_indirectBuffer.commonIndicesBuffer->UploadData(_indirectBuffer.currentCommonIndicesOffset 
-						* sizeof(CommonIndirectIndices),
-						&commonIndices, sizeof(CommonIndirectIndices));
-
-
-					_indirectBuffer.currentCommonIndicesOffset += 1;
-
+					commonData.alphaCutoff = submeshIt->alphaMode.alphaCutoff;
 
 
 					DrawIndexedIndirectCommand drawCommand;
@@ -640,44 +627,52 @@ void SceneRenderer::ExecuteEntityCreateQueue()
 					drawCommand.indexCount = submeshIt->vertexDesc.indexCount;
 					drawCommand.vertexOffset = _meshDeviceBuffer.currentVertexOffset;
 
-					_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.currentOpaqueSize * sizeof(DrawIndexedIndirectCommand),
-						&drawCommand, sizeof(DrawCommand));
-					_indirectBuffer.currentOpaqueSize += 1;
+					switch (submeshIt->alphaMode.type)
+					{
+					case AlphaMode::AlphaType::ALPHA_OPAQUE:
+					{
+						// Store indirect draw command
+						_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.currentOpaqueSize * sizeof(DrawIndexedIndirectCommand),
+							&drawCommand, sizeof(DrawCommand));
 
-					// update count buffer
-					_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.countBufferOffset,
-						&_indirectBuffer.currentOpaqueSize, sizeof(u32));
-					//switch (submeshIt->alphaMode.type)
-					//{
-					//case AlphaMode::AlphaType::ALPHA_OPAQUE:
-					//{
-					//	_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.currentOpaqueSize * sizeof(DrawIndexedIndirectCommand),
-					//		&drawCommand, sizeof(DrawCommand));
-					//	_indirectBuffer.currentOpaqueSize += 1;
+						_indirectBuffer.currentOpaqueSize += 1;
 
-					//	// update count buffer
-					//	_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.countBufferOffset,
-					//		&_indirectBuffer.currentOpaqueSize, sizeof(u32));
+						// update count buffer
+						_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.countBufferOffset,
+							&_indirectBuffer.currentOpaqueSize, sizeof(u32));
 
-					//	break;
-					//}
 
-					//case AlphaMode::AlphaType::ALPHA_MASK:
-					//{
-					//	_indirectBuffer.maskBuffer->UploadData(_indirectBuffer.currentMaskedSize * sizeof(DrawIndexedIndirectCommand),
-					//		&drawCommand, sizeof(DrawCommand));
+						// Store the data itself
+						_indirectBuffer.commonOpaqueData->UploadData(_indirectBuffer.currentCommonOpaqueDataOffset * sizeof(CommonIndirectData),
+							&commonData, sizeof(CommonIndirectData));
 
-					//	_indirectBuffer.currentMaskedSize += 1;
+						_indirectBuffer.currentCommonOpaqueDataOffset += 1;
 
-					//	// update count buffer
-					//	_indirectBuffer.maskBuffer->UploadData(_indirectBuffer.countBufferOffset,
-					//		&_indirectBuffer.currentMaskedSize, sizeof(u32));
-					//	break;
-					//}
+						break;
+					}
 
-					//default:
-					//	std::unreachable();
-					//}
+					case AlphaMode::AlphaType::ALPHA_MASK:
+					{
+						_indirectBuffer.maskBuffer->UploadData(_indirectBuffer.currentMaskedSize * sizeof(DrawIndexedIndirectCommand),
+							&drawCommand, sizeof(DrawCommand));
+
+						_indirectBuffer.currentMaskedSize += 1;
+
+						// update count buffer
+						_indirectBuffer.maskBuffer->UploadData(_indirectBuffer.countBufferOffset,
+							&_indirectBuffer.currentMaskedSize, sizeof(u32));
+
+						// Store the data itself
+						_indirectBuffer.commonMaskedData->UploadData(_indirectBuffer.currentCommonMaskedDataOffset * sizeof(CommonIndirectData),
+							&commonData, sizeof(CommonIndirectData));
+
+						_indirectBuffer.currentCommonMaskedDataOffset += 1;
+						break;
+					}
+
+					default:
+						std::unreachable();
+					}
 
 
 					_meshDeviceBuffer.currentVertexOffset += submeshIt->vertexDesc.vertexCount;

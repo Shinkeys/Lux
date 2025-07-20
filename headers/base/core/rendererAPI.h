@@ -27,7 +27,6 @@ struct IndirectPushConst
 {
 	u64 vertexAddress{ 0 };
 	u64 commonMeshDataAddress{ 0 };
-	u64 commonMeshIndicesAddress{ 0 };
 	u64 viewDataAddress{ 0 };
 
 	u32 baseDrawOffset{ 0 };

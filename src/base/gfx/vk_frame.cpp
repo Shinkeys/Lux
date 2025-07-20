@@ -147,9 +147,8 @@ void VulkanFrame::EndFrame()
 void VulkanFrame::BeginCommandRecord()
 {
 	VkCommandBuffer cmdBuffer = _commandBuffers[_currentFrame];
-	vkResetCommandBuffer(cmdBuffer, 0);
 
-	VkCommandBufferBeginInfo beginInfo = vkhelpers::CmdBufferBeginInfo();
+	VkCommandBufferBeginInfo beginInfo = vkhelpers::CmdBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 
 	VK_CHECK(vkBeginCommandBuffer(cmdBuffer, &beginInfo));
 

@@ -151,7 +151,8 @@ void VulkanPipeline::CreateGraphicsPipeline()
 	// Blend color from frag shader and framebuffer
 	// color.rgb = newAlpha * newColor + (1 - newAlpha) * oldColor
 	// color.alpha = newAlpha.a
-	VkPipelineColorBlendAttachmentState colorBlendState{ .blendEnable = VK_TRUE };
+	// turned off, just do a manual alpha test in the shader
+	VkPipelineColorBlendAttachmentState colorBlendState{ .blendEnable = VK_FALSE };
 	colorBlendState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
 	colorBlendState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 	colorBlendState.colorBlendOp = VK_BLEND_OP_ADD;

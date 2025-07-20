@@ -103,18 +103,20 @@ struct DrawIndexedIndirectCommand
 	u32    firstInstance{ 0 };
 };
 
-struct CommonIndirectIndices
-{
-	u32 commonDataIndex{ 0 };
-};
-
-
 struct CommonIndirectData
 {
 	MaterialTexturesDesc materialsDesc{};
 	TransformComponent transformDesc{};
+
+	float alphaCutoff{ 0.0f };
 };
 
+
+struct GBufferPipelines
+{
+	std::unique_ptr<Pipeline> opaquePipeline{ nullptr };
+	std::unique_ptr<Pipeline> maskPipeline{ nullptr };
+};
 
 class Entity;
 class SceneRenderer
@@ -125,7 +127,7 @@ private:
 	EngineBase& _engineBase;
 
 	std::unique_ptr<Pipeline> _pbrShadingPipeline;
-	std::unique_ptr<Pipeline> _gBufferPipeline;
+	GBufferPipelines _gBufferPipelines;
 
 	std::vector<std::unique_ptr<Descriptor>> _sceneDescriptorSets;
 

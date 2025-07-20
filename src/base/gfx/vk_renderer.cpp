@@ -82,7 +82,7 @@ void VulkanRenderer::BeginRender(const std::vector<Image*>& attachments, glm::ve
 			rawImage->SetCurrentLayout(ImageLayout::IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
 
 
-			VkClearValue clearColor{ {0.0f, 0.0f, 0.0f, 1.0f} };
+			VkClearValue vkClearColor{ clearColor.x, clearColor.y, clearColor.z, clearColor.w };
 
 
 			VkRenderingAttachmentInfo colorAttachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
@@ -90,7 +90,7 @@ void VulkanRenderer::BeginRender(const std::vector<Image*>& attachments, glm::ve
 			colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 			colorAttachment.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			colorAttachment.clearValue = clearColor;
+			colorAttachment.clearValue = vkClearColor;
 
 
 			colorAttachments.push_back(colorAttachment);
