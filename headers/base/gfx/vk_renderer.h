@@ -22,6 +22,9 @@ private:
 	void ExecuteBarriers(PipelineBarrierStorage& barriers) override;
 	void DispatchCompute(const DispatchCommand& dispatchCommand) override;
 
+	u32 GetCurrentImageIndex() override;
+	u32 GetCurrentFrameIndex() override;
+
 public:
 
 	VulkanRenderer(VulkanBase& vulkanBase);

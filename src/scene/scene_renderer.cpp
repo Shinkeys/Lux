@@ -1,9 +1,11 @@
 ﻿#include "../../headers/scene/scene_renderer.h"
 #include "../../headers/scene/entity.h"
+#include "../../headers/base/core/frame_manager.h"
+#include "../../headers/base/core/presentation_manager.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
-SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) : _vulkanBackend{ vulkanBackend }, _engineBase{engineBase}
+SceneRenderer::SceneRenderer(EngineBase& engineBase) : _engineBase{engineBase}
 {
 	// Descriptor
 	// Create descriptor for every frame
@@ -92,6 +94,8 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 		_pointLights.push_back(pointLight);
 		pointLight.position = glm::vec3(0.0f, 1.5f, -5.0f);
 		_pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(-10.0f, 1.5f, 0.0f);
+		_pointLights.push_back(pointLight);
 		pointLight.position = glm::vec3(5.0f, 1.5f, 0.0f);
 		_pointLights.push_back(pointLight);
 		pointLight.position = glm::vec3(-5.0f, 1.5f, 0.0f);
@@ -107,8 +111,8 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 		_pointLightsBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
 	}
 
-	const u32 windowWidth  = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.width;
-	const u32 windowHeight = _vulkanBackend.GetPresentationObj().GetSwapchainDesc().extent.height;
+	const u32 windowWidth  = _engineBase.GetPresentationManager().GetSwapchainExtent().x;
+	const u32 windowHeight = _engineBase.GetPresentationManager().GetSwapchainExtent().y;
 	// Init light indices SSBO
 	{
 		glm::ivec3& numWorkGroups = _lightCullStructures.numWorkGroups;
@@ -290,16 +294,13 @@ SceneRenderer::SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase) 
 
 void SceneRenderer::Update(const Camera& camera)
 {
-	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
-	VulkanPresentation& presentationManager = _vulkanBackend.GetPresentationObj();
+	const u32 currentImageIndex = _engineBase.GetFrameManager().GetCurrentImageIndex();
 
-
-	_currentColorAttachment = presentationManager.GetSwapchainDesc().images[frameManager.GetCurrentImageIndex()].get();
-	_currentDepthAttachment = _depthAttachments[frameManager.GetCurrentImageIndex()].get();
+	_currentColorAttachment = _engineBase.GetPresentationManager().GetSwapchainImage(currentImageIndex);
+	_currentDepthAttachment = _depthAttachments[currentImageIndex].get();
 
 
 	ExecuteEntityCreateQueue();
-	UpdateDescriptors();
 	
 	//// Camera data buffer
 	ViewData viewData;
@@ -373,7 +374,7 @@ void SceneRenderer::UpdateDescriptors()
 
 void SceneRenderer::Draw()
 {
-	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
+	FrameManager& frameManager = _engineBase.GetFrameManager();
 
 	PipelineBarrierStorage pipelineBarriers;
 
@@ -687,6 +688,7 @@ void SceneRenderer::ExecuteEntityCreateQueue()
 
 		// TO REPLACE!!!!!!!!!!!!
 		_pointLightsBuffer->UploadData(0, _pointLights.data(), sizeof(PointLight)* _pointLights.size());
+		UpdateDescriptors();
 
 		_entityCreateQueue.pop();
 	}
@@ -706,8 +708,6 @@ void SceneRenderer::ExecuteEntityCreateQueue()
 // THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
 void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 {
-	VulkanFrame& frameManager = _vulkanBackend.GetFrameObj();
-
 	BufferManager& bufferManager = _engineBase.GetBufferManager();
 	const ImageManager& imageManager = _engineBase.GetImageManager();
 

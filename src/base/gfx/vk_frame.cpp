@@ -36,8 +36,9 @@ void VulkanFrame::CreateCommandPool()
 	VkCommandPoolCreateInfo createInfo{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
 	createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-	auto queueFamilyIndex = _deviceObject.GetQueueIndexByType(QueueType::VULKAN_GRAPHICS_QUEUE);
+	auto queueFamilyIndex = _deviceObject.GetQueueIndexByType(QueueType::VULKAN_GENERAL_QUEUE);
 	Logger::Log("Cannot create command pool, there are no graphics queue family", queueFamilyIndex.has_value(), LogLevel::Fatal);
+	Logger::Log("General command pool created from general queue, reconsider it later");
 
 	createInfo.queueFamilyIndex = queueFamilyIndex.value();
 

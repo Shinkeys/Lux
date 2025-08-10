@@ -17,7 +17,7 @@ void VulkanDevice::Cleanup()
 
 // To do: for different queue families, like:
 // (physDevice, desiredQueueFam) -> return true if found
-std::optional<u32> VulkanDevice::GetGraphicsFamilyIndex(VkPhysicalDevice physDevice, VkQueueFlagBits flagBits) const
+std::optional<u32> VulkanDevice::GetQueueFamilyIndex(VkPhysicalDevice physDevice, VkQueueFlags flags) const
 {
 	u32 qCount = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(physDevice, &qCount, 0);
@@ -27,7 +27,7 @@ std::optional<u32> VulkanDevice::GetGraphicsFamilyIndex(VkPhysicalDevice physDev
 
 	for (u32 i = 0; i < qCount; ++i)
 	{
-		if (queues[i].queueFlags & flagBits)
+		if (queues[i].queueFlags & flags)
 			return i;
 	}
 
@@ -78,22 +78,31 @@ VkBool32 VulkanDevice::FamilySupportsPresentation(VkPhysicalDevice physDevice, u
 #endif
 }
 
+
+// To rework or remove
 bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const
 {
+	VkPhysicalDeviceVulkan11Features queryVulkan11Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
 	VkPhysicalDeviceVulkan12Features queryVulkan12Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
 	VkPhysicalDeviceVulkan13Features queryVulkan13Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
 
+	queryVulkan11Features.pNext = &queryVulkan12Features;
 	queryVulkan12Features.pNext = &queryVulkan13Features;
 
 	VkPhysicalDeviceFeatures2 features2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-	features2.pNext = &queryVulkan12Features;
-
+	features2.pNext = &queryVulkan11Features;
 
 	vkGetPhysicalDeviceFeatures2(physDevice, &features2);
 	// Write required features here
 	if (!queryVulkan13Features.dynamicRendering)
 		return false;
 	if (!queryVulkan13Features.synchronization2)
+		return false;
+
+	if (!queryVulkan13Features.shaderDemoteToHelperInvocation)
+		return false;
+
+	if (!queryVulkan11Features.shaderDrawParameters)
 		return false;
 
 	if (!queryVulkan12Features.bufferDeviceAddress)
@@ -110,6 +119,8 @@ bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const
 		!queryVulkan12Features.runtimeDescriptorArray)
 		return false;
 
+
+
 	return true;
 }
 
@@ -123,7 +134,7 @@ VkBool32 VulkanDevice::QueryExtensionsSupport(VkPhysicalDevice physDevice) const
 	vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionsCount, nullptr);
 
 	std::vector<VkExtensionProperties> availableExtensions(extensionsCount);
-	vkEnumerateDeviceExtensionProperties(physDevice, nullptr, & extensionsCount, availableExtensions.data());
+	vkEnumerateDeviceExtensionProperties(physDevice, nullptr, &extensionsCount, availableExtensions.data());
 
 	std::unordered_set<std::string_view> requiredExtensionsSet(_requiredDeviceExtensions.begin(), _requiredDeviceExtensions.end());
 
@@ -155,7 +166,7 @@ VkPhysicalDevice VulkanDevice::SelectAppropriatePhysDevice(std::vector<VkPhysica
 		std::cout << "Available phys. devices: " << props.deviceName << " Vulkan version: 1." 
 			<< VK_VERSION_MINOR(props.apiVersion) << std::endl;
 
-		auto familyIndex = GetGraphicsFamilyIndex(device, VK_QUEUE_GRAPHICS_BIT);
+		auto familyIndex = GetQueueFamilyIndex(device, VK_QUEUE_GRAPHICS_BIT);
 		// No graphics queue family on this device
 		if (!familyIndex.has_value())
 			continue;
@@ -214,8 +225,9 @@ void VulkanDevice::QueryAnisotropyLevel()
 
 void VulkanDevice::CreateLogicalDevice()
 {
-	auto graphicsFamIndex = GetGraphicsFamilyIndex(_physDevice, VK_QUEUE_GRAPHICS_BIT);
-	Logger::Log("Vulkan found graphics queue family", true, graphicsFamIndex.has_value(), LogLevel::Fatal);
+	constexpr VkQueueFlags generalQueueFlags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT;
+	auto generalQueueFamIndex = GetQueueFamilyIndex(_physDevice, generalQueueFlags);
+	Logger::Log("Vulkan found graphics queue family", true, generalQueueFamIndex.has_value(), LogLevel::Fatal);
 
 	auto presentationFamIndex = GetPresentationFamilyIndex();
 	Logger::Log("Vulkan found presentation queue family", true, presentationFamIndex.has_value(), LogLevel::Debug);
@@ -223,7 +235,7 @@ void VulkanDevice::CreateLogicalDevice()
 	// Vulkan spec states: queue family indices should be unique only, so unordered_set
 	std::unordered_set<u32> qFamilies
 	{
-		graphicsFamIndex.value(),
+		generalQueueFamIndex.value(),
 		presentationFamIndex.value()
 	};
 	std::vector<VkDeviceQueueCreateInfo> qCreateInfos;
@@ -239,10 +251,17 @@ void VulkanDevice::CreateLogicalDevice()
 		qCreateInfos.push_back(qCreateInfo);
 	}
 
+
+	// Ray tracing
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+	accelerationFeature.accelerationStructure = VK_TRUE;
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
+	rtPipelineFeature.pNext = &accelerationFeature;
+
 	VkPhysicalDeviceVulkan12Features vulkan12Features =
 	{
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-		.pNext = nullptr,
+		.pNext = &rtPipelineFeature,
 		.drawIndirectCount = VK_TRUE,
 		.descriptorIndexing = VK_TRUE, // BINDLESS
 		.shaderSampledImageArrayNonUniformIndexing = VK_TRUE,
@@ -258,6 +277,7 @@ void VulkanDevice::CreateLogicalDevice()
 	VkPhysicalDeviceVulkan13Features vulkan13Features = {
 		.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
 		.pNext = &vulkan12Features,
+		.shaderDemoteToHelperInvocation = VK_TRUE, // thanks to discard
 		.synchronization2 = VK_TRUE,
 		.dynamicRendering = VK_TRUE,
 	};
@@ -289,14 +309,14 @@ void VulkanDevice::CreateLogicalDevice()
 
 
 	// Adding all the queues
-	const u32 graphicsQInd = graphicsFamIndex.value();
+	const u32 graphicsQInd = generalQueueFamIndex.value();
 	const u32 presentationQInd = presentationFamIndex.value();
 
-	// Add graphics q to the storage
-	_queueFamIndexStorage[static_cast<size_t>(QueueType::VULKAN_GRAPHICS_QUEUE)] = graphicsQInd;
+	// Now it uses general queue: the same queue for all operations, to separate later
+	_queueFamIndexStorage[static_cast<size_t>(QueueType::VULKAN_GENERAL_QUEUE)] = graphicsQInd;
 	VkQueue graphicsQueue;
 	vkGetDeviceQueue(_device, graphicsQInd, 0, &graphicsQueue);
-	_queuesStorage[static_cast<size_t>(QueueType::VULKAN_GRAPHICS_QUEUE)] = graphicsQueue;
+	_queuesStorage[static_cast<size_t>(QueueType::VULKAN_GENERAL_QUEUE)] = graphicsQueue;
 
 	// Add presentation q to the storage
 	_queueFamIndexStorage[static_cast<size_t>(QueueType::VULKAN_PRESENTATION_QUEUE)] = presentationQInd;

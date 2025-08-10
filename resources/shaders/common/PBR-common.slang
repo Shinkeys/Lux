@@ -2,7 +2,6 @@ module PBR_common;
 
 import common;
 
-// NEEDED PBR CALCULATIONS
 public float3 FresnelSchlick(float3 F0, float cosTheta) // angle between halfway and viewdir
 {
 	return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0); // clamp is needed just in case if some floating point error would happen

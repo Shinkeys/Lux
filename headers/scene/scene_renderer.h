@@ -5,6 +5,7 @@
 #include "../base/core/image.h"
 #include "../base/core/descriptor.h"
 #include "lights.h"
+#include "iscene_renderer.h"
 #include "../constructed_types/device_indexed_buffer.h"
 #include "../constructed_types/device_indirect_buffer.h"
 
@@ -119,11 +120,9 @@ struct GBufferPipelines
 };
 
 class Entity;
-class SceneRenderer
+class SceneRenderer : public ISceneRenderer
 {
 private:
-	// MAKE ABSTRACTION TO REMOVE VULKAN BACKEND COMPLETELY
-	VulkanBase& _vulkanBackend;
 	EngineBase& _engineBase;
 
 	std::unique_ptr<Pipeline> _pbrShadingPipeline;
@@ -138,7 +137,6 @@ private:
 	std::unique_ptr<Sampler> _samplerNearest;
 
 
-	// To rework image class
 	std::vector<std::unique_ptr<Image>> _depthAttachments;
 
 	Image* _currentDepthAttachment{nullptr};
@@ -166,14 +164,11 @@ public:
 	* @param entity reference
 	*/
 	void SubmitEntityToDraw(const Entity& entity);
-	//template<typename T>
-	//void SubmitDataToBind();
-	void Update(const Camera& camera);
-	void Draw();
+	void Update(const Camera& camera) override;
+	void Draw() override;
 
 	SceneRenderer() = delete;
-	~SceneRenderer() = default;
-	SceneRenderer(VulkanBase& vulkanBackend, EngineBase& engineBase);
+	SceneRenderer(EngineBase& engineBase);
 	SceneRenderer(const SceneRenderer&) = delete;
 	SceneRenderer(SceneRenderer&&) = delete;
 	SceneRenderer& operator= (const SceneRenderer&) = delete;

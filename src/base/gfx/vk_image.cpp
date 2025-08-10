@@ -137,6 +137,10 @@ void VulkanImage::CreateTexture()
 
 
 	{
+		// Insert barrier for staging buffer
+		vkhelpers::InsertMemoryBarrier(cmdBuffer, VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_TRANSFER_BIT,
+			VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_TRANSFER_READ_BIT);
+
 		// MAKE IMAGE AVAILABLE FOR DATA COPYING. This is only base mip level(0)
 		VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
 		barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -456,7 +460,8 @@ VulkanSampler::~VulkanSampler()
 
 namespace vkconversions
 {
-	VkFormat ToVkFormat(ImageFormat format) {
+	VkFormat ToVkFormat(ImageFormat format) 
+	{
 		switch (format) {
 		case ImageFormat::IMAGE_FORMAT_R8G8B8A8_SRGB:           return VK_FORMAT_R8G8B8A8_SRGB;
 		case ImageFormat::IMAGE_FORMAT_B8G8R8A8_SRGB:           return VK_FORMAT_B8G8R8A8_SRGB;
@@ -467,7 +472,8 @@ namespace vkconversions
 		}
 	}
 
-	VkImageUsageFlags ToVkImageUsage(ImageUsage usage) {
+	VkImageUsageFlags ToVkImageUsage(ImageUsage usage) 
+	{
 		VkImageUsageFlags result = 0;
 
 		if (usage & ImageUsage::IMAGE_USAGE_COLOR_ATTACHMENT)
@@ -487,7 +493,8 @@ namespace vkconversions
 		return result;
 	}
 
-	VkImageLayout ToVkImageLayout(ImageLayout layout) {
+	VkImageLayout ToVkImageLayout(ImageLayout layout) 
+	{
 		switch (layout) {
 		case ImageLayout::IMAGE_LAYOUT_UNDEFINED:                           return VK_IMAGE_LAYOUT_UNDEFINED;
 		case ImageLayout::IMAGE_LAYOUT_GENERAL:                             return VK_IMAGE_LAYOUT_GENERAL;
@@ -503,7 +510,8 @@ namespace vkconversions
 		}
 	}
 
-	VkImageAspectFlags ToVkAspectFlags(ImageAspect aspect) {
+	VkImageAspectFlags ToVkAspectFlags(ImageAspect aspect) 
+	{
 		switch (aspect) {
 		case ImageAspect::IMAGE_ASPECT_COLOR: return VK_IMAGE_ASPECT_COLOR_BIT;
 		case ImageAspect::IMAGE_ASPECT_DEPTH: return VK_IMAGE_ASPECT_DEPTH_BIT;
@@ -511,7 +519,8 @@ namespace vkconversions
 		}
 	}
 
-	VkFilter ToVkFilter(Filter filter) {
+	VkFilter ToVkFilter(Filter filter) 
+	{
 		switch (filter) {
 		case Filter::FILTER_LINEAR: return VK_FILTER_LINEAR;
 		case Filter::FILTER_NEAREST:   return VK_FILTER_NEAREST;
@@ -519,7 +528,8 @@ namespace vkconversions
 		}
 	}
 
-	VkSamplerMipmapMode ToVkMipmapMode(SamplerMipMapMode mode) {
+	VkSamplerMipmapMode ToVkMipmapMode(SamplerMipMapMode mode) 
+	{
 		switch (mode) {
 		case SamplerMipMapMode::SAMPLER_MIPMAP_MODE_LINEAR:  return VK_SAMPLER_MIPMAP_MODE_LINEAR;
 		case SamplerMipMapMode::SAMPLER_MIPMAP_MODE_NEAREST: return VK_SAMPLER_MIPMAP_MODE_NEAREST;
@@ -527,20 +537,34 @@ namespace vkconversions
 		}
 	}
 
-	VkSamplerAddressMode ToVkAddressMode(SamplerAddressMode mode) {
+	VkSamplerAddressMode ToVkAddressMode(SamplerAddressMode mode) 
+	{
 		switch (mode) {
 		case SamplerAddressMode::SAMPLER_ADDRESS_MODE_REPEAT: return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		default: std::unreachable();
 		}
 	}
 
-	VkExtent2D ToVkExtent2D(const ImageExtent2D& extent) {
+	VkExtent2D ToVkExtent2D(ImageExtent2D extent) 
+	{
 		return VkExtent2D{ extent.x, extent.y };
 	}
 
-	VkExtent3D ToVkExtent3D(const ImageExtent3D& extent) {
+	VkExtent3D ToVkExtent3D(ImageExtent3D extent) 
+	{
 		return VkExtent3D{ extent.x, extent.y, extent.z };
 	}
+
+	ImageExtent2D ToEngineExtent2D(VkExtent2D extent)
+	{
+		return ImageExtent2D{ extent.width, extent.height };
+	}
+
+	ImageExtent3D ToEngineExtent3D(VkExtent3D extent)
+	{
+		return ImageExtent3D{ extent.width, extent.height, extent.depth };
+	}
+
 
 	ImageFormat ToEngineFormat(VkFormat format)
 	{

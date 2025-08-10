@@ -97,7 +97,7 @@ void ComputeMain(uint3 threadId: SV_DispatchThreadID, uint3 workGroupID: SV_Grou
     int2 texCoord = int2(threadId.xy);
     float depthFloat = depthTexture.Load(int3(texCoord, 0)).r; // TO VERIFY
     depthFloat = depthFloat * 2.0 - 1.0;
-    int depthInt = asuint(depthFloat);
+    int depthuInt = asint(depthFloat);
 
 
     if (groupIndex == 0)
@@ -109,8 +109,8 @@ void ComputeMain(uint3 threadId: SV_DispatchThreadID, uint3 workGroupID: SV_Grou
 
     GroupMemoryBarrierWithGroupSync();
 
-    InterlockedMin(minDepth, depthInt);
-    InterlockedMax(maxDepth, depthInt);
+    InterlockedMin(minDepth, depthuInt);
+    InterlockedMax(maxDepth, depthuInt);
 
     GroupMemoryBarrierWithGroupSync();
 
@@ -140,7 +140,7 @@ void ComputeMain(uint3 threadId: SV_DispatchThreadID, uint3 workGroupID: SV_Grou
         // bottom
         frustumPlanes[2] = CreatePlaneForFrustum(eyePos, pointsInViewNear[0], pointsInViewNear[1]);
         // top
-        frustumPlanes[3] = CreatePlaneForFrustum(eyePos, pointsInViewNear[3], pointsInViewNear[2]);
+        frustumPlanes[3] = CreatePlaneForFrustum(eyePos, pointsInViewNear[2], pointsInViewNear[3]);
 
         float4 pointsInScreenFar[2];
         pointsInScreenFar[0] = float4(float2(workGroupID.x, workGroupID.y + 1) * tileSize, maxDepthFloat, 1.0);
@@ -154,7 +154,7 @@ void ComputeMain(uint3 threadId: SV_DispatchThreadID, uint3 workGroupID: SV_Grou
         frustumPlanes[4] = CreatePlaneForFrustum(eyePos, pointsInViewFar[0], pointsInViewFar[1]);
 
         // near
-        frustumPlanes[5] = CreatePlaneForFrustum(eyePos, pointsInViewNear[3], pointsInViewNear[2]);
+        frustumPlanes[5] = -CreatePlaneForFrustum(eyePos, pointsInViewNear[3], pointsInViewNear[2]); // should be minus, otherwise normal would look in a wrong direction(outside of a plane)
     }
 
     GroupMemoryBarrierWithGroupSync();

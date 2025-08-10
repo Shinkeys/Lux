@@ -69,6 +69,9 @@ public:
 	virtual void ExecuteBarriers(PipelineBarrierStorage& barriers) = 0;
 	virtual void DispatchCompute(const DispatchCommand& dispatchCommand) = 0;
 
+	virtual u32 GetCurrentImageIndex() = 0;
+	virtual u32 GetCurrentFrameIndex() = 0;
+
 	virtual ~RendererAPI() = default;
 
 

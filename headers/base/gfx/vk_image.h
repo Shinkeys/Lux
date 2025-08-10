@@ -13,9 +13,11 @@ namespace vkconversions
 	VkFilter ToVkFilter(Filter filter);
 	VkSamplerMipmapMode ToVkMipmapMode(SamplerMipMapMode mode);
 	VkSamplerAddressMode ToVkAddressMode(SamplerAddressMode mode);
-	VkExtent2D ToVkExtent2D(const ImageExtent2D& extent);
-	VkExtent3D ToVkExtent3D(const ImageExtent3D& extent);
+	VkExtent2D ToVkExtent2D(ImageExtent2D extent);
+	VkExtent3D ToVkExtent3D(ImageExtent3D extent);
 
+	ImageExtent2D ToEngineExtent2D(VkExtent2D extent);
+	ImageExtent3D ToEngineExtent3D(VkExtent3D extent);
 	ImageFormat ToEngineFormat(VkFormat format);
 }
 

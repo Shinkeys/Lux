@@ -67,4 +67,3 @@ public struct PointLight
     public float intensity;
     public float radius;
 };
-

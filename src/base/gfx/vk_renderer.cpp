@@ -23,9 +23,19 @@ void VulkanRenderer::EndFrame()
 	frameObject.EndFrame();
 }
 
+u32 VulkanRenderer::GetCurrentImageIndex()
+{
+	return _vulkanBase.GetFrameObj().GetCurrentImageIndex();
+}
+
+u32 VulkanRenderer::GetCurrentFrameIndex()
+{
+	return _vulkanBase.GetFrameObj().GetCurrentFrameIndex();
+}
+
 void VulkanRenderer::ExecuteCurrentCommands()
 {
-	const auto graphicsQueue = _vulkanBase.GetVulkanDeviceObj().GetQueueByType(QueueType::VULKAN_GRAPHICS_QUEUE);
+	const auto graphicsQueue = _vulkanBase.GetVulkanDeviceObj().GetQueueByType(QueueType::VULKAN_GENERAL_QUEUE);
 
 	VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
 

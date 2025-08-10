@@ -4,11 +4,12 @@
 
 enum class QueueType : u8
 {
-	VULKAN_GRAPHICS_QUEUE = 0,
-	VULKAN_PRESENTATION_QUEUE = 1,
+	VULKAN_GENERAL_QUEUE = 0,
+	VULKAN_GRAPHICS_QUEUE = 1,
+	VULKAN_PRESENTATION_QUEUE = 2,
 	// To do other types
 	
-	VULKAN_QUEUE_COUNT = 2,
+	VULKAN_QUEUE_COUNT = 3,
 };
 
 class VulkanDevice
@@ -26,10 +27,13 @@ private:
 	void CreatePhysicalDevice();
 	VkBool32 FamilySupportsPresentation(VkPhysicalDevice physDevice, u32 familyIndex) const;
 	VkBool32 QueryExtensionsSupport(VkPhysicalDevice physDevice) const;
-	std::optional<u32> GetGraphicsFamilyIndex(VkPhysicalDevice physDevice, VkQueueFlagBits flagBits) const;
+	std::optional<u32> GetQueueFamilyIndex(VkPhysicalDevice physDevice, VkQueueFlags flags) const;
 	const std::vector<const char*> _requiredDeviceExtensions
 	{
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
 	};
 	std::optional<u32> GetPresentationFamilyIndex() const;
 

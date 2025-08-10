@@ -24,7 +24,7 @@ private:
 	std::vector<VkFence> _syncCPUFences;
 	
 
-	i32 _currentFrame{ 0 };
+	u32 _currentFrame{ 0 };
 	u32 _currentImage{ 0 };
 
 	void CreateCommandPool();
@@ -42,7 +42,7 @@ public:
 	VulkanFrame& operator= (VulkanFrame&&) = delete;
 
 	// Variables
-	static constexpr i32 FramesInFlight{ 2 };
+	static constexpr u32 FramesInFlight{ 2 };
 	void BeginFrame();
 	void EndFrame();
 	void BeginCommandRecord();
@@ -51,14 +51,14 @@ public:
 	void ResetFence();
 
 	void UpdateCurrentFrameIndex() { _currentFrame = (_currentFrame + 1) % FramesInFlight; }
-	i32 GetCurrentFrameIndex()							   const { return _currentFrame; }
+	u32 GetCurrentFrameIndex()							   const { return _currentFrame; }
 	u32 GetCurrentImageIndex()							   const { return _currentImage; }
 
 	VkSemaphore GetImageAvailableSemaphore()			   const;
 	VkSemaphore GetRenderFinishedSemaphore()		       const;
 	VkFence GetFence()                                     const;
 	VkCommandBuffer GetCommandBuffer()                     const;
-
+	VkCommandPool GetCommandPool()                         const { return _commandPool; }
 
 	void Cleanup();
 };

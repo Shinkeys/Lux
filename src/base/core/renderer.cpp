@@ -58,6 +58,14 @@ void Renderer::RenderQuad(const DrawCommand& drawCommand)
 	_renderAPI->RenderQuad(drawCommand);
 }
 
+u32 Renderer::GetCurrentImageIndex()
+{
+	return _renderAPI->GetCurrentImageIndex();
+}
+u32 Renderer::GetCurrentFrameIndex()
+{
+	return _renderAPI->GetCurrentFrameIndex();
+}
 
 void Renderer::Cleanup()
 {
