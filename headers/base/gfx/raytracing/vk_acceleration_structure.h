@@ -31,4 +31,6 @@ public:
 
 	u64 GetAccelerationAddress() const override;
 
+	VkAccelerationStructureKHR GetRaw() const { return _acceleration; }
+
 };

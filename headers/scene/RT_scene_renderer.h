@@ -2,10 +2,17 @@
 #include "iscene_renderer.h"
 
 class EngineBase;
+class Descriptor;
+class RTPipeline;
+
 class RTSceneRenderer : public ISceneRenderer
 {
 private:
 	EngineBase& _engineBase;
+
+	std::vector<std::unique_ptr<Descriptor>> _sceneDescriptorSets;
+
+	std::unique_ptr<RTPipeline> _rtPipeline;
 
 public:
 	void Update(const Camera& camera) override;

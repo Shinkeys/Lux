@@ -36,12 +36,6 @@ elseif(WIN32)
   set(VOLK_STATIC_DEFINES "VK_USE_PLATFORM_WIN32_KHR")
 endif()
 
-# Compiler for spir-v
-if(UNIX)
-    set(GLSL_VALIDATOR "${SLANG_BINARY_DIR}/slangc")
-elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} STREQUAL "AMD64")
-    set(GLSL_VALIDATOR "${SLANG_BINARY_DIR}/slangc.exe")
-endif()
 
 # Adding subdirectories so that they would build by itself
 add_subdirectory(vendor/SDL EXCLUDE_FROM_ALL)
@@ -91,7 +85,7 @@ add_custom_command(TARGET Lux POST_BUILD
     "$<TARGET_FILE_DIR:Lux>"
 )
 
-add_custom_target(Shaders DEPENDS ${SPIRV_BINARY_FILES})
+add_custom_target(Shaders DEPENDS ${SLANG_BINARY_DIR})
 add_dependencies(Lux Shaders)
 
 # Link directories

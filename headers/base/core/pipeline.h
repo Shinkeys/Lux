@@ -49,7 +49,9 @@ public:
 
 };
 
-class VulkanBase;
+class  VulkanBase;
+class  RTPipeline;
+struct RTPipelineSpecification;
 class PipelineManager
 {
 private:
@@ -62,5 +64,6 @@ public:
 
 	void Cleanup();
 
-	std::unique_ptr<Pipeline> CreatePipeline(const PipelineSpecification& spec);
+	std::unique_ptr<Pipeline>   CreatePipeline(const PipelineSpecification& spec);
+	std::unique_ptr<RTPipeline> CreateRTPipeline(const RTPipelineSpecification& spec);
 };

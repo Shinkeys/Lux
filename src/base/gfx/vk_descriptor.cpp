@@ -2,6 +2,7 @@
 #include "../../../headers/base/gfx/vk_deleter.h"
 #include "../../../headers/base/gfx/vk_frame.h"
 #include "../../../headers/base/gfx/vk_image.h"
+#include "../../../headers/base/gfx/raytracing/vk_acceleration_structure.h"
 
 VulkanDescriptor::VulkanDescriptor(const DescriptorSpecification& spec, VulkanDevice& deviceObj, VkDescriptorPool descPool) : 
 	_deviceObject{deviceObj}
@@ -83,5 +84,47 @@ void VulkanDescriptor::Write(u32 dstBinding, u32 dstArrayElem, DescriptorType ty
 	writeSet.descriptorType = ToVkDescriptorType(type);
 	writeSet.pImageInfo = &imgInfo;
 
+
 	vkUpdateDescriptorSets(_deviceObject.GetDevice(), 1, &writeSet, 0, nullptr);
+}
+
+void VulkanDescriptor::Write(u32 dstBinding, u32 dstArrayElem, RTAccelerationStructure* accel, Image* image)
+{
+	VkWriteDescriptorSet writeSet{ VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+	writeSet.dstSet = _set;
+	writeSet.dstBinding = dstBinding;
+	writeSet.dstArrayElement = dstArrayElem;
+	writeSet.descriptorCount = 1;
+
+	if (image)
+	{
+		VulkanImage* rawImage = static_cast<VulkanImage*>(image);
+
+		VkDescriptorImageInfo imgInfo{};
+		imgInfo.imageView = rawImage->GetRawView();
+		imgInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL; // the best layout for storage image
+
+
+		writeSet.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		writeSet.pImageInfo = &imgInfo;
+
+		vkUpdateDescriptorSets(_deviceObject.GetDevice(), 1, &writeSet, 0, nullptr);
+	}
+	else if(accel)
+	{
+		VulkanAccelerationStructure* rawAccel = static_cast<VulkanAccelerationStructure*>(accel);
+		VkAccelerationStructureKHR vkAccel = rawAccel->GetRaw();
+
+		VkWriteDescriptorSetAccelerationStructureKHR descAs{
+		VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR };
+		descAs.accelerationStructureCount = 1;
+		descAs.pAccelerationStructures = &vkAccel;
+
+		writeSet.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+		writeSet.pNext = &descAs;
+
+		vkUpdateDescriptorSets(_deviceObject.GetDevice(), 1, &writeSet, 0, nullptr);
+	}
+	else
+		assert(false && "Trying to update ray tracing desc. set but image and accel structure both null");
 }

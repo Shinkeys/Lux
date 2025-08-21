@@ -8,6 +8,7 @@ enum class DescriptorType : u8
 	COMBINED_IMAGE_SAMPLER,
 	SAMPLED_IMAGE,
 	STORAGE_IMAGE,
+	ACCELERATION_STRUCTURE,
 };
 
 struct DescriptorSetLayoutBinding
@@ -25,6 +26,7 @@ struct DescriptorSpecification
 
 class Image;
 class Sampler;
+class RTAccelerationStructure;
 class Descriptor
 {
 private:
@@ -33,6 +35,7 @@ public:
 	virtual ~Descriptor() {}
 
 	virtual void Write(u32 dstBinding, u32 dstArrayElem, DescriptorType type, Image* image, Sampler* sampler) = 0;
+	virtual void Write(u32 dstBinding, u32 dstArrayElem, RTAccelerationStructure* accel = nullptr, Image* image = nullptr) = 0;
 
 };
 
