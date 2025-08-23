@@ -18,4 +18,7 @@ public:
 	VulkanRTPipeline(const RTPipelineSpecification& spec, VulkanDevice& deviceObj, VulkanShader& shaderObj);
 
 	~VulkanRTPipeline();
+
+	VkPipeline GetRawPipeline()     const { return _pipeline; }
+	VkPipelineLayout GetRawLayout() const { return _layout; }
 };

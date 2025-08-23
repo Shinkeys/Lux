@@ -14,6 +14,7 @@ enum class BufferUsage : u32
 	SHADER_DEVICE_ADDRESS = 0x00000128,
 	ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY = 0x00000256,
 	ACCELERATION_STRUCTURE_STORAGE = 0x00000512,
+	SHADER_BINDING_TABLE = 0x00001024,
 };
 
 inline bool operator&(BufferUsage fst, BufferUsage scd)
@@ -54,6 +55,12 @@ enum class MemoryProperty : u32
 inline bool operator&(MemoryProperty fst, MemoryProperty scd)
 {
 	return (static_cast<u32>(fst) & static_cast<u32>(scd)) != 0;
+}
+
+
+inline MemoryProperty operator|(MemoryProperty fst, MemoryProperty scd)
+{
+	return static_cast<MemoryProperty>(static_cast<u32>(fst) | static_cast<u32>(scd));
 }
 
 enum class AllocationCreate : u32

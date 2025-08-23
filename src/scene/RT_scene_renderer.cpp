@@ -4,9 +4,10 @@
 #include "../../../headers/base/core/raytracing/RT_base.h"
 #include "../../../headers/base/core/raytracing/RT_acceleration_structure.h"
 #include "../../../headers/base/core/raytracing/RT_pipeline.h"
+#include "../../../headers/base/core/raytracing/shader_binding_table.h"
 
 
-RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{engineBase}
+RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBase }
 {
 	std::vector<glm::vec3> triangleVertices
 	{
@@ -39,15 +40,15 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{engineBas
 
 	BLASSpecification blasSpec{};
 	blasSpec.vertexAddress = triangleBuffer->GetBufferAddress();
-	blasSpec.indexAddress  = triangleIndicesBuffer->GetBufferAddress();
+	blasSpec.indexAddress = triangleIndicesBuffer->GetBufferAddress();
 	blasSpec.verticesCount = triangleVertices.size();
-	blasSpec.indicesCount  = triangleIndices.size();
+	blasSpec.indicesCount = triangleIndices.size();
 	blasSpec.vertexStride = sizeof(glm::vec3);
 
 	std::unique_ptr<RTAccelerationStructure> blasTest = engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
 
 	TLASSpecification tlasSpec{};
-	
+
 	BLASInstances blasInstance{};
 	blasInstance.blasAddress = blasTest->GetAccelerationAddress();
 	blasInstance.transform = glm::mat4(1.0f);
@@ -57,7 +58,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{engineBas
 	tlasSpec.instances = { blasInstance };
 
 	std::unique_ptr<RTAccelerationStructure> tlasTest = engineBase.GetRayTracingManager().CreateTLAS(tlasSpec);
-	
+
 
 	// Descriptor
 	// Create descriptor for every frame
@@ -123,6 +124,18 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{engineBas
 		_rtPipeline = _engineBase.GetPipelineManager().CreateRTPipeline(pipelineSpec);
 	}
 
+	RayTracingManager& rtManager = _engineBase.GetRayTracingManager();
+	// SBT
+	SBTSpecification sbtSpec{};
+	sbtSpec.missCount = 1;
+	sbtSpec.hitCount = 1;
+
+	constexpr u32 handleCount = 3; // 1 raygen + 1 miss + 1 hit
+	const u32 handleSize = rtManager.GetRTDeviceProperties().shaderGroupHandleSize;
+	const u32 dataSize = handleCount * handleSize;
+	sbtSpec.handles.resize(dataSize);
+	rtManager.GetRTGroupHandles(_rtPipeline.get(), 0, handleCount, dataSize, sbtSpec.handles.data());
+	std::unique_ptr<ShaderBindingTable> testSBT = rtManager.CreateSBT(sbtSpec);
 
 }
 

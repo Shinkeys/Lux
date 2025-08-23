@@ -1,6 +1,6 @@
 #pragma once
 #include "vk_instance.h"
-
+#include "../../util/rt_types.h"
 
 enum class QueueType : u8
 {
@@ -21,6 +21,7 @@ private:
 	VkDevice _device{ VK_NULL_HANDLE };
 
 	float _maxAnisotropy{ 0.0f };
+	RTDeviceProperties _rtProperties;
 
 	// Physical device
 	VkPhysicalDevice SelectAppropriatePhysDevice(std::vector<VkPhysicalDevice>& physDevices) const;
@@ -38,6 +39,7 @@ private:
 	std::optional<u32> GetPresentationFamilyIndex() const;
 
 	bool QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const;
+	void QueryRTProperties();
 	void QueryAnisotropyLevel();
 
 	// Logical device
@@ -49,6 +51,8 @@ private:
 	std::array<std::optional<VkQueue>, static_cast<size_t>(QueueType::VULKAN_QUEUE_COUNT)> _queuesStorage;
 public:
 	float GetMaxAnisotropyLevel() const { return _maxAnisotropy; }
+	RTDeviceProperties GetRTDeviceProps() const { return _rtProperties; }
+
 
 	std::vector<u32> GetGraphicsFamilyIndices(VkPhysicalDevice physDevice, VkQueueFlagBits flagBits) const;
 	VkPhysicalDevice GetPhysicalDevice() const { return _physDevice; }

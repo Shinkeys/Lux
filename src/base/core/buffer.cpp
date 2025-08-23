@@ -24,7 +24,8 @@ BufferManager::BufferManager(VulkanBase& vulkanBase) : _vulkanBase{vulkanBase}
 }
 
 
-std::unique_ptr<Buffer>	 BufferManager::CreateBuffer(const BufferSpecification& spec)	 const
+
+std::unique_ptr<Buffer>	 BufferManager::CreateBuffer(const BufferSpecification& spec)	const
 {
 	return std::make_unique<VulkanBuffer>(spec, _vulkanBase.GetVulkanDeviceObj(), _vulkanBase.GetAllocatorObj(), _vulkanBase.GetFrameObj()); 
 }

@@ -32,7 +32,7 @@ VulkanBuffer::VulkanBuffer(const BufferSpecification& spec, VulkanDevice& device
 	VK_CHECK(vmaCreateBuffer(_allocatorObj.GetAllocatorHandle(), &bufferInfo, &allocInfo, &_buffer, &_allocation, nullptr));
 
 	if (spec.memoryProp & MemoryProperty::HOST_VISIBLE || spec.memoryProp & MemoryProperty::HOST_COHERENT)
-		VK_CHECK(vmaMapMemory(_allocatorObj.GetAllocatorHandle(), _allocation, nullptr));
+		VK_CHECK(vmaMapMemory(_allocatorObj.GetAllocatorHandle(), _allocation, &_mappedData));
 }
 
 VulkanBuffer::VulkanBuffer(VulkanBuffer&& other) noexcept : _deviceObj{ other._deviceObj }, _allocatorObj{ other._allocatorObj }, _frameObj{ other._frameObj }
@@ -161,6 +161,9 @@ namespace vkconversions
 
 		if (usage & BufferUsage::ACCELERATION_STRUCTURE_STORAGE)
 			result |= VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR;
+
+		if (usage & BufferUsage::SHADER_BINDING_TABLE)
+			result |= VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR;
 
 		return result;
 	}

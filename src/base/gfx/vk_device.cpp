@@ -1,6 +1,7 @@
 #include "../../../headers/base/gfx/vk_device.h"
 #include "../../../headers/util/gfx/vk_defines.h"
 #include "../../../headers/base/gfx/vk_deleter.h"
+#include "../../../headers/util/rt_types.h"
 
 VulkanDevice::VulkanDevice(VulkanInstance& instanceObj) : _instanceObject{instanceObj}
 {
@@ -223,6 +224,25 @@ void VulkanDevice::QueryAnisotropyLevel()
 	_maxAnisotropy = props.limits.maxSamplerAnisotropy;
 }
 
+
+void VulkanDevice::QueryRTProperties()
+{
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtPipelineProps{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
+
+	VkPhysicalDeviceAccelerationStructurePropertiesKHR accelProps{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR };
+
+	VkPhysicalDeviceProperties2 deviceProps2 { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
+	deviceProps2.pNext = &rtPipelineProps;
+	rtPipelineProps.pNext = &accelProps;
+
+	vkGetPhysicalDeviceProperties2(_physDevice, &deviceProps2);
+
+
+	_rtProperties.shaderGroupHandleAlignment = rtPipelineProps.shaderGroupHandleAlignment;
+	_rtProperties.shaderGroupBaseAlignment = rtPipelineProps.shaderGroupBaseAlignment;
+	_rtProperties.shaderGroupHandleSize = rtPipelineProps.shaderGroupHandleSize;
+}
+
 void VulkanDevice::CreateLogicalDevice()
 {
 	constexpr VkQueueFlags generalQueueFlags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT;
@@ -308,6 +328,7 @@ void VulkanDevice::CreateLogicalDevice()
 	volkLoadDevice(_device);
 
 	QueryAnisotropyLevel();
+	QueryRTProperties();
 
 
 	// Adding all the queues

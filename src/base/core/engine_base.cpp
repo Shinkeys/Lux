@@ -15,7 +15,7 @@ EngineBase::EngineBase(VulkanBase& vulkanBase) : _vulkanBase{ vulkanBase }
 	_bufferManager       = std::make_unique<BufferManager>(_vulkanBase);
 	_frameManager        = std::make_unique<FrameManager>(_vulkanBase);
 	_presentationManager = std::make_unique<PresentationManager>(_vulkanBase);
-	_rayTracingManager   = std::make_unique<RayTracingManager>(_vulkanBase);
+	_rayTracingManager   = std::make_unique<RayTracingManager>(_vulkanBase, *_bufferManager);
 }
 
 EngineBase::~EngineBase()
