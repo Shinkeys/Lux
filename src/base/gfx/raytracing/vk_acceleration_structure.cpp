@@ -23,10 +23,13 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	triangles.vertexData.deviceAddress = blasSpec.vertexAddress;
 	triangles.vertexStride = blasSpec.vertexStride;
 	triangles.maxVertex = blasSpec.verticesCount - 1;
+	triangles.transformData.deviceAddress = 0;
+
 
 
 	triangles.indexType = VK_INDEX_TYPE_UINT32;
 	triangles.indexData.deviceAddress = blasSpec.indexAddress;
+
 
 
 	// Identify above data as containing triangles
@@ -36,7 +39,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	geometry.geometry.triangles = triangles;
 
 
-	u32 maxPrimitiveCount = blasSpec.indicesCount / 3;
+	const u32 maxPrimitiveCount = blasSpec.indicesCount / 3;
 
 	// build BLAS itself
 	VkAccelerationStructureBuildRangeInfoKHR rangeInfo{};
@@ -48,6 +51,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	VkAccelerationStructureBuildGeometryInfoKHR buildAS{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
 	buildAS.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
 	buildAS.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	buildAS.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 	buildAS.geometryCount = 1;
 	buildAS.pGeometries = &geometry;
 
@@ -55,16 +59,6 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	VkAccelerationStructureBuildSizesInfoKHR buildSizes{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
 	vkGetAccelerationStructureBuildSizesKHR(deviceObj.GetDevice(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 		&buildAS, &maxPrimitiveCount, &buildSizes);
-
-	// Create buffer
-	BufferSpecification spec{};
-	spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::SHADER_DEVICE_ADDRESS;
-	spec.size = buildSizes.buildScratchSize;
-	spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
-	spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
-	spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
-
-	VulkanBuffer scratchBuffer(spec, deviceObj, allocatorObj, frameObj);
 
 	// TO DO A WAY TO SHRINK BLAS AS IT IS NOW NOT THAT EFFICIENT IN TERMS OF MEMORY
 
@@ -91,8 +85,20 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 		VK_CHECK(vkCreateAccelerationStructureKHR(deviceObj.GetDevice(), &createInfo, nullptr, &_acceleration));
 	}
 
+	// Create buffer
+	BufferSpecification spec{};
+	spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::SHADER_DEVICE_ADDRESS;
+	spec.size = buildSizes.buildScratchSize;
+	spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+	spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+	spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+
+	VulkanBuffer scratchBuffer(spec, deviceObj, allocatorObj, frameObj);
+
 	buildAS.dstAccelerationStructure = _acceleration;
 	buildAS.scratchData.deviceAddress = scratchBuffer.GetBufferAddress();
+
+
 
 	// TO DO: one per submesh, one command BLAS per mesh.
 	const VkAccelerationStructureBuildRangeInfoKHR rangeInformations[]
@@ -110,9 +116,12 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	// Yes, separate cmd buffer for this as would be not that great to do a lot of stuff to build BLAS in the main one
 	cmdBuffer.BeginRecording();
 	vkCmdBuildAccelerationStructuresKHR(cmdBuffer.GetRawBuffer(), 1, &buildAS, rangeInfosPtrs);
+
 	cmdBuffer.EndRecording();
 	constexpr bool shouldWait = true;
+
 	cmdBuffer.Submit(shouldWait);
+
 }
 
 
@@ -128,7 +137,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 
 		// transform matrix from glm to vulkan
 		// VULKAN MATRICES ARE ROW MAJOR
-		glm::mat4 transposedMatrix = blasInstance.transform;
+		glm::mat4 transposedMatrix = glm::transpose(blasInstance.transform);
 		for (u32 row = 0; row < 3; ++row)
 		{
 			for (u32 col = 0; col < 4; ++col)
@@ -148,7 +157,6 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	}
 
 
-	assert(_acceleration == VK_NULL_HANDLE || tlasSpec.update && "Trying to recreate the same TLAS, consider to update it");
 	const u32 instanceCount = static_cast<u32>(tlasInstances.size());
 
 	// Create buffer
@@ -158,20 +166,13 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	instancesBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 	instancesBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 	instancesBuffSpec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
-
+	
 	VulkanBuffer instancesBuffer(instancesBuffSpec, deviceObj, allocatorObj, frameObj);
-
-	VulkanCommandBuffer cmdBuffer(deviceObj, frameObj.GetCommandPool(), VK_COMMAND_BUFFER_LEVEL_PRIMARY);
-
-
-	cmdBuffer.BeginRecording();
-	// Copy of the instance should be done before the accel struct creation
-	vkhelpers::InsertMemoryBarrier(cmdBuffer.GetRawBuffer(), VK_PIPELINE_STAGE_2_TRANSFER_BIT, VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 
-		VK_ACCESS_2_TRANSFER_WRITE_BIT, VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
-
+	instancesBuffer.UploadData(0, tlasInstances.data(), tlasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR));
 
 	VkAccelerationStructureGeometryInstancesDataKHR vkInstances{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR };
 	vkInstances.data.deviceAddress = instancesBuffer.GetBufferAddress();
+
 
 	VkAccelerationStructureGeometryKHR topASGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
 	topASGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
@@ -182,7 +183,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	buildAS.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 	buildAS.geometryCount = 1;
 	buildAS.pGeometries = &topASGeometry;
-	buildAS.mode = tlasSpec.update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	buildAS.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 	buildAS.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
 	buildAS.srcAccelerationStructure = VK_NULL_HANDLE;
 
@@ -223,11 +224,16 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	buildAS.scratchData.deviceAddress = buffer.GetBufferAddress();
 
 
-	// Build Offsets info: n instances
+	//// Build Offsets info: n instances
 	VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo{ instanceCount, 0, 0, 0 };
 	const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &buildOffsetInfo;
 
+	VulkanCommandBuffer cmdBuffer(deviceObj, frameObj.GetCommandPool(), VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+	cmdBuffer.BeginRecording();
+
 	vkCmdBuildAccelerationStructuresKHR(cmdBuffer.GetRawBuffer(), 1, &buildAS, &pBuildOffsetInfo);
+
 
 	cmdBuffer.EndRecording();
 	constexpr bool shouldWait = true;

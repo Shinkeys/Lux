@@ -13,10 +13,9 @@
 class Application
 {
 private:
+	VulkanBase _vulkanBackend;
 	Core _core;
 	Window _window;
-	VulkanBase _vulkanBackend;
-	
 	std::unique_ptr<EngineBase> _engineBase;
 	std::unique_ptr<SceneManager> _sceneManager;
 	void Render();

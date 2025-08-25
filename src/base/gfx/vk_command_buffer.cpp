@@ -59,7 +59,6 @@ void VulkanCommandBuffer::Submit(bool waitBeforeExecution)
 		vkWaitForFences(device, 1, &fence, VK_TRUE, UINT64_MAX);
 		vkDestroyFence(device, fence, nullptr);
 	}
-
 }
 
 void VulkanCommandBuffer::EndRecording()

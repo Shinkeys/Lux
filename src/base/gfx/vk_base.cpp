@@ -22,12 +22,12 @@ VulkanBase::~VulkanBase()
 {
 	vkDeviceWaitIdle(_deviceObject->GetDevice());
 
-	_allocatorObject->Cleanup();
 	_frameObject->Cleanup();
 	_presentationObject->Cleanup();
+	_allocatorObject->Cleanup();
 	_deviceObject->Cleanup();
 	_instanceObject->Cleanup();
 
-	VulkanDeleter::ExecuteDeletion();
+	VulkanDeleter::ExecuteDeletion(true);
 
 }

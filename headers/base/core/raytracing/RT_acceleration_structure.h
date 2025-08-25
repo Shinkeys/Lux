@@ -22,8 +22,6 @@ struct BLASInstances
 struct TLASSpecification
 {
 	std::vector<BLASInstances> instances;
-
-	bool update{ false };
 };
 
 

@@ -1,5 +1,7 @@
 #include "../../../headers/scene/RT_scene_renderer.h"
+#include "../../../headers/base/core/renderer.h"
 #include "../../../headers/base/core/engine_base.h"
+#include "../../../headers/base/core/frame_manager.h"
 #include "../../../headers/base/core/descriptor.h"
 #include "../../../headers/base/core/raytracing/RT_base.h"
 #include "../../../headers/base/core/raytracing/RT_acceleration_structure.h"
@@ -22,43 +24,33 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	};
 
 	BufferSpecification triangleBuffSpec{};
-	triangleBuffSpec.usage = BufferUsage::VERTEX_BUFFER | BufferUsage::SHADER_DEVICE_ADDRESS;
+	triangleBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::SHADER_DEVICE_ADDRESS;
 	triangleBuffSpec.size = triangleVertices.size() * sizeof(glm::vec3);
 	triangleBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 	triangleBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 
-	std::unique_ptr<Buffer> triangleBuffer = engineBase.GetBufferManager().CreateBuffer(triangleBuffSpec);
+	_triangleBuffer = engineBase.GetBufferManager().CreateBuffer(triangleBuffSpec);
+	_triangleBuffer->UploadData(0, triangleVertices.data(), triangleVertices.size() * sizeof(glm::vec3));
 
 	BufferSpecification triangleIndicesSpec{};
-	triangleIndicesSpec.usage = BufferUsage::INDEX_BUFFER | BufferUsage::SHADER_DEVICE_ADDRESS;
+	triangleIndicesSpec.usage =  BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::SHADER_DEVICE_ADDRESS;
 	triangleIndicesSpec.size = triangleIndices.size() * sizeof(u32);
 	triangleIndicesSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 	triangleIndicesSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 
-	std::unique_ptr<Buffer> triangleIndicesBuffer = engineBase.GetBufferManager().CreateBuffer(triangleIndicesSpec);
+	_triangleIndicesBuffer = engineBase.GetBufferManager().CreateBuffer(triangleIndicesSpec);
+	_triangleIndicesBuffer->UploadData(0, triangleIndices.data(), triangleIndices.size() * sizeof(u32));
+
 
 
 	BLASSpecification blasSpec{};
-	blasSpec.vertexAddress = triangleBuffer->GetBufferAddress();
-	blasSpec.indexAddress = triangleIndicesBuffer->GetBufferAddress();
+	blasSpec.vertexAddress = _triangleBuffer->GetBufferAddress();
+	blasSpec.indexAddress  = _triangleIndicesBuffer->GetBufferAddress();
 	blasSpec.verticesCount = triangleVertices.size();
-	blasSpec.indicesCount = triangleIndices.size();
-	blasSpec.vertexStride = sizeof(glm::vec3);
+	blasSpec.indicesCount  = triangleIndices.size();
+	blasSpec.vertexStride  = sizeof(glm::vec3);
 
-	std::unique_ptr<RTAccelerationStructure> blasTest = engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
-
-	TLASSpecification tlasSpec{};
-
-	BLASInstances blasInstance{};
-	blasInstance.blasAddress = blasTest->GetAccelerationAddress();
-	blasInstance.transform = glm::mat4(1.0f);
-	blasInstance.customIndex = 0;
-
-
-	tlasSpec.instances = { blasInstance };
-
-	std::unique_ptr<RTAccelerationStructure> tlasTest = engineBase.GetRayTracingManager().CreateTLAS(tlasSpec);
-
+	_sceneBLAS = engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
 
 	// Descriptor
 	// Create descriptor for every frame
@@ -135,16 +127,32 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	const u32 dataSize = handleCount * handleSize;
 	sbtSpec.handles.resize(dataSize);
 	rtManager.GetRTGroupHandles(_rtPipeline.get(), 0, handleCount, dataSize, sbtSpec.handles.data());
-	std::unique_ptr<ShaderBindingTable> testSBT = rtManager.CreateSBT(sbtSpec);
-
+	_sbt = rtManager.CreateSBT(sbtSpec);
 }
 
 void RTSceneRenderer::Update(const Camera& camera)
-{
+{/*
+	TLASSpecification tlasSpec{};
 
+	BLASInstances blasInstance{};
+	blasInstance.blasAddress = _sceneBLAS->GetAccelerationAddress();
+	blasInstance.transform = glm::mat4(1.0f);
+	blasInstance.customIndex = 0;
+
+
+	tlasSpec.instances = { blasInstance };
+
+	_sceneTLAS = _engineBase.GetRayTracingManager().CreateTLAS(tlasSpec);*/
 }
 
 void RTSceneRenderer::Draw()
 {
+	FrameManager& frameManager = _engineBase.GetFrameManager();
 
+	//RTDrawCommand rtDrawCommand{};
+	//rtDrawCommand.rtPipeline = _rtPipeline.get();
+	//rtDrawCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
+	//rtDrawCommand.sbt = _sbt.get();
+	// rtDrawCommand.pushC
+	//Renderer::RenderRayTracing(rtDrawCommand);
 }

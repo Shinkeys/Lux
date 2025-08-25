@@ -4,6 +4,7 @@
 #include "../../../headers/base/gfx/raytracing/vk_acceleration_structure.h"
 #include "../../../headers/base/core/raytracing/shader_binding_table.h"
 #include "../../../headers/base/core/raytracing/RT_pipeline.h"
+#include "../../../headers/util/rt_types.h"
 #include "../../../headers/base/core/buffer.h"
 
 RayTracingManager::RayTracingManager(VulkanBase& vulkanBase, BufferManager& buffManager) : _vulkanBase{vulkanBase}, _bufferManager{buffManager}
@@ -37,7 +38,7 @@ std::unique_ptr<RTAccelerationStructure>	 RayTracingManager::CreateTLAS(const TL
 }
 
 
-std::unique_ptr<ShaderBindingTable>          RayTracingManager::CreateSBT(const SBTSpecification& spec)      const
+std::unique_ptr<ShaderBindingTable>         RayTracingManager::CreateSBT(const  SBTSpecification& spec)      const
 {
 	return std::make_unique<ShaderBindingTable>(_vulkanBase.GetVulkanDeviceObj().GetRTDeviceProps(), spec, _bufferManager);
 }

@@ -1,6 +1,9 @@
 #include "../../../headers/base/gfx/vk_renderer.h"
 #include "../../../headers/util/gfx/vk_helpers.h"
 #include "../../../headers/base/core/pipeline_types.h"
+#include "../../../headers/base/core/raytracing/shader_binding_table.h"
+#include "../../../headers/base/core/raytracing/RT_pipeline.h"
+#include "../../../headers/base/gfx/raytracing/vk_rt_pipeline.h"
 
 VulkanRenderer::VulkanRenderer(VulkanBase& vulkanBase) : _vulkanBase{ vulkanBase }
 {
@@ -8,14 +11,14 @@ VulkanRenderer::VulkanRenderer(VulkanBase& vulkanBase) : _vulkanBase{ vulkanBase
 }
 
 
-void VulkanRenderer::BeginFrame()
+void VulkanRenderer::BeginFrame() const
 {
 	VulkanFrame& frameObject = _vulkanBase.GetFrameObj();
 	frameObject.BeginFrame();
 	frameObject.BeginCommandRecord();
 }
 
-void VulkanRenderer::EndFrame()
+void VulkanRenderer::EndFrame() const
 {
 	VulkanFrame& frameObject = _vulkanBase.GetFrameObj();
 	frameObject.EndCommandRecord();
@@ -23,17 +26,17 @@ void VulkanRenderer::EndFrame()
 	frameObject.EndFrame();
 }
 
-u32 VulkanRenderer::GetCurrentImageIndex()
+u32 VulkanRenderer::GetCurrentImageIndex() const
 {
 	return _vulkanBase.GetFrameObj().GetCurrentImageIndex();
 }
 
-u32 VulkanRenderer::GetCurrentFrameIndex()
+u32 VulkanRenderer::GetCurrentFrameIndex() const
 {
 	return _vulkanBase.GetFrameObj().GetCurrentFrameIndex();
 }
 
-void VulkanRenderer::ExecuteCurrentCommands()
+void VulkanRenderer::ExecuteCurrentCommands() const
 {
 	const auto graphicsQueue = _vulkanBase.GetVulkanDeviceObj().GetQueueByType(QueueType::VULKAN_GENERAL_QUEUE);
 
@@ -61,7 +64,7 @@ void VulkanRenderer::ExecuteCurrentCommands()
 	VK_CHECK(vkQueueSubmit(graphicsQueue.value(), 1, &submitInfo, _vulkanBase.GetFrameObj().GetFence()));
 }
 
-void VulkanRenderer::BeginRender(const std::vector<Image*>& attachments, glm::vec4 clearColor)
+void VulkanRenderer::BeginRender(const std::vector<Image*>& attachments, glm::vec4 clearColor) const
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 	const VulkanSwapchain& swapchainDesc = _vulkanBase.GetPresentationObj().GetSwapchainDesc();
@@ -160,7 +163,7 @@ void VulkanRenderer::BeginRender(const std::vector<Image*>& attachments, glm::ve
 	vkCmdBeginRendering(cmdBuffer, &renderingInfo);
 }
 
-void VulkanRenderer::RenderMesh(const DrawCommand& drawCommand)
+void VulkanRenderer::RenderMesh(const DrawCommand& drawCommand) const
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
@@ -191,7 +194,7 @@ void VulkanRenderer::RenderMesh(const DrawCommand& drawCommand)
 }
 
 // WOULD FLUSH THIS STRUCTURE
-void VulkanRenderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
+void VulkanRenderer::ExecuteBarriers(PipelineBarrierStorage& barriers) const
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
@@ -272,7 +275,7 @@ void VulkanRenderer::ExecuteBarriers(PipelineBarrierStorage& barriers)
 }
 
 
-void VulkanRenderer::DispatchCompute(const DispatchCommand& dispatchCommand)
+void VulkanRenderer::DispatchCompute(const DispatchCommand& dispatchCommand) const
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
@@ -294,14 +297,14 @@ void VulkanRenderer::DispatchCompute(const DispatchCommand& dispatchCommand)
 		delete[] dispatchCommand.pushConstants.data;
 }
 
-void VulkanRenderer::EndRender()
+void VulkanRenderer::EndRender() const
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
 	vkCmdEndRendering(cmdBuffer);
 }
 
-void VulkanRenderer::RenderQuad(const DrawCommand& drawCommand)
+void VulkanRenderer::RenderQuad(const DrawCommand& drawCommand) const 
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
@@ -324,7 +327,7 @@ void VulkanRenderer::RenderQuad(const DrawCommand& drawCommand)
 	}
 }
 
-void VulkanRenderer::RenderIndirect(const RenderIndirectCountCommand& command)
+void VulkanRenderer::RenderIndirect(const RenderIndirectCountCommand& command) const
 {
 	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
 
@@ -358,6 +361,49 @@ void VulkanRenderer::RenderIndirect(const RenderIndirectCountCommand& command)
 	if (command.pushConstants.data)
 	{
 		delete[] command.pushConstants.data;
+	}
+}
+
+
+void VulkanRenderer::RenderRayTracing(const RTDrawCommand& drawCommand) const
+{
+	VkCommandBuffer cmdBuffer = _vulkanBase.GetFrameObj().GetCommandBuffer();
+
+	VulkanRTPipeline* rawPipeline = static_cast<VulkanRTPipeline*>(drawCommand.rtPipeline);
+	VulkanDescriptor* rawDescriptorSet = static_cast<VulkanDescriptor*>(drawCommand.descriptor);
+	
+	assert(rawPipeline && rawDescriptorSet &&
+		"After trying to cast from base to derived object VulkanPipeline or VulkanDescriptor is null in RenderRayTracing()");
+	
+
+	VkDescriptorSet descriptor = rawDescriptorSet->GetRawSet();
+	
+	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, rawPipeline->GetRawPipeline());
+	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, rawPipeline->GetRawLayout(), 0, 1, &descriptor, 0, nullptr);
+	
+	if (drawCommand.pushConstants.data)
+	{
+		vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR, 0,
+			drawCommand.pushConstants.size, drawCommand.pushConstants.data);
+	}
+
+	SBTRegion raygenTable = drawCommand.sbt->GetRaygenTable();
+	SBTRegion missTable = drawCommand.sbt->GetMissTable();
+	SBTRegion closestTable = drawCommand.sbt->GetClosestTable();
+
+	VkStridedDeviceAddressRegionKHR raygenSBT = { raygenTable.address, raygenTable.stride, raygenTable.size };
+	VkStridedDeviceAddressRegionKHR missSBT = { missTable.address, missTable.stride, missTable.size };
+	VkStridedDeviceAddressRegionKHR hitSBT = { closestTable.address, closestTable.stride, closestTable.size };
+	VkStridedDeviceAddressRegionKHR callableSBT = {}; // Empty(don't use call shaders as for now)
+
+	VkExtent2D screenExt = _vulkanBase.GetPresentationObj().GetSwapchainDesc().extent;
+
+	vkCmdTraceRaysKHR(cmdBuffer, &raygenSBT, &missSBT, &hitSBT, &callableSBT, screenExt.width, screenExt.height, 1);
+
+
+	if (drawCommand.pushConstants.data)
+	{
+		delete[] drawCommand.pushConstants.data;
 	}
 }
 

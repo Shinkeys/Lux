@@ -271,7 +271,6 @@ void VulkanDevice::CreateLogicalDevice()
 		qCreateInfos.push_back(qCreateInfo);
 	}
 
-
 	// Ray tracing
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
 	accelerationFeature.accelerationStructure = VK_TRUE;
@@ -279,6 +278,7 @@ void VulkanDevice::CreateLogicalDevice()
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
 	rtPipelineFeature.pNext = &accelerationFeature;
 	rtPipelineFeature.rayTracingPipeline = VK_TRUE;
+
 
 	VkPhysicalDeviceVulkan12Features vulkan12Features =
 	{

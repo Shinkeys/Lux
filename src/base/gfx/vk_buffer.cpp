@@ -101,6 +101,11 @@ void  VulkanBuffer::UploadData(u64 offset, const void* newData, u64 size)
 		copyRegion.size = size;
 
 		vkCmdCopyBuffer(_frameObj.GetCommandBuffer(), stagingBuff, _buffer, 1, &copyRegion);
+
+		VmaAllocator allocator = _allocatorObj.GetAllocatorHandle();
+		VulkanDeleter::SubmitObjectDesctruction([allocator, stagingBuff, stagingAlloc]() {
+			vmaDestroyBuffer(allocator, stagingBuff, stagingAlloc);
+			});
 	}
 }
 

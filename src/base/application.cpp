@@ -26,7 +26,6 @@ void Application::Run()
 
 	AssetManager::Initialize();
 
-	_sceneManager = std::make_unique<SceneManager>(*_engineBase, _window);
 
 	Renderer::Initialize(_vulkanBackend);
 
@@ -48,6 +47,11 @@ void Application::Run()
 
 void Application::Render()
 {
+
+	// Just to not create a command buffer for vertices buffer creation
+	if (_sceneManager == nullptr)
+		_sceneManager = std::make_unique<SceneManager>(*_engineBase, _window);
+
 	// Call every render method here
 	_core.Render();
 	_sceneManager->Update();

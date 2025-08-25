@@ -58,6 +58,11 @@ void Renderer::RenderQuad(const DrawCommand& drawCommand)
 	_renderAPI->RenderQuad(drawCommand);
 }
 
+void Renderer::RenderRayTracing(const RTDrawCommand& drawCommand)
+{
+	_renderAPI->RenderRayTracing(drawCommand);
+}
+
 u32 Renderer::GetCurrentImageIndex()
 {
 	return _renderAPI->GetCurrentImageIndex();

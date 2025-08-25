@@ -42,6 +42,15 @@ struct DrawCommand
 	u32 indexCount{ 0 };
 };
 
+class ShaderBindingTable;
+struct RTDrawCommand
+{
+	RTPipeline* rtPipeline{ nullptr };
+	Descriptor* descriptor{ nullptr };
+	ShaderBindingTable* sbt{ nullptr };
+	PushConsts pushConstants{};
+};
+
 
 struct DispatchCommand
 {
@@ -58,19 +67,21 @@ class RendererAPI
 private:
 
 public:
-	virtual void BeginFrame() = 0;
-	virtual void EndFrame() = 0;
-	virtual void BeginRender(const std::vector<Image*>& attachments, glm::vec4 clearColor) = 0; // to do;
-	virtual void EndRender() = 0;
-	virtual void ExecuteCurrentCommands() = 0;
-	virtual void RenderMesh(const DrawCommand& drawCommand) = 0;
-	virtual void RenderQuad(const DrawCommand& drawCommand) = 0;
-	virtual void RenderIndirect(const RenderIndirectCountCommand& command) = 0;
-	virtual void ExecuteBarriers(PipelineBarrierStorage& barriers) = 0;
-	virtual void DispatchCompute(const DispatchCommand& dispatchCommand) = 0;
+	virtual void BeginFrame()																	const = 0;
+	virtual void EndFrame()																		const = 0;
+	virtual void BeginRender(const std::vector<Image*>& attachments, glm::vec4 clearColor)      const = 0; // to do;
+	virtual void EndRender()																	const = 0;
+	virtual void ExecuteCurrentCommands()														const = 0;
+	virtual void RenderMesh(const DrawCommand& drawCommand)										const = 0;
+	virtual void RenderQuad(const DrawCommand& drawCommand)										const = 0;
+	virtual void RenderIndirect(const RenderIndirectCountCommand& command)						const = 0;
+	virtual void ExecuteBarriers(PipelineBarrierStorage& barriers)								const = 0;
+	virtual void DispatchCompute(const DispatchCommand& dispatchCommand)						const = 0;
 
-	virtual u32 GetCurrentImageIndex() = 0;
-	virtual u32 GetCurrentFrameIndex() = 0;
+	virtual void RenderRayTracing(const RTDrawCommand& drawCommand)								const = 0;
+
+	virtual u32 GetCurrentImageIndex()															const = 0;
+	virtual u32 GetCurrentFrameIndex()															const = 0;
 
 	virtual ~RendererAPI() = default;
 

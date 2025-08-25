@@ -24,7 +24,7 @@ public:
 
 	std::unique_ptr<RTAccelerationStructure>	 CreateBLAS(const BLASSpecification& spec)	 const;
 	std::unique_ptr<RTAccelerationStructure>	 CreateTLAS(const TLASSpecification& spec)	 const;
-	std::unique_ptr<ShaderBindingTable>          CreateSBT(const SBTSpecification& spec)     const;
+	std::unique_ptr<ShaderBindingTable>          CreateSBT(const  SBTSpecification& spec)    const;
 
 	void GetRTGroupHandles(RTPipeline* rtPipeline, u32 firstGroup, u32 groupCount, u32 dataSize, void* outData)  const;
 

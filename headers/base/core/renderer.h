@@ -29,6 +29,9 @@ public:
 	static void ExecuteBarriers(PipelineBarrierStorage& barriers);
 	static void DispatchCompute(const DispatchCommand& dispatchCommand);
 
+	static void RenderRayTracing(const RTDrawCommand& drawCommand);
+
+
 	static u32 GetCurrentImageIndex();
 	static u32 GetCurrentFrameIndex();
 
