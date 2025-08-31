@@ -13,10 +13,8 @@ class VulkanAccelerationStructure : public RTAccelerationStructure
 private:
 	VulkanDevice& _deviceObj;
 
-
 	VkAccelerationStructureKHR _acceleration{ VK_NULL_HANDLE };
-
-	std::unique_ptr<Buffer> _asBuffer{ nullptr };	
+	std::unique_ptr<Buffer> _asBuffer{ nullptr };
 
 	
 public:

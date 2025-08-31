@@ -29,7 +29,6 @@ private:
 	VmaAllocation _allocation{ nullptr };
 
 	void* _mappedData{ nullptr };
-
 public:
 	u64 GetBufferAddress() const override;
 

@@ -32,6 +32,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 
 
 
+
 	// Identify above data as containing triangles
 	VkAccelerationStructureGeometryKHR geometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
 	geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
@@ -71,6 +72,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 		accelBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 		accelBuffSpec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
 
+
 		_asBuffer = std::make_unique<VulkanBuffer>(accelBuffSpec, deviceObj, allocatorObj, frameObj);
 
 		VulkanBuffer* asBuffRaw = static_cast<VulkanBuffer*>(_asBuffer.get());
@@ -79,7 +81,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 		createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
 		createInfo.size = buildSizes.accelerationStructureSize;
 		createInfo.buffer = asBuffRaw->GetRawBuffer();
-
+		createInfo.offset = 0;
 
 		// Just allocates it basically, now need to fill it
 		VK_CHECK(vkCreateAccelerationStructureKHR(deviceObj.GetDevice(), &createInfo, nullptr, &_acceleration));
@@ -127,25 +129,26 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 
 
 VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj, VulkanFrame& frameObj,
-	VulkanAllocator& allocatorObj, const TLASSpecification& tlasSpec) : _deviceObj{deviceObj}
+	VulkanAllocator& allocatorObj, const TLASSpecification& tlasSpec) : _deviceObj{ deviceObj }
 {
 	std::vector<VkAccelerationStructureInstanceKHR> tlasInstances;
-	
+
 	for (const auto& blasInstance : tlasSpec.instances)
 	{
 		VkAccelerationStructureInstanceKHR instance{};
 
 		// transform matrix from glm to vulkan
 		// VULKAN MATRICES ARE ROW MAJOR
-		glm::mat4 transposedMatrix = glm::transpose(blasInstance.transform);
+		VkTransformMatrixKHR matrix{};
 		for (u32 row = 0; row < 3; ++row)
 		{
 			for (u32 col = 0; col < 4; ++col)
 			{
-				instance.transform.matrix[row][col] = transposedMatrix[row][col];
+				matrix.matrix[row][col] = blasInstance.transform[col][row];
 			}
 		}
 
+		instance.transform = matrix;
 		instance.instanceCustomIndex = blasInstance.customIndex;
 		instance.accelerationStructureReference = blasInstance.blasAddress;
 		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR; // disable culling, otherwise would have a perf. penalty
@@ -164,20 +167,23 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	instancesBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::SHADER_DEVICE_ADDRESS;
 	instancesBuffSpec.size = tlasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 	instancesBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
-	instancesBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
-	instancesBuffSpec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
-	
+	instancesBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;                     // Rework staging dealloc
+	instancesBuffSpec.sharingMode = SharingMode::SHARING_EXCLUSIVE;					 // Rework staging dealloc
+	instancesBuffSpec.allocCreate = AllocationCreate::HOST_ACCESS_SEQUENTIAL_WRITE;	 // Rework staging dealloc
+
 	VulkanBuffer instancesBuffer(instancesBuffSpec, deviceObj, allocatorObj, frameObj);
 	instancesBuffer.UploadData(0, tlasInstances.data(), tlasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR));
 
 	VkAccelerationStructureGeometryInstancesDataKHR vkInstances{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR };
 	vkInstances.data.deviceAddress = instancesBuffer.GetBufferAddress();
+	vkInstances.arrayOfPointers = VK_FALSE;
 
 
 	VkAccelerationStructureGeometryKHR topASGeometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
 	topASGeometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
 	topASGeometry.geometry.instances = vkInstances;
-	
+	topASGeometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+
 
 	VkAccelerationStructureBuildGeometryInfoKHR buildAS{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR };
 	buildAS.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
@@ -189,7 +195,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 
 	VkAccelerationStructureBuildSizesInfoKHR sizeInfo{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR };
 	vkGetAccelerationStructureBuildSizesKHR(deviceObj.GetDevice(), VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &buildAS, &instanceCount, &sizeInfo);
-	
+
 	BufferSpecification accelBuffSpec{};
 	accelBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_STORAGE | BufferUsage::SHADER_DEVICE_ADDRESS;
 	accelBuffSpec.size = sizeInfo.accelerationStructureSize;
@@ -206,6 +212,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	createInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
 	createInfo.size = sizeInfo.accelerationStructureSize;
 	createInfo.buffer = asBuffRaw->GetRawBuffer();
+	createInfo.offset = 0;
 	// Just allocates it basically, now need to fill it
 	VK_CHECK(vkCreateAccelerationStructureKHR(deviceObj.GetDevice(), &createInfo, nullptr, &_acceleration));
 
@@ -217,23 +224,27 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	scratchBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 	scratchBuffSpec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
 
-	VulkanBuffer buffer(scratchBuffSpec, deviceObj, allocatorObj, frameObj);
+	VulkanBuffer scratchBuffer(scratchBuffSpec, deviceObj, allocatorObj, frameObj);
 
 	buildAS.srcAccelerationStructure = VK_NULL_HANDLE;
 	buildAS.dstAccelerationStructure = _acceleration;
-	buildAS.scratchData.deviceAddress = buffer.GetBufferAddress();
+	buildAS.scratchData.deviceAddress = scratchBuffer.GetBufferAddress();
 
 
 	//// Build Offsets info: n instances
-	VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo{ instanceCount, 0, 0, 0 };
-	const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo = &buildOffsetInfo;
+	VkAccelerationStructureBuildRangeInfoKHR        buildOffsetInfo;
+	buildOffsetInfo.firstVertex = 0;
+	buildOffsetInfo.primitiveCount = instanceCount;
+	buildOffsetInfo.primitiveOffset = 0;
+	buildOffsetInfo.transformOffset = 0;
+
+	const VkAccelerationStructureBuildRangeInfoKHR* pBuildOffsetInfo[] = { &buildOffsetInfo };
 
 	VulkanCommandBuffer cmdBuffer(deviceObj, frameObj.GetCommandPool(), VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
 	cmdBuffer.BeginRecording();
 
-	vkCmdBuildAccelerationStructuresKHR(cmdBuffer.GetRawBuffer(), 1, &buildAS, &pBuildOffsetInfo);
-
+	vkCmdBuildAccelerationStructuresKHR(cmdBuffer.GetRawBuffer(), 1, &buildAS, pBuildOffsetInfo);
 
 	cmdBuffer.EndRecording();
 	constexpr bool shouldWait = true;
@@ -256,5 +267,5 @@ VulkanAccelerationStructure::~VulkanAccelerationStructure()
 
 	VulkanDeleter::SubmitObjectDesctruction([device, accel]() {
 		vkDestroyAccelerationStructureKHR(device, accel, nullptr);
-	});
+		});
 }

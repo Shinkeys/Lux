@@ -124,8 +124,8 @@ VulkanBuffer::~VulkanBuffer()
 
 	if (_mappedData != nullptr)
 		vmaUnmapMemory(allocator, _allocation);
-
-	VulkanDeleter::SubmitObjectDesctruction([allocator, buffer, allocation](){
+	
+	VulkanDeleter::SubmitObjectDesctruction([allocator, buffer, allocation]() {
 		vmaDestroyBuffer(allocator, buffer, allocation);
 	});
 }

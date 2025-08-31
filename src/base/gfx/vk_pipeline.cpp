@@ -451,6 +451,13 @@ namespace vkconversions
 		if (flags & AccessFlag::MEMORY_WRITE)
 			result |= VK_ACCESS_2_MEMORY_WRITE_BIT;
 
+		if (flags & AccessFlag::ACCELERATION_READ)
+			result |= VK_ACCESS_2_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+
+		if (flags & AccessFlag::ACCELERATION_WRITE)
+			result |= VK_ACCESS_2_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+
+
 		return result;
 	}
 
@@ -489,9 +496,12 @@ namespace vkconversions
 		if (stages & PipelineStage::BOTTOM_OF_PIPE)
 			result |= VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
 
+		if (stages & PipelineStage::ACCELERATION_BUILD)
+			result |= VK_PIPELINE_STAGE_2_ACCELERATION_STRUCTURE_BUILD_BIT_KHR;
+
 		if (result == 0)
 			assert(false && "PipelineStage2 conversion is not implemented for Vulkan");
 
 		return result;
 	}
-}
+} 

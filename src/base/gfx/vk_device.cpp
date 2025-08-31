@@ -270,9 +270,12 @@ void VulkanDevice::CreateLogicalDevice()
 
 		qCreateInfos.push_back(qCreateInfo);
 	}
-
+	
 	// Ray tracing
+	VkPhysicalDeviceRayTracingValidationFeaturesNV validationFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV };
+	validationFeatures.rayTracingValidation = VK_TRUE;
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+	accelerationFeature.pNext = &validationFeatures;
 	accelerationFeature.accelerationStructure = VK_TRUE;
 	accelerationFeature.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE; // to remove eventually
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };

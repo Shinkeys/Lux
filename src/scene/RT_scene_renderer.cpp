@@ -15,12 +15,16 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	{
 		{1.0f,  -1.0f, 0.0f},
 		{0.0f,  1.0f,  0.0f},
+		{-1.0f, -1.0f, 0.0f},
+
+		{ 1.0f,  -1.0f, 0.0f },
+		{0.0f,  1.0f,  0.0f},
 		{-1.0f, -1.0f, 0.0f}
 	};
 
 	std::vector<u32> triangleIndices
 	{
-		0, 1, 2
+		0, 1, 2, 3, 4, 5
 	};
 
 	BufferSpecification triangleBuffSpec{};
@@ -50,7 +54,9 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	blasSpec.indicesCount  = triangleIndices.size();
 	blasSpec.vertexStride  = sizeof(glm::vec3);
 
+
 	_sceneBLAS = engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
+
 
 	// Descriptor
 	// Create descriptor for every frame
@@ -128,10 +134,22 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	sbtSpec.handles.resize(dataSize);
 	rtManager.GetRTGroupHandles(_rtPipeline.get(), 0, handleCount, dataSize, sbtSpec.handles.data());
 	_sbt = rtManager.CreateSBT(sbtSpec);
+
+
+	/*TLASSpecification tlasSpec{};
+
+	BLASInstances blasInstance{};
+	blasInstance.blasAddress = _sceneBLAS->GetAccelerationAddress();
+	blasInstance.transform = glm::mat4(1.0f);
+	blasInstance.customIndex = 0;
+
+	tlasSpec.instances = { blasInstance };
+
+	_sceneTLAS = _engineBase.GetRayTracingManager().CreateTLAS(tlasSpec);*/
 }
 
 void RTSceneRenderer::Update(const Camera& camera)
-{/*
+{
 	TLASSpecification tlasSpec{};
 
 	BLASInstances blasInstance{};
@@ -139,15 +157,19 @@ void RTSceneRenderer::Update(const Camera& camera)
 	blasInstance.transform = glm::mat4(1.0f);
 	blasInstance.customIndex = 0;
 
-
 	tlasSpec.instances = { blasInstance };
 
-	_sceneTLAS = _engineBase.GetRayTracingManager().CreateTLAS(tlasSpec);*/
+	_sceneTLAS = _engineBase.GetRayTracingManager().CreateTLAS(tlasSpec);
+
 }
 
 void RTSceneRenderer::Draw()
 {
 	FrameManager& frameManager = _engineBase.GetFrameManager();
+
+
+	//_sceneDescriptorSets[frameManager.GetCurrentFrameIndex()]->Write(0, 0, _sceneTLAS.get());
+
 
 	//RTDrawCommand rtDrawCommand{};
 	//rtDrawCommand.rtPipeline = _rtPipeline.get();
