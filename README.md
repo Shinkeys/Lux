@@ -25,6 +25,7 @@ Provide tooling (scene editor, JSON-based scene storage) for content creation.
 [x] Clustered deferred rendering<br>
 [x] Camera<br>
 [x] GLTF model loader<br>
+[x] Scene rendering using draw indirect count
 
 # Building
 To build and run the project, first of all clone this repository using --recursive flag:<br>

@@ -50,6 +50,8 @@ public:
 	void WaitForFence();
 	void ResetFence();
 
+	void SubmitMainCommandBuffer();
+
 	void UpdateCurrentFrameIndex() { _currentFrame = (_currentFrame + 1) % FramesInFlight; }
 	u32 GetCurrentFrameIndex()							   const { return _currentFrame; }
 	u32 GetCurrentImageIndex()							   const { return _currentImage; }

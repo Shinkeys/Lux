@@ -112,6 +112,11 @@ void VulkanFrame::BeginFrame()
 	VkSemaphore semaphoreRenderFinished = GetRenderFinishedSemaphore();
 }
 
+void VulkanFrame::SubmitMainCommandBuffer()
+{
+
+}
+
 void VulkanFrame::EndFrame()
 {
 	VkSemaphore waitSemaphores[] =   { GetImageAvailableSemaphore() };

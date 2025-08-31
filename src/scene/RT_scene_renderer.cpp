@@ -32,6 +32,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	triangleBuffSpec.size = triangleVertices.size() * sizeof(glm::vec3);
 	triangleBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 	triangleBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+	triangleBuffSpec.allocCmdBuff = true;
 
 	_triangleBuffer = engineBase.GetBufferManager().CreateBuffer(triangleBuffSpec);
 	_triangleBuffer->UploadData(0, triangleVertices.data(), triangleVertices.size() * sizeof(glm::vec3));
@@ -41,6 +42,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	triangleIndicesSpec.size = triangleIndices.size() * sizeof(u32);
 	triangleIndicesSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 	triangleIndicesSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+	triangleIndicesSpec.allocCmdBuff = true;
 
 	_triangleIndicesBuffer = engineBase.GetBufferManager().CreateBuffer(triangleIndicesSpec);
 	_triangleIndicesBuffer->UploadData(0, triangleIndices.data(), triangleIndices.size() * sizeof(u32));

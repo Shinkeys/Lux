@@ -81,17 +81,19 @@ VkBool32 VulkanDevice::FamilySupportsPresentation(VkPhysicalDevice physDevice, u
 
 
 // To rework or remove
-bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const
+bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice)
 {
+	VkPhysicalDeviceRayTracingValidationFeaturesNV validationFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV };
 	VkPhysicalDeviceVulkan11Features queryVulkan11Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
 	VkPhysicalDeviceVulkan12Features queryVulkan12Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
 	VkPhysicalDeviceVulkan13Features queryVulkan13Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
 
+	validationFeatures.pNext = &queryVulkan11Features;
 	queryVulkan11Features.pNext = &queryVulkan12Features;
 	queryVulkan12Features.pNext = &queryVulkan13Features;
 
 	VkPhysicalDeviceFeatures2 features2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-	features2.pNext = &queryVulkan11Features;
+	features2.pNext = &validationFeatures;
 
 	vkGetPhysicalDeviceFeatures2(physDevice, &features2);
 	// Write required features here
@@ -121,6 +123,9 @@ bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const
 		return false;
 
 
+	if (validationFeatures.rayTracingValidation)
+		_supportsRTValidation = true;
+
 
 	return true;
 }
@@ -149,7 +154,7 @@ VkBool32 VulkanDevice::QueryExtensionsSupport(VkPhysicalDevice physDevice) const
 	return foundExtensions == static_cast<u32>(_requiredDeviceExtensions.size());
 }
 
-VkPhysicalDevice VulkanDevice::SelectAppropriatePhysDevice(std::vector<VkPhysicalDevice>& physDevices) const
+VkPhysicalDevice VulkanDevice::SelectAppropriatePhysDevice(std::vector<VkPhysicalDevice>& physDevices)
 {
 	VkPhysicalDevice preferred = 0;
 	VkPhysicalDevice fallback  = 0;
@@ -271,12 +276,20 @@ void VulkanDevice::CreateLogicalDevice()
 		qCreateInfos.push_back(qCreateInfo);
 	}
 	
-	// Ray tracing
-	VkPhysicalDeviceRayTracingValidationFeaturesNV validationFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV };
-	validationFeatures.rayTracingValidation = VK_TRUE;
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
-	accelerationFeature.pNext = &validationFeatures;
 	accelerationFeature.accelerationStructure = VK_TRUE;
+
+	// Works only in debug
+#ifdef KHRONOS_VALIDATION
+	if (_supportsRTValidation)
+	{
+		// Ray tracing
+		VkPhysicalDeviceRayTracingValidationFeaturesNV validationFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV };
+		validationFeatures.rayTracingValidation = VK_TRUE;
+		accelerationFeature.pNext = &validationFeatures;
+	}
+#endif
+		
 	accelerationFeature.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE; // to remove eventually
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
 	rtPipelineFeature.pNext = &accelerationFeature;

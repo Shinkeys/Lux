@@ -2,6 +2,7 @@
 #include "../../../headers/base/gfx/vk_allocator.h"
 #include "../../../headers/base/gfx/vk_device.h"
 #include "../../../headers/base/gfx/vk_deleter.h"
+#include "../../../headers/base/gfx/vk_command_buffer.h"
 
 
 // For volk compatibility 
@@ -62,7 +63,6 @@ VulkanBuffer& VulkanBuffer::operator=(VulkanBuffer&& other) noexcept
 	return *this;
 }
 
-
 void  VulkanBuffer::UploadData(u64 offset, const void* newData, u64 size)
 {
 	if (offset > _specification.size)
@@ -100,7 +100,20 @@ void  VulkanBuffer::UploadData(u64 offset, const void* newData, u64 size)
 		copyRegion.dstOffset = offset;
 		copyRegion.size = size;
 
-		vkCmdCopyBuffer(_frameObj.GetCommandBuffer(), stagingBuff, _buffer, 1, &copyRegion);
+		if (_specification.allocCmdBuff)
+		{
+			VulkanCommandBuffer cmdBuffer(_deviceObj, _frameObj.GetCommandPool(), VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+
+			cmdBuffer.BeginRecording();
+
+			vkCmdCopyBuffer(cmdBuffer.GetRawBuffer(), stagingBuff, _buffer, 1, &copyRegion);
+
+			cmdBuffer.EndRecording();
+			constexpr bool shouldWait = true;
+			cmdBuffer.Submit(shouldWait);
+		}
+		else
+			vkCmdCopyBuffer(_frameObj.GetCommandBuffer(), stagingBuff, _buffer, 1, &copyRegion);
 
 		VmaAllocator allocator = _allocatorObj.GetAllocatorHandle();
 		VulkanDeleter::SubmitObjectDesctruction([allocator, stagingBuff, stagingAlloc]() {

@@ -23,8 +23,10 @@ private:
 	float _maxAnisotropy{ 0.0f };
 	RTDeviceProperties _rtProperties;
 
+	bool _supportsRTValidation{ false };
+
 	// Physical device
-	VkPhysicalDevice SelectAppropriatePhysDevice(std::vector<VkPhysicalDevice>& physDevices) const;
+	VkPhysicalDevice SelectAppropriatePhysDevice(std::vector<VkPhysicalDevice>& physDevices);
 	void CreatePhysicalDevice();
 	VkBool32 FamilySupportsPresentation(VkPhysicalDevice physDevice, u32 familyIndex) const;
 	VkBool32 QueryExtensionsSupport(VkPhysicalDevice physDevice) const;
@@ -38,7 +40,7 @@ private:
 	};
 	std::optional<u32> GetPresentationFamilyIndex() const;
 
-	bool QueryPhysDeviceFeatures(VkPhysicalDevice physDevice) const;
+	bool QueryPhysDeviceFeatures(VkPhysicalDevice physDevice);
 	void QueryRTProperties();
 	void QueryAnisotropyLevel();
 

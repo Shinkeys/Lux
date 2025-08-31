@@ -169,7 +169,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	instancesBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 	instancesBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;                     // Rework staging dealloc
 	instancesBuffSpec.sharingMode = SharingMode::SHARING_EXCLUSIVE;					 // Rework staging dealloc
-	instancesBuffSpec.allocCreate = AllocationCreate::HOST_ACCESS_SEQUENTIAL_WRITE;	 // Rework staging dealloc
+	instancesBuffSpec.allocCmdBuff = true;
 
 	VulkanBuffer instancesBuffer(instancesBuffSpec, deviceObj, allocatorObj, frameObj);
 	instancesBuffer.UploadData(0, tlasInstances.data(), tlasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR));

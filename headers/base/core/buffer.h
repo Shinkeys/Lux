@@ -11,6 +11,8 @@ struct BufferSpecification
 	MemoryProperty memoryProp{ MemoryProperty::NONE };
 	AllocationCreate allocCreate{ AllocationCreate::NONE };
 
+	bool allocCmdBuff{ false };
+
 	size_t size{ 0 }; // bytes
 };
 
