@@ -93,16 +93,16 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 				continue;
 
 			// IMPORTANT
-			const size_t vertexOffset = meshVertex.size();
-			meshVertex.resize(vertexOffset + positionAccessor.count);
+			//const size_t vertexOffset = meshVertex.size();
+			meshVertex.resize(positionAccessor.count);
 
 		
 			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(asset, positionAccessor, [&](fastgltf::math::fvec3 pos, size_t index)
 				{
-					meshVertex[index + vertexOffset].position = glm::vec3(pos.x(), pos.y(), pos.z());
-					meshVertex[index + vertexOffset].normal = glm::vec3();    
-					meshVertex[index + vertexOffset].tangent = glm::vec3();   // left it empty in case it doesn't present
-					meshVertex[index + vertexOffset].UV = glm::vec2();
+					meshVertex[index].position = glm::vec3(pos.x(), pos.y(), pos.z());
+					meshVertex[index].normal = glm::vec3();    
+					meshVertex[index].tangent = glm::vec3();   // left it empty in case it doesn't present
+					meshVertex[index].UV = glm::vec2();
 				});
 
 			size_t baseColorTexCoordIdx = 0;
@@ -237,7 +237,7 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 					continue;
 
 				fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(asset, texCoordAccessor, [&](fastgltf::math::fvec2 uv, std::size_t index) {
-						meshVertex[index + vertexOffset].UV = glm::vec2(uv.x(), uv.y());
+						meshVertex[index].UV = glm::vec2(uv.x(), uv.y());
 					});
 			}
 
@@ -251,7 +251,7 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 
 			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(asset, normalAccesor, [&](fastgltf::math::fvec3 normal, size_t index)
 				{
-					meshVertex[index + vertexOffset].normal = glm::vec3(normal.x(), normal.y(), normal.z());
+					meshVertex[index].normal = glm::vec3(normal.x(), normal.y(), normal.z());
 				});
 
 			// Iterate for tangents
@@ -265,7 +265,7 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 
 			fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec4>(asset, tangentAccesor, [&](fastgltf::math::fvec4 tangent, size_t index)
 				{
-					meshVertex[index + vertexOffset].tangent = glm::vec3(tangent.x(), tangent.y(), tangent.z());
+					meshVertex[index].tangent = glm::vec3(tangent.x(), tangent.y(), tangent.z());
 				});
 
 	
@@ -276,21 +276,16 @@ bool ModelImporter::LoadMeshes(const fastgltf::Asset& asset, LoadedGLTF& gltfDat
 			std::vector<u32> tempIndices(indicesAccessor.count);
 
 			fastgltf::copyFromAccessor<u32>(asset, indicesAccessor, tempIndices.data());
-			for (u32& index : tempIndices)
+			/*for (u32& index : tempIndices)
 			{
 				index += static_cast<u32>(vertexOffset);
-			}
+			}*/
 			meshIndices.insert(meshIndices.end(), std::make_move_iterator(tempIndices.begin()), std::make_move_iterator(tempIndices.end()));
 
 			// increment current submesh index
 			++j;
 		}
 	}
-
-	//std::sort(gltfData.meshes.begin(), gltfData.meshes.end(), [](const LoadedMesh& fst, const LoadedMesh& scd)
-	//	{
-	//		return fst.alphaMode.type < scd.alphaMode.type;
-	//	});
 
 	return true;
 }

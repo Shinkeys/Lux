@@ -84,6 +84,7 @@ VkBool32 VulkanDevice::FamilySupportsPresentation(VkPhysicalDevice physDevice, u
 bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice)
 {
 	VkPhysicalDeviceRayTracingValidationFeaturesNV validationFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV };
+
 	VkPhysicalDeviceVulkan11Features queryVulkan11Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
 	VkPhysicalDeviceVulkan12Features queryVulkan12Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
 	VkPhysicalDeviceVulkan13Features queryVulkan13Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
@@ -96,6 +97,7 @@ bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice)
 	features2.pNext = &validationFeatures;
 
 	vkGetPhysicalDeviceFeatures2(physDevice, &features2);
+
 	// Write required features here
 	if (!queryVulkan13Features.dynamicRendering)
 		return false;

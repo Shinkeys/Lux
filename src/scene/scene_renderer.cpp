@@ -593,7 +593,6 @@ void SceneRenderer::ExecuteEntityCreateQueue()
 
 				for (auto submeshIt = submeshes->begin(); submeshIt != submeshes->end(); ++submeshIt)
 				{
-
 					const size_t vertexSize = submeshIt->vertexDesc.vertexCount * sizeof(Vertex);
 					const size_t indexSize = submeshIt->vertexDesc.indexCount   * sizeof(u32);
 					const size_t materialSize = submeshIt->materialDesc.materialsCount * sizeof(MaterialTexturesDesc);
@@ -603,8 +602,14 @@ void SceneRenderer::ExecuteEntityCreateQueue()
 					_meshDeviceBuffer.vertexBuffer->UploadData(_meshDeviceBuffer.currentVertexOffset * sizeof(Vertex),
 						submeshIt->vertexDesc.vertexPtr, vertexSize);
 
-					_meshDeviceBuffer.indexBuffer->UploadData(_meshDeviceBuffer.currentIndexOffset   * sizeof(u32),
-						submeshIt->vertexDesc.indicesPtr, indexSize);
+					const u32 vertexOffset = _meshDeviceBuffer.currentVertexOffset;
+					// Adjust indices for global buffer
+					std::vector<u32> adjustedIndices(submeshIt->vertexDesc.indexCount);
+					for (size_t i = 0; i < submeshIt->vertexDesc.indexCount; ++i)
+						adjustedIndices[i] = submeshIt->vertexDesc.indicesPtr[i] + vertexOffset;
+
+					_meshDeviceBuffer.indexBuffer->UploadData(_meshDeviceBuffer.currentIndexOffset * sizeof(u32),
+						adjustedIndices.data(), indexSize);
 
 
 					// Update common data buffer, it contains all the transformations, materials DATA
@@ -634,7 +639,7 @@ void SceneRenderer::ExecuteEntityCreateQueue()
 					{
 						// Store indirect draw command
 						_indirectBuffer.opaqueBuffer->UploadData(_indirectBuffer.currentOpaqueSize * sizeof(DrawIndexedIndirectCommand),
-							&drawCommand, sizeof(DrawCommand));
+							&drawCommand, sizeof(DrawIndexedIndirectCommand));
 
 						_indirectBuffer.currentOpaqueSize += 1;
 
@@ -655,7 +660,7 @@ void SceneRenderer::ExecuteEntityCreateQueue()
 					case AlphaMode::AlphaType::ALPHA_MASK:
 					{
 						_indirectBuffer.maskBuffer->UploadData(_indirectBuffer.currentMaskedSize * sizeof(DrawIndexedIndirectCommand),
-							&drawCommand, sizeof(DrawCommand));
+							&drawCommand, sizeof(DrawIndexedIndirectCommand));
 
 						_indirectBuffer.currentMaskedSize += 1;
 

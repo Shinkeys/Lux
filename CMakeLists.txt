@@ -81,8 +81,13 @@ target_compile_definitions(Lux PRIVATE
 # Copy SDL .dll into root folder
 add_custom_command(TARGET Lux POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "$<TARGET_FILE:SDL3::SDL3>"
-    "$<TARGET_FILE_DIR:Lux>"
+        "$<TARGET_FILE:SDL3::SDL3>"
+        "$<TARGET_FILE_DIR:Lux>"
+
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SLANG_BINARY_DIR}/slang.dll" "$<TARGET_FILE_DIR:Lux>"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SLANG_BINARY_DIR}/slang-glslang.dll" "$<TARGET_FILE_DIR:Lux>"
 )
 
 add_custom_target(Shaders DEPENDS ${SLANG_BINARY_DIR})

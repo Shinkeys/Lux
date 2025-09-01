@@ -29,14 +29,14 @@ function(download_slang)
     string(REGEX REPLACE "^v" "" VERSION_NUM "${VERSION}")
 
     if(WIN32)
-        set(ARCHIVE "slang-${VERSION_NUM}-windows-x86_64.zip")
+        set(ARCHIVE "slang-2025.12.1-windows-x86_64.zip")
     elseif(UNIX AND NOT APPLE)
-        set(ARCHIVE "slang-${VERSION_NUM}-linux-x86_64.zip")
+        set(ARCHIVE "slang-2025.12.1-linux-x86_64.zip")
     else()
         message(FATAL_ERROR "Unsupported platform")
     endif()
 
-    set(URL "https://github.com/shader-slang/slang/releases/download/${VERSION}/${ARCHIVE}")
+    set(URL "https://github.com/shader-slang/slang/releases/download/v2025.12.1/${ARCHIVE}")
     set(ZIP_PATH "${TEMP_DIR}/${ARCHIVE}")
 
     message(STATUS "Downloading Slang from ${URL}")
