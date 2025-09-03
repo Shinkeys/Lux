@@ -31,7 +31,9 @@ enum class AccessFlag : u32
 	MEMORY_READ = 1 << 14, 
 	MEMORY_WRITE = 1 << 15, 
 	ACCELERATION_READ = 1 << 16,
-	ACCELERATION_WRITE = 1 << 17
+	ACCELERATION_WRITE = 1 << 17,
+	STORAGE_READ = 1 << 18,
+	STORAGE_WRITE = 1 << 19
 };
 
 inline bool operator&(AccessFlag fst, AccessFlag scd)
@@ -57,7 +59,8 @@ enum class PipelineStage : u32
 	COMPUTE_SHADER = 1 << 7,
 	ALL_TRANSFER = 1 << 8,
 	BOTTOM_OF_PIPE = 1 << 9,
-	ACCELERATION_BUILD = 1 << 10  
+	ACCELERATION_BUILD = 1 << 10,  
+	RAY_TRACING_SHADER = 1 << 11
 };
 
 inline bool operator&(PipelineStage fst, PipelineStage scd)

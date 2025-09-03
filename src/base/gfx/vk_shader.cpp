@@ -39,12 +39,12 @@ VulkanShader::VulkanShader(VulkanDevice& deviceObj) : _deviceObj{deviceObj}
 
 
     targetDesc.format  = SLANG_SPIRV;
-    targetDesc.profile = _globalSession->findProfile("spirv_1_6");
+    targetDesc.profile = _globalSession->findProfile("sm_6_8");
 	targetDesc.flags = SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
 	targetDesc.forceGLSLScalarBufferLayout = true;
 
 
-    sessionDesc.targets = &targetDesc;
+    sessionDesc.targets = &targetDesc;	
     sessionDesc.targetCount = 1;
     sessionDesc.compilerOptionEntryCount = 0;
 	sessionDesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR; // glsl like
