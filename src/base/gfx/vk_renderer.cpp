@@ -315,11 +315,7 @@ void VulkanRenderer::RenderQuad(const DrawCommand& drawCommand) const
 
 	VkDescriptorSet descriptor = rawDescriptorSet->GetRawSet();
 
-	if (drawCommand.pushConstants.size > 0)
-	{
-		vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
-	}
-
+	vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawPipeline());
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawLayout(), 0, 1, &descriptor, 0, nullptr);
 

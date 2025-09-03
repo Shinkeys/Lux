@@ -5,8 +5,6 @@
 class EngineBase;
 class Descriptor;
 class Buffer;
-class Pipeline;
-class Image;
 class RTPipeline;
 class RTAccelerationStructure;
 class ShaderBindingTable;
@@ -19,7 +17,6 @@ private:
 	std::vector<std::unique_ptr<Descriptor>> _sceneDescriptorSets;
 	 
 	std::unique_ptr<RTPipeline> _rtPipeline;
-	std::unique_ptr<Pipeline> _rasterPipeline;
 
 	std::unique_ptr<ShaderBindingTable> _sbt;
 
@@ -28,8 +25,6 @@ private:
 
 	std::unique_ptr<Buffer> _triangleBuffer;
 	std::unique_ptr<Buffer> _triangleIndicesBuffer;
-
-	std::unique_ptr<Image> _outputTarget;
 public:
 	void Update(const Camera& camera) override;
 	void Draw() override;

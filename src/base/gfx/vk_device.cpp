@@ -83,15 +83,13 @@ VkBool32 VulkanDevice::FamilySupportsPresentation(VkPhysicalDevice physDevice, u
 // To rework or remove
 bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice)
 {
-	VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeature = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR };
 	VkPhysicalDeviceRayTracingValidationFeaturesNV validationFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV };
-	validationFeatures.pNext = &positionFetchFeature;
 
 	VkPhysicalDeviceVulkan11Features queryVulkan11Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
 	VkPhysicalDeviceVulkan12Features queryVulkan12Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES };
 	VkPhysicalDeviceVulkan13Features queryVulkan13Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES };
 
-	positionFetchFeature.pNext = &queryVulkan11Features;
+	validationFeatures.pNext = &queryVulkan11Features;
 	queryVulkan11Features.pNext = &queryVulkan12Features;
 	queryVulkan12Features.pNext = &queryVulkan13Features;
 
@@ -124,9 +122,6 @@ bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice)
 		!queryVulkan12Features.descriptorBindingPartiallyBound ||
 		!queryVulkan12Features.descriptorBindingStorageImageUpdateAfterBind ||
 		!queryVulkan12Features.runtimeDescriptorArray)
-		return false;
-
-	if (!positionFetchFeature.rayTracingPositionFetch)
 		return false;
 
 
@@ -282,12 +277,10 @@ void VulkanDevice::CreateLogicalDevice()
 
 		qCreateInfos.push_back(qCreateInfo);
 	}
-
-	VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeature = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR };
-	positionFetchFeature.rayTracingPositionFetch = VK_TRUE;
-
+	
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
 	accelerationFeature.accelerationStructure = VK_TRUE;
+
 	// Works only in debug
 #ifdef KHRONOS_VALIDATION
 	if (_supportsRTValidation)
@@ -295,11 +288,10 @@ void VulkanDevice::CreateLogicalDevice()
 		// Ray tracing
 		VkPhysicalDeviceRayTracingValidationFeaturesNV validationFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV };
 		validationFeatures.rayTracingValidation = VK_TRUE;
-		positionFetchFeature.pNext = &validationFeatures;
+		accelerationFeature.pNext = &validationFeatures;
 	}
 #endif
-
-	accelerationFeature.pNext = &positionFetchFeature;
+		
 	accelerationFeature.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE; // to remove eventually
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
 	rtPipelineFeature.pNext = &accelerationFeature;

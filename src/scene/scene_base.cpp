@@ -33,8 +33,6 @@ void SceneBase::Initialize()
 	sponza.AddComponent<TransformComponent>(transform);
 	sponza.GetComponent<MeshComponent>()->folderName = "Sponza";
 
-
-
 	//_rendererInstance.SubmitEntityToDraw(sponza);
 
 }
