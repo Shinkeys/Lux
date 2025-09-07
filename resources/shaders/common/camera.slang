@@ -6,6 +6,7 @@ public struct ViewData
     public float4x4 proj;
     public float4x4 viewProj;
     public float4x4 inverseProjection;
+    public float4x4 inverseView;
     public float3 position;
 
     public int2 extent;

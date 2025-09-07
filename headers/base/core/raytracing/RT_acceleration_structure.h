@@ -12,7 +12,7 @@ struct BLASSpecification
 	u32 vertexStride{ 0 };
 };
 
-struct BLASInstances
+struct BLASInstance
 {
 	glm::mat4 transform{glm::mat4(1.0f)};
 	u32 customIndex{ 0 };
@@ -21,7 +21,7 @@ struct BLASInstances
 
 struct TLASSpecification
 {
-	std::vector<BLASInstances> instances;
+	std::vector<BLASInstance> instances;
 };
 
 

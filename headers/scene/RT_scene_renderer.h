@@ -1,6 +1,11 @@
 #pragma once
 #include "iscene_renderer.h"
 
+struct RTPassPushConst
+{
+	u64 viewDataAddress{ 0 };
+};
+
 
 class EngineBase;
 class Descriptor;
@@ -10,6 +15,7 @@ class Image;
 class RTPipeline;
 class RTAccelerationStructure;
 class ShaderBindingTable;
+struct BLASContainer;
 
 class RTSceneRenderer : public ISceneRenderer
 {
@@ -22,16 +28,22 @@ private:
 
 	std::unique_ptr<ShaderBindingTable> _sbt;
 
-	std::unique_ptr<RTAccelerationStructure> _sceneBLAS;
+	std::vector<BLASContainer> _sceneBLASes;
 	std::unique_ptr<RTAccelerationStructure> _sceneTLAS;
 
-	std::unique_ptr<Buffer> _triangleBuffer;
-	std::unique_ptr<Buffer> _triangleIndicesBuffer;
+	std::unique_ptr<Buffer> _viewDataBuffer;
+
 
 	std::unique_ptr<Image> _outputTarget;
+
+	// TO REWORK THIS APPROACH!!!!!
+	std::queue<const Entity*> _entityCreateQueue;
+
+	void ExecuteEntityCreateQueue();
 public:
 	void Update(const Camera& camera) override;
 	void Draw() override;
+	void SubmitEntityToDraw(const Entity& entity) override;
 
 	RTSceneRenderer() = delete;
 	RTSceneRenderer(EngineBase& engineBase);

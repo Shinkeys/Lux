@@ -94,7 +94,8 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 	spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 	spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
-
+	spec.minAlignment = deviceObj.GetRTDeviceProps().minAccelScratchOffsetAlignment;
+	
 	VulkanBuffer scratchBuffer(spec, deviceObj, allocatorObj, frameObj);
 
 	buildAS.dstAccelerationStructure = _acceleration;
@@ -220,9 +221,11 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	BufferSpecification scratchBuffSpec{};
 	scratchBuffSpec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::SHADER_DEVICE_ADDRESS;
 	scratchBuffSpec.size = sizeInfo.buildScratchSize;
-	scratchBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
-	scratchBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
-	scratchBuffSpec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+	scratchBuffSpec.memoryProp   = MemoryProperty::DEVICE_LOCAL;
+	scratchBuffSpec.memoryUsage  = MemoryUsage::AUTO_PREFER_DEVICE;
+	scratchBuffSpec.sharingMode  = SharingMode::SHARING_EXCLUSIVE;
+	scratchBuffSpec.minAlignment = deviceObj.GetRTDeviceProps().minAccelScratchOffsetAlignment;
+
 
 	VulkanBuffer scratchBuffer(scratchBuffSpec, deviceObj, allocatorObj, frameObj);
 

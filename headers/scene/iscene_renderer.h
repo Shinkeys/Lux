@@ -3,6 +3,7 @@
 
 
 class Camera;
+class Entity;
 class ISceneRenderer
 {
 private:
@@ -14,5 +15,6 @@ public:
 
 	virtual void Update(const Camera& camera) = 0;
 	virtual void Draw() = 0;
+	virtual void SubmitEntityToDraw(const Entity& entity) = 0;
 
 };

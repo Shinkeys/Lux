@@ -7,11 +7,13 @@
 class Entity;
 class SceneStorage;
 class SceneRenderer;
+class RTSceneRenderer;
 // Purpose: class to handle basic scene logic:
 class SceneBase
 {
 private:
-	SceneRenderer& _rendererInstance;
+	SceneRenderer& _rendererInstance;	  // to rework this approach
+	RTSceneRenderer& _rtRendererInstance; // to rework this approach
 	SceneStorage& _storageInstance;
 	//std::unordered_map<i32, Mesh> _entityMeshPtrs;
 
@@ -31,7 +33,7 @@ public:
 	void UpdateWithKeys(const Window& window);
 
 	SceneBase() = delete;
-	SceneBase(SceneRenderer& renderer, SceneStorage& storage);
+	SceneBase(SceneRenderer& renderer, RTSceneRenderer& rtRenderer, SceneStorage& storage);
 
 	SceneBase* s_Instance;
 };

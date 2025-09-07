@@ -1,12 +1,14 @@
 #include "../../headers/scene/scene_base.h"
+#include "../../headers/base/core/renderer.h"
 #include "../../headers/scene/scene_storage.h"
 #include "../../headers/scene/scene_renderer.h"
-#include "../../headers/base/core/renderer.h"
+#include "../../headers/scene/RT_scene_renderer.h"
 #include "../../headers/scene/entity.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
-SceneBase::SceneBase(SceneRenderer& renderer, SceneStorage& storage) : _rendererInstance{renderer}, _storageInstance{storage}
+SceneBase::SceneBase(SceneRenderer& renderer, RTSceneRenderer& rtRenderer, SceneStorage& storage) 
+	: _rendererInstance{ renderer }, _rtRendererInstance{ rtRenderer }, _storageInstance { storage }
 {
 	_camera = std::make_shared<Camera>();
 	Initialize();
@@ -36,7 +38,7 @@ void SceneBase::Initialize()
 
 
 	//_rendererInstance.SubmitEntityToDraw(sponza);
-
+	//_rtRendererInstance.SubmitEntityToDraw(sponza);
 }
 
 

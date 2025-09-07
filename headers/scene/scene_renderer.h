@@ -43,9 +43,9 @@ struct LightCullPushConst
 
 struct PBRPassPushConst
 {
-	VkDeviceAddress lightAddress{ 0 };
-	VkDeviceAddress lightsIndicesAddress{ 0 };
-	VkDeviceAddress cameraDataAddress{ 0 };
+	u64 lightAddress{ 0 };
+	u64 lightsIndicesAddress{ 0 };
+	u64 cameraDataAddress{ 0 };
 	u32 positionTextureIdx{ 0 };
 	u32 normalsTextureIdx{ 0 };
 	u32 baseColorTextureIdx{ 0 };
@@ -66,20 +66,6 @@ struct LightCullingStructures
 
 	const u32 maxLightsPerCluster{ 64 };
 	const u32 tileSize{ 16 };
-};
-
-struct ViewData
-{
-	glm::mat4 view{ glm::mat4(1.0f) };
-	glm::mat4 proj{ glm::mat4(1.0f) };
-	glm::mat4 viewProj{ glm::mat4(1.0f) };
-	glm::mat4 inverseProjection{ glm::mat4(1.0f) };
-	glm::vec3 position{ glm::vec3(0.0f) };
-
-
-	glm::ivec2 viewportExt{ glm::ivec2(0) }; 
-	float nearPlane{ 0.0f };
-	float farPlane{ 0.0f };
 };
 
 enum class MeshType : u8
@@ -120,6 +106,7 @@ struct GBufferPipelines
 };
 
 class Entity;
+struct ViewData;
 class SceneRenderer : public ISceneRenderer
 {
 private:
@@ -163,7 +150,7 @@ public:
 	* @brief Pass the objects which would LIVE after the submission
 	* @param entity reference
 	*/
-	void SubmitEntityToDraw(const Entity& entity);
+	void SubmitEntityToDraw(const Entity& entity) override;
 	void Update(const Camera& camera) override;
 	void Draw() override;
 

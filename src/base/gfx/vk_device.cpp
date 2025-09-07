@@ -240,7 +240,6 @@ void VulkanDevice::QueryAnisotropyLevel()
 void VulkanDevice::QueryRTProperties()
 {
 	VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtPipelineProps{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR };
-
 	VkPhysicalDeviceAccelerationStructurePropertiesKHR accelProps{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR };
 
 	VkPhysicalDeviceProperties2 deviceProps2 { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
@@ -253,6 +252,8 @@ void VulkanDevice::QueryRTProperties()
 	_rtProperties.shaderGroupHandleAlignment = rtPipelineProps.shaderGroupHandleAlignment;
 	_rtProperties.shaderGroupBaseAlignment = rtPipelineProps.shaderGroupBaseAlignment;
 	_rtProperties.shaderGroupHandleSize = rtPipelineProps.shaderGroupHandleSize;
+
+	_rtProperties.minAccelScratchOffsetAlignment = accelProps.minAccelerationStructureScratchOffsetAlignment;
 }
 
 void VulkanDevice::CreateLogicalDevice()

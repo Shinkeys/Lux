@@ -76,6 +76,7 @@ enum class AllocationCreate : u32
 	STRATEGY_FIRST_FIT = 1 << 7
 };
 
+
 inline bool operator&(AllocationCreate fst, AllocationCreate scd)
 {
 	return (static_cast<u32>(fst) & static_cast<u32>(scd)) != 0;

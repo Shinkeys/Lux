@@ -14,6 +14,7 @@ struct BufferSpecification
 	bool allocCmdBuff{ false };
 
 	size_t size{ 0 }; // bytes
+	size_t minAlignment{ 0 };
 };
 
 class Buffer

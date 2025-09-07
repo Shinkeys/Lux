@@ -30,7 +30,11 @@ VulkanBuffer::VulkanBuffer(const BufferSpecification& spec, VulkanDevice& device
 	allocInfo.priority = 1.0f;
 	allocInfo.flags = vkconversions::ToVmaAllocationCreateFlags(spec.allocCreate);
 
-	VK_CHECK(vmaCreateBuffer(_allocatorObj.GetAllocatorHandle(), &bufferInfo, &allocInfo, &_buffer, &_allocation, nullptr));
+	if (spec.minAlignment == 0)
+		VK_CHECK(vmaCreateBuffer(_allocatorObj.GetAllocatorHandle(), &bufferInfo, &allocInfo, &_buffer, &_allocation, nullptr));
+	else 
+		VK_CHECK(vmaCreateBufferWithAlignment(_allocatorObj.GetAllocatorHandle(), &bufferInfo, &allocInfo, spec.minAlignment, 
+			&_buffer, &_allocation, nullptr));
 
 	if (spec.memoryProp & MemoryProperty::HOST_VISIBLE || spec.memoryProp & MemoryProperty::HOST_COHERENT)
 		VK_CHECK(vmaMapMemory(_allocatorObj.GetAllocatorHandle(), _allocation, &_mappedData));

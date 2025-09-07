@@ -7,7 +7,7 @@ SceneManager::SceneManager(EngineBase& engineBase, Window& window)
 	_storageInstance     = std::make_unique<SceneStorage>();
 	//_rendererInstance    = std::make_unique<SceneRenderer>(engineBase);
 	_RTrendererInstance  = std::make_unique<RTSceneRenderer>(engineBase);
-	_sceneInstance       = std::make_unique<SceneBase>(*_rendererInstance, *_storageInstance);
+	_sceneInstance       = std::make_unique<SceneBase>(*_rendererInstance, *_RTrendererInstance, *_storageInstance);
 }
 
 

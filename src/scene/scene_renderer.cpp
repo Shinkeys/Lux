@@ -2,6 +2,7 @@
 #include "../../headers/scene/entity.h"
 #include "../../headers/base/core/frame_manager.h"
 #include "../../headers/base/core/presentation_manager.h"
+#include "../../headers/util/camera_types.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -713,10 +714,5 @@ void SceneRenderer::ExecuteEntityCreateQueue()
 // THIS IS ONLY TEMPORARY SOLUTION. TO REWORK ASSET SYSTEM LATER
 void SceneRenderer::SubmitEntityToDraw(const Entity& entity)
 {
-	BufferManager& bufferManager = _engineBase.GetBufferManager();
-	const ImageManager& imageManager = _engineBase.GetImageManager();
-
-
 	_entityCreateQueue.push(&entity);
-
 }
