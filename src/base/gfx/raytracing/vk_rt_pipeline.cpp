@@ -54,10 +54,10 @@ VulkanRTPipeline::VulkanRTPipeline(const RTPipelineSpecification& spec, VulkanDe
 			const u32 stageIndex = static_cast<u32>(shaderStages.size());
 			VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
 			group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+			group.generalShader = stageIndex;
 			group.anyHitShader = VK_SHADER_UNUSED_KHR;
 			group.closestHitShader = VK_SHADER_UNUSED_KHR;
 			group.intersectionShader = VK_SHADER_UNUSED_KHR;
-			group.generalShader = stageIndex;
 			shaderGroups.push_back(group);
 
 
@@ -76,6 +76,7 @@ VulkanRTPipeline::VulkanRTPipeline(const RTPipelineSpecification& spec, VulkanDe
 			group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
 			group.anyHitShader = VK_SHADER_UNUSED_KHR;
 			group.intersectionShader = VK_SHADER_UNUSED_KHR;
+			group.generalShader = VK_SHADER_UNUSED_KHR;
 			group.closestHitShader = stageIndex;
 			shaderGroups.push_back(group);
 

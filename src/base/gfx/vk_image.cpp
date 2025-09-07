@@ -2,6 +2,7 @@
 #include "../../../headers/base/gfx/vk_buffer.h"	
 #include "../../../headers/base/gfx/vk_deleter.h"
 #include "../../../headers/base/gfx/vk_allocator.h"
+#include "../../../headers/base/gfx/vk_command_buffer.h"
 #include "../../../headers/util/gfx/vk_helpers.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -348,6 +349,8 @@ void VulkanImage::CreateTexture()
 
 void VulkanImage::SetLayout(ImageLayout newLayout, AccessFlag srcAccess, AccessFlag dstAccess, PipelineStage srcStage, PipelineStage dstStage)
 {
+	assert(_frameObject && "Can't set layout through member function if the image is created by raw. Transit it manually via barriers");
+
 	// Transit image again to make it readable for the shader
 	VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
 	barrier.oldLayout     = vkconversions::ToVkImageLayout(_specification.layout);
@@ -377,6 +380,28 @@ void VulkanImage::SetLayout(ImageLayout newLayout, AccessFlag srcAccess, AccessF
 	dependencyInfo.pImageMemoryBarriers = &barrier;
 
 	vkCmdPipelineBarrier2(_frameObject->GetCommandBuffer(), &dependencyInfo);
+
+	SetCurrentLayout(newLayout);
+}
+
+void VulkanImage::CopyToImage(Image* dst)
+{
+	assert(dst && "Can't copy from image to image, dst is null");
+
+	using namespace vkconversions;
+
+	VulkanImage* rawDst = static_cast<VulkanImage*>(dst);
+	const ImageSpecification& dstSpec = dst->GetSpecification();
+
+	VkImageCopy copyRegion{};
+	copyRegion.srcSubresource = { ToVkAspectFlags(_specification.aspect), 0, 0, 1};
+	copyRegion.dstSubresource = { ToVkAspectFlags(dstSpec.aspect), 0, 0, 1};
+	copyRegion.extent = ToVkExtent3D(_specification.extent);
+	copyRegion.srcOffset = { 0,0,0 };
+	copyRegion.dstOffset = { 0,0,0 };
+
+	vkCmdCopyImage(_frameObject->GetCommandBuffer(), _image, ToVkImageLayout(_specification.layout),
+		rawDst->GetRawImage(), ToVkImageLayout(dstSpec.layout), 1, &copyRegion);
 }
 
 // TO REWORK THIS CLASS TO RETURN SHARED PTRS WITH CUSTOM ALLOCATOR
@@ -465,6 +490,7 @@ namespace vkconversions
 		switch (format) {
 		case ImageFormat::IMAGE_FORMAT_R8G8B8A8_SRGB:           return VK_FORMAT_R8G8B8A8_SRGB;
 		case ImageFormat::IMAGE_FORMAT_B8G8R8A8_SRGB:           return VK_FORMAT_B8G8R8A8_SRGB;
+		case ImageFormat::IMAGE_FORMAT_B8G8R8A8_UNORM:           return VK_FORMAT_B8G8R8A8_UNORM;
 		case ImageFormat::IMAGE_FORMAT_D32_SFLOAT:              return VK_FORMAT_D32_SFLOAT;
 		case ImageFormat::IMAGE_FORMAT_R16G16B16A16_SFLOAT:     return VK_FORMAT_R16G16B16A16_SFLOAT;
 		case ImageFormat::IMAGE_FORMAT_R32G32_UINT:             return VK_FORMAT_R32G32_UINT;
@@ -487,6 +513,9 @@ namespace vkconversions
 
 		if (usage & ImageUsage::IMAGE_USAGE_STORAGE_BIT)
 			result |= VK_IMAGE_USAGE_STORAGE_BIT;
+
+		if (usage & ImageUsage::IMAGE_USAGE_TRANSFER_SRC)
+			result |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 		assert(result > 0 && "Some ImageUsage conversion is not implemented for Vulkan");
 
@@ -574,6 +603,8 @@ namespace vkconversions
 			return ImageFormat::IMAGE_FORMAT_R8G8B8A8_SRGB;
 		case VK_FORMAT_B8G8R8A8_SRGB:
 			return ImageFormat::IMAGE_FORMAT_B8G8R8A8_SRGB;
+		case VK_FORMAT_B8G8R8A8_UNORM:
+			return ImageFormat::IMAGE_FORMAT_B8G8R8A8_UNORM;
 		case VK_FORMAT_R16G16B16A16_SFLOAT:
 			return ImageFormat::IMAGE_FORMAT_R16G16B16A16_SFLOAT;
 		case VK_FORMAT_D32_SFLOAT:

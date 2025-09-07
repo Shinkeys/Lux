@@ -16,22 +16,20 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 {
 	std::vector<glm::vec3> triangleVertices
 	{
-		{1.0f,  -1.0f, 0.0f},
-		{0.0f,  1.0f,  0.0f},
-		{-1.0f, -1.0f, 0.0f},
-
-		{ 1.0f,  -1.0f, 0.0f },
-		{0.0f,  1.0f,  0.0f},
-		{-1.0f, -1.0f, 0.0f}
+		{.5f,  -.5f, 0.0f},
+		{0.0f,  .5f,  0.0f},
+		{-.5f, -.5f, 0.0f},
 	};
 
 	std::vector<u32> triangleIndices
 	{
-		0, 1, 2, 3, 4, 5
+		0, 1, 2
 	};
 
 	BufferSpecification triangleBuffSpec{};
-	triangleBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::SHADER_DEVICE_ADDRESS;
+	triangleBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | 
+		BufferUsage::SHADER_DEVICE_ADDRESS | 
+		BufferUsage::TRANSFER_DST;
 	triangleBuffSpec.size = triangleVertices.size() * sizeof(glm::vec3);
 	triangleBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 	triangleBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
@@ -41,7 +39,9 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	_triangleBuffer->UploadData(0, triangleVertices.data(), triangleVertices.size() * sizeof(glm::vec3));
 
 	BufferSpecification triangleIndicesSpec{};
-	triangleIndicesSpec.usage =  BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::SHADER_DEVICE_ADDRESS;
+	triangleIndicesSpec.usage =  BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | 
+		BufferUsage::SHADER_DEVICE_ADDRESS |
+		BufferUsage::TRANSFER_DST;
 	triangleIndicesSpec.size = triangleIndices.size() * sizeof(u32);
 	triangleIndicesSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 	triangleIndicesSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
@@ -49,7 +49,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 
 	_triangleIndicesBuffer = engineBase.GetBufferManager().CreateBuffer(triangleIndicesSpec);
 	_triangleIndicesBuffer->UploadData(0, triangleIndices.data(), triangleIndices.size() * sizeof(u32));
-
+	
 
 
 	BLASSpecification blasSpec{};
@@ -140,31 +140,15 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	rtManager.GetRTGroupHandles(_rtPipeline.get(), 0, handleCount, dataSize, sbtSpec.handles.data());
 	_sbt = rtManager.CreateSBT(sbtSpec);
 
-	{
-		PipelineSpecification spec{};
-		spec.type = PipelineType::GRAPHICS_PIPELINE;
-		spec.shaderName = "raytracing";
-		spec.entryPoints = { "VertexMain", "FragmentMain" };
-		spec.cullMode = CullMode::CULL_MODE_BACK;
-		spec.pushConstantSizeBytes = 0;
-		spec.descriptorSets = { extractRawPtrsLambda() };
-		spec.depthCompare = CompareOP::COMPARE_OP_LESS;
-		spec.depthWriteEnable = true;
-		spec.depthTestEnable = true;
-		spec.colorFormats = { ImageFormat::IMAGE_FORMAT_B8G8R8A8_SRGB };
-
-		_rasterPipeline = _engineBase.GetPipelineManager().CreatePipeline(spec);
-	}
-
 	const u32 windowWidth  = _engineBase.GetPresentationManager().GetSwapchainExtent().x;
 	const u32 windowHeight = _engineBase.GetPresentationManager().GetSwapchainExtent().y;
 	{
 		ImageSpecification imageSpec;
-		imageSpec.usage = ImageUsage::IMAGE_USAGE_STORAGE_BIT;
+		imageSpec.usage = ImageUsage::IMAGE_USAGE_STORAGE_BIT | ImageUsage::IMAGE_USAGE_TRANSFER_SRC;
 		imageSpec.mipLevels = 1;
 		imageSpec.aspect = ImageAspect::IMAGE_ASPECT_COLOR;
 		imageSpec.extent = { windowWidth, windowHeight, 1 };
-		imageSpec.format = ImageFormat::IMAGE_FORMAT_R16G16B16A16_SFLOAT;
+		imageSpec.format = ImageFormat::IMAGE_FORMAT_B8G8R8A8_UNORM;
 		imageSpec.type = ImageType::IMAGE_TYPE_RENDER_TARGET;
 
 		_outputTarget = _engineBase.GetImageManager().CreateImage(imageSpec);
@@ -208,25 +192,40 @@ void RTSceneRenderer::Draw()
 	 //rtDrawCommand.pushC
 	Renderer::RenderRayTracing(rtDrawCommand);
 
+
 	PipelineBarrierStorage pipelineBarriers;
 
-	PipelineMemoryBarrierInfo preRasterizationBarrier;
-	preRasterizationBarrier.srcStageMask = PipelineStage::RAY_TRACING_SHADER;
-	preRasterizationBarrier.dstStageMask = PipelineStage::FRAGMENT_SHADER;
-	preRasterizationBarrier.srcAccessMask = AccessFlag::STORAGE_WRITE;
-	preRasterizationBarrier.dstAccessMask = AccessFlag::STORAGE_READ;
-	pipelineBarriers.memoryBarriers.push_back(preRasterizationBarrier);
-
+	// Swapchain(target) image
+	PipelineImageBarrierInfo preCopyLayoutTransition;
+	preCopyLayoutTransition.srcStageMask = PipelineStage::RAY_TRACING_SHADER;
+	preCopyLayoutTransition.dstStageMask = PipelineStage::ALL_TRANSFER;
+	preCopyLayoutTransition.srcAccessMask = AccessFlag::SHADER_WRITE;
+	preCopyLayoutTransition.dstAccessMask = AccessFlag::TRANSFER_READ;
+	preCopyLayoutTransition.image = currentColorAttachment;
+	preCopyLayoutTransition.newLayout = ImageLayout::IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	pipelineBarriers.imageBarriers.push_back(preCopyLayoutTransition);
 
 	Renderer::ExecuteBarriers(pipelineBarriers);
 
-	// LIGHT PASS
-	DrawCommand quadDrawCommand{};
-	quadDrawCommand.pipeline = _rasterPipeline.get();
-	quadDrawCommand.descriptor = _sceneDescriptorSets[frameManager.GetCurrentFrameIndex()].get();
+	// Output from rt shader
+	_outputTarget->SetLayout(ImageLayout::IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, AccessFlag::SHADER_WRITE, AccessFlag::TRANSFER_READ,
+		PipelineStage::RAY_TRACING_SHADER, PipelineStage::ALL_TRANSFER);
 
-	Renderer::BeginRender({ currentColorAttachment }, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
-	Renderer::RenderQuad(quadDrawCommand);
-	Renderer::EndRender();
-	
+	_outputTarget->CopyToImage(currentColorAttachment);
+
+	// Swapchain(target) image
+	PipelineImageBarrierInfo postCopyLayoutTransition;
+	postCopyLayoutTransition.srcStageMask = PipelineStage::ALL_TRANSFER;
+	postCopyLayoutTransition.dstStageMask = PipelineStage::COLOR_ATTACHMENT_OUTPUT;
+	postCopyLayoutTransition.srcAccessMask = AccessFlag::TRANSFER_READ;
+	postCopyLayoutTransition.dstAccessMask = AccessFlag::COLOR_ATTACHMENT_READ;
+	postCopyLayoutTransition.image = currentColorAttachment;
+	postCopyLayoutTransition.newLayout = ImageLayout::IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	pipelineBarriers.imageBarriers.push_back(postCopyLayoutTransition);
+
+	Renderer::ExecuteBarriers(pipelineBarriers);
+
+	_outputTarget->SetLayout(ImageLayout::IMAGE_LAYOUT_GENERAL, AccessFlag::TRANSFER_READ, AccessFlag::SHADER_WRITE,
+		PipelineStage::ALL_TRANSFER, PipelineStage::RAY_TRACING_SHADER);
+
 }

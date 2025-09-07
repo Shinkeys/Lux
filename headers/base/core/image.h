@@ -41,6 +41,8 @@ public:
 	virtual const ImageSpecification& GetSpecification() const = 0;
 
 	virtual void SetCurrentLayout(ImageLayout layout) = 0;
+
+	virtual void CopyToImage(Image* dst) = 0;
 };
 
 

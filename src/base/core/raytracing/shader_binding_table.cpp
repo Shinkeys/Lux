@@ -67,8 +67,7 @@ ShaderBindingTable::ShaderBindingTable(const RTDeviceProperties& rtProperties, c
 	}
 
 	// Closest hit
-	/*u32 hitOffset = _raygenTable.size + _missTable.size;*/
-	u32 hitOffset = missOffset;
+	u32 hitOffset = _raygenTable.size + _missTable.size;
 	for (u32 i = 0; i < createInfo.hitCount; ++i)
 	{
 		_buffer->UploadData(hitOffset, getHandle(handleIdx++), handleSize);

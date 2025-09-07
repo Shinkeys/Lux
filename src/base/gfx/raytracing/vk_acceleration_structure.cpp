@@ -164,7 +164,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 
 	// Create buffer
 	BufferSpecification instancesBuffSpec{};
-	instancesBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::SHADER_DEVICE_ADDRESS;
+	instancesBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::SHADER_DEVICE_ADDRESS | BufferUsage::TRANSFER_DST;
 	instancesBuffSpec.size = tlasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 	instancesBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 	instancesBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;                     // Rework staging dealloc

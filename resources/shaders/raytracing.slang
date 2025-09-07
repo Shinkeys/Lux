@@ -10,9 +10,13 @@ struct [raypayload] RayPayload
 void RaygenMain()
 {    
     uint3 rayIdx = DispatchRaysIndex();
-    float3 origin = float3(float(rayIdx.x), float(rayIdx.y), 1.0f);
+
+    float2 uv = (float2(rayIdx.xy) + 0.5) / float2(DispatchRaysDimensions().xy);
+    uv.x = (2.0f * rayIdx.x) / DispatchRaysDimensions().x - 1.0f;
+    uv.y = 1.0f - (2.0f * rayIdx.y) / DispatchRaysDimensions().y;
+    float3 origin = float3(uv, -1.0f);
     
-    float3 dir = float3(0.0f, 0.0f, -1.0f);
+    float3 dir = float3(0.0f, 0.0f, 1.0f);
     
     RayDesc ray;
     ray.Origin = origin;
@@ -20,37 +24,20 @@ void RaygenMain()
     ray.TMin = 0.001;
     ray.TMax = 10000.0;
     RayPayload payload = { float4(0, 0, 0, 0) };
-    TraceRay(sceneBVH, RAY_FLAG_NONE, ~0, 0, 0, 0, ray, payload);
+    TraceRay(sceneBVH, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, ~0, 0, 0, 0, ray, payload);
 
-    resultTexture[rayIdx.xy] = payload.color;
+    resultTexture.Store(rayIdx.xy, payload.color); 
  
 }
 
 [shader("miss")]
 void MissMain(inout RayPayload payload)
 {
-    payload.color = float4(1.0f, 0.0f, 0.0f, 1.0f);
+    payload.color = float4(0.0f, 0.3f, 0.3f, 1.0f);
 }
 
 [shader("closesthit")]
 void ClosestMain(inout RayPayload payload)
 {
-    for (uint i = 0; i < 3; ++i)
-    {
-        float3 vertex = HitTriangleVertexPosition(i);
-
-        payload.color = float4(1.0f, 0.0f, 0.0f, 1.0f);
-    }
-}
-
-[shader("vertex")]
-float4 VertexMain(uint idx : SV_VertexID) : SV_Position
-{
-    return float4(1.0f, 1.0f, 1.0f, 1.0f);
-}
-
-[shader("fragment")]
-float4 FragmentMain(float4 sv_position: SV_Position) : SV_Target
-{
-    return resultTexture.Load(uint2(sv_position.xy));
+    payload.color = float4(1.0f, 0.0f, 0.0f, 1.0f);
 }

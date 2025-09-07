@@ -59,6 +59,8 @@ public:
 	VulkanImage(VulkanImage&&) noexcept = delete;
 	VulkanImage& operator=(VulkanImage&&) noexcept = delete;
 
+	// Copy image to image
+	void CopyToImage(Image* dst) override;
 
 	void SetLayout(ImageLayout newLayout, AccessFlag srcAccess, AccessFlag dstAccess, PipelineStage srcStage, PipelineStage dstStage) override;
 	void SetCurrentLayout(ImageLayout layout) override { _specification.layout = layout; }

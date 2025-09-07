@@ -19,7 +19,6 @@ private:
 	std::vector<std::unique_ptr<Descriptor>> _sceneDescriptorSets;
 	 
 	std::unique_ptr<RTPipeline> _rtPipeline;
-	std::unique_ptr<Pipeline> _rasterPipeline;
 
 	std::unique_ptr<ShaderBindingTable> _sbt;
 

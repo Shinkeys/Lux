@@ -16,3 +16,4 @@ ImageManager::ImageManager(VulkanBase& vulkanBase) : _vulkanBase{vulkanBase}
 {
 
 }
+

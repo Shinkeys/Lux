@@ -93,4 +93,4 @@ namespace vkhelpers
 
 		vkCmdPipelineBarrier2(cmd, &dependencyInfo);
 	}
-}
+}	
