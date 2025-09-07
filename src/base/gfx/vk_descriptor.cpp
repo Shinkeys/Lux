@@ -84,7 +84,6 @@ void VulkanDescriptor::Write(u32 dstBinding, u32 dstArrayElem, DescriptorType ty
 	writeSet.descriptorType = ToVkDescriptorType(type);
 	writeSet.pImageInfo = &imgInfo;
 
-
 	vkUpdateDescriptorSets(_deviceObject.GetDevice(), 1, &writeSet, 0, nullptr);
 }
 

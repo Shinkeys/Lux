@@ -15,6 +15,7 @@ class Image;
 class RTPipeline;
 class RTAccelerationStructure;
 class ShaderBindingTable;
+class Sampler;
 struct BLASContainer;
 
 class RTSceneRenderer : public ISceneRenderer
@@ -32,6 +33,8 @@ private:
 	std::unique_ptr<RTAccelerationStructure> _sceneTLAS;
 
 	std::unique_ptr<Buffer> _viewDataBuffer;
+
+	std::unique_ptr<Sampler> _samplerLinear;
 
 
 	std::unique_ptr<Image> _outputTarget;

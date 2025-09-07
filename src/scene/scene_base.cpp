@@ -38,7 +38,7 @@ void SceneBase::Initialize()
 
 
 	//_rendererInstance.SubmitEntityToDraw(sponza);
-	//_rtRendererInstance.SubmitEntityToDraw(sponza);
+	_rtRendererInstance.SubmitEntityToDraw(sponza);
 }
 
 

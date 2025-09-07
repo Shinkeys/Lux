@@ -17,71 +17,71 @@
 
 RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBase }
 {
-	std::vector<glm::vec3> triangleVertices
-	{
-		{.5f,  -.5f, 0.0f},
-		{0.0f,  .5f,  0.0f},
-		{-.5f, -.5f, 0.0f},
-	};
+	//std::vector<glm::vec3> triangleVertices
+	//{
+	//	{.5f,  -.5f, 0.0f},
+	//	{0.0f,  .5f,  0.0f},
+	//	{-.5f, -.5f, 0.0f},
+	//};
 
-	std::vector<u32> triangleIndices
-	{
-		0, 1, 2
-	};
+	//std::vector<u32> triangleIndices
+	//{
+	//	0, 1, 2
+	//};
 
-	BufferSpecification triangleBuffSpec{};
-	triangleBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY |
-		BufferUsage::SHADER_DEVICE_ADDRESS |
-		BufferUsage::TRANSFER_DST;
-	triangleBuffSpec.size = triangleVertices.size() * sizeof(glm::vec3);
-	triangleBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
-	triangleBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
-	triangleBuffSpec.allocCmdBuff = true;
+	//BufferSpecification triangleBuffSpec{};
+	//triangleBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY |
+	//	BufferUsage::SHADER_DEVICE_ADDRESS |
+	//	BufferUsage::TRANSFER_DST;
+	//triangleBuffSpec.size = triangleVertices.size() * sizeof(glm::vec3);
+	//triangleBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+	//triangleBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+	//triangleBuffSpec.allocCmdBuff = true;
 
-	std::unique_ptr<Buffer> triangleBuffer;
-	std::unique_ptr<Buffer> indexBuffer;
+	//std::unique_ptr<Buffer> triangleBuffer;
+	//std::unique_ptr<Buffer> indexBuffer;
 
-	triangleBuffer = engineBase.GetBufferManager().CreateBuffer(triangleBuffSpec);
-	triangleBuffer->UploadData(0, triangleVertices.data(), triangleVertices.size() * sizeof(glm::vec3));
+	//triangleBuffer = engineBase.GetBufferManager().CreateBuffer(triangleBuffSpec);
+	//triangleBuffer->UploadData(0, triangleVertices.data(), triangleVertices.size() * sizeof(glm::vec3));
 
-	BufferSpecification triangleIndicesSpec{};
-	triangleIndicesSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY |
-		BufferUsage::SHADER_DEVICE_ADDRESS |
-		BufferUsage::TRANSFER_DST;
-	triangleIndicesSpec.size = triangleIndices.size() * sizeof(u32);
-	triangleIndicesSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
-	triangleIndicesSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
-	triangleIndicesSpec.allocCmdBuff = true;
+	//BufferSpecification triangleIndicesSpec{};
+	//triangleIndicesSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY |
+	//	BufferUsage::SHADER_DEVICE_ADDRESS |
+	//	BufferUsage::TRANSFER_DST;
+	//triangleIndicesSpec.size = triangleIndices.size() * sizeof(u32);
+	//triangleIndicesSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+	//triangleIndicesSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+	//triangleIndicesSpec.allocCmdBuff = true;
 
-	indexBuffer = engineBase.GetBufferManager().CreateBuffer(triangleIndicesSpec);
-	indexBuffer->UploadData(0, triangleIndices.data(), triangleIndices.size() * sizeof(u32));
-
-
-
-	BLASSpecification blasSpec{};
-	blasSpec.vertexAddress = triangleBuffer->GetBufferAddress();
-	blasSpec.indexAddress = indexBuffer->GetBufferAddress();
-	blasSpec.verticesCount = triangleVertices.size();
-	blasSpec.indicesCount = triangleIndices.size();
-	blasSpec.vertexStride = sizeof(glm::vec3);
+	//indexBuffer = engineBase.GetBufferManager().CreateBuffer(triangleIndicesSpec);
+	//indexBuffer->UploadData(0, triangleIndices.data(), triangleIndices.size() * sizeof(u32));
 
 
-	BLASContainer blasContainer{};
-	blasContainer.accel = engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
 
-	BLASInstance blasInstance{};
-	blasInstance.blasAddress = blasContainer.accel->GetAccelerationAddress();
-	blasInstance.customIndex = 0;
-	blasInstance.transform = glm::mat4(1.0f);
-	blasContainer.instance = blasInstance;
+	//BLASSpecification blasSpec{};
+	//blasSpec.vertexAddress = triangleBuffer->GetBufferAddress();
+	//blasSpec.indexAddress = indexBuffer->GetBufferAddress();
+	//blasSpec.verticesCount = triangleVertices.size();
+	//blasSpec.indicesCount = triangleIndices.size();
+	//blasSpec.vertexStride = sizeof(glm::vec3);
 
-	_sceneBLASes.push_back(std::move(blasContainer));
+
+	//BLASContainer blasContainer{};
+	//blasContainer.accel = engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
+
+	//BLASInstance blasInstance{};
+	//blasInstance.blasAddress = blasContainer.accel->GetAccelerationAddress();
+	//blasInstance.customIndex = 0;
+	//blasInstance.transform = glm::mat4(1.0f);
+	//blasContainer.instance = blasInstance;
+
+	//_sceneBLASes.push_back(std::move(blasContainer));
 
 	// Descriptor
 	// Create descriptor for every frame
 	for (u32 i = 0; i < VulkanFrame::FramesInFlight; ++i)
 	{
-		constexpr i32 descriptorUsageCount = 2;
+		constexpr i32 descriptorUsageCount = 3;
 		DescriptorSpecification sceneDescSpec{};
 		sceneDescSpec.bindings.resize(descriptorUsageCount);
 		sceneDescSpec.bindings[0].binding = 0;
@@ -93,9 +93,27 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		sceneDescSpec.bindings[1].descriptorCount = 1;
 		sceneDescSpec.bindings[1].descriptorType = DescriptorType::STORAGE_IMAGE;
 
+		// Just an image where rt pipeline would store it's result
+		sceneDescSpec.bindings[2].binding = 2;
+		sceneDescSpec.bindings[2].descriptorCount = 1024;
+		sceneDescSpec.bindings[2].descriptorType = DescriptorType::COMBINED_IMAGE_SAMPLER;
+
 
 		_sceneDescriptorSets.emplace_back(_engineBase.GetDescriptorManager().CreateDescriptorSet(sceneDescSpec));
 	}
+
+	// Sampler
+	SamplerSpecification linearSpec;
+	linearSpec.minFiltering = Filter::FILTER_LINEAR;
+	linearSpec.magFiltering = Filter::FILTER_LINEAR;
+	linearSpec.mipmapFiltering = SamplerMipMapMode::SAMPLER_MIPMAP_MODE_LINEAR;
+	linearSpec.addressMode = SamplerAddressMode::SAMPLER_ADDRESS_MODE_REPEAT;
+	linearSpec.minLod = 0.0f;
+	linearSpec.maxLod = 1000.0f;
+	linearSpec.lodBias = 0.0f;
+
+
+	_samplerLinear = _engineBase.GetImageManager().CreateSampler(linearSpec);
 
 	auto extractRawPtrsLambda = [&]()
 		{
@@ -209,6 +227,23 @@ void RTSceneRenderer::Update(const Camera& camera)
 	viewData.viewportExt = { _outputTarget->GetSpecification().extent.x, _outputTarget->GetSpecification().extent.y };
 
 	_viewDataBuffer->UploadData(0, &viewData, sizeof(ViewData));
+
+
+
+	for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
+	{
+		u32 availableIndex = 0;
+		// Main shading pass
+		const auto& allTextures = AssetManager::Get()->GetAllTextures(); // TEMPORARY SOLUTION. TO REWORK
+
+		assert(!allTextures.empty() && "Images size is zero");
+		for (u32 i = 0; i < allTextures.size(); ++i)
+		{
+			_sceneDescriptorSets[descInd]->Write(2, allTextures[i].first,
+				DescriptorType::COMBINED_IMAGE_SAMPLER, allTextures[i].second.get(), _samplerLinear.get());
+			++availableIndex;
+		}
+	}
 }
 
 void RTSceneRenderer::Draw()
@@ -311,7 +346,7 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 			meshComp->materialIndex = loadingResult->materialIndex;
 
 			const std::vector<SubmeshDescription>* submeshes = AssetManager::Get()->GetAssetSubmeshes(meshComp->meshIndex);
-			if (submeshes != nullptr)
+			if (submeshes == nullptr)
 			{
 				_entityCreateQueue.pop();
 				continue;
@@ -323,16 +358,17 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 				verticesBufferSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY |
 					BufferUsage::SHADER_DEVICE_ADDRESS |
 					BufferUsage::TRANSFER_DST;
-				verticesBufferSpec.size = submeshIt->vertexDesc.vertexCount * sizeof(glm::vec3);
+				verticesBufferSpec.size = submeshIt->vertexDesc.vertexCount * sizeof(Vertex);
 				verticesBufferSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 				verticesBufferSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+				verticesBufferSpec.allocCmdBuff = true;
 
 				std::unique_ptr<Buffer> vertexBuffer;
 				std::unique_ptr<Buffer> indexBuffer;
 
 
 				vertexBuffer = _engineBase.GetBufferManager().CreateBuffer(verticesBufferSpec);
-				vertexBuffer->UploadData(0, submeshIt->vertexDesc.vertexPtr, submeshIt->vertexDesc.vertexCount * sizeof(glm::vec3));
+				vertexBuffer->UploadData(0, submeshIt->vertexDesc.vertexPtr, submeshIt->vertexDesc.vertexCount * sizeof(Vertex));
 
 				BufferSpecification indicesBufferSpec{};
 				indicesBufferSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY |
@@ -341,6 +377,7 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 				indicesBufferSpec.size = submeshIt->vertexDesc.indexCount * sizeof(u32);
 				indicesBufferSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 				indicesBufferSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+				indicesBufferSpec.allocCmdBuff = true; // otherwise order of execution inside cmd buff will be broken
 
 				indexBuffer = _engineBase.GetBufferManager().CreateBuffer(indicesBufferSpec);
 				indexBuffer->UploadData(0, submeshIt->vertexDesc.indicesPtr, submeshIt->vertexDesc.indexCount * sizeof(u32));
@@ -353,13 +390,13 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 				blasSpec.indexAddress = indexBuffer->GetBufferAddress();
 				blasSpec.verticesCount = submeshIt->vertexDesc.vertexCount;
 				blasSpec.indicesCount = submeshIt->vertexDesc.indexCount;
-				blasSpec.vertexStride = sizeof(glm::vec3);
+				blasSpec.vertexStride = sizeof(Vertex);
 
 				blasContainer.accel = _engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
 
 				BLASInstance blasInstance{};
 				blasInstance.blasAddress = blasContainer.accel->GetAccelerationAddress();
-				blasInstance.customIndex = _sceneBLASes.empty() ? 0 : _sceneBLASes.back().instance.customIndex + 1;
+				blasInstance.customIndex = meshComp->materialIndex;
 				blasInstance.transform = transformComp ? transformComp->model : glm::mat4(1.0f);
 				blasContainer.instance = blasInstance;
 
@@ -373,7 +410,6 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 		else
 			std::cout << "Can't create a BLAS for mesh, mesh component is null\n";
 	}
-
 }
 
 void RTSceneRenderer::SubmitEntityToDraw(const Entity& entity)

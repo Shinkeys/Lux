@@ -1,7 +1,11 @@
 import common.camera;
 
-uniform RaytracingAccelerationStructure sceneBVH;
-uniform RWTexture2D resultTexture;
+[vk::binding(0, 0)]
+public RaytracingAccelerationStructure sceneBVH;
+[vk::binding(1, 0)]
+public RWTexture2D resultTexture;
+[vk::binding(2, 0)]
+public Sampler2D textures[];
 
 struct [raypayload] RayPayload
 {
