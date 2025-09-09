@@ -7,3 +7,13 @@ public struct RTMeshData
     public uint indexBufferOffset;
     public float alphaCutoff;
 };
+
+public float2 GetScreenDerivativeX(float2 position, float step = 1.0f /* 1 pixel */)
+{
+    return position + float2(step, 0.0f) - position / step;
+}
+
+public float2 GetScreenDerivativeY(float2 position, float step = 1.0f /* 1 pixel */)
+{
+    return position + float2(0.0f, step) - position / step;
+}

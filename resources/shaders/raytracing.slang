@@ -17,6 +17,7 @@ struct [raypayload] RayPayload
 struct Attributes
 {
     float2 barycentrics : SV_BaryCentrics;
+    float2 anisotropy : ANISOTROPY;
 }
 
 struct Triangle
@@ -92,6 +93,9 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
 
     const int albedoID = meshData.materialDesc.albedoID;
 
-    payload.color = textures[albedoID].SampleLevel(uv, 0.0);
+    const float2 dUvX  = GetScreenDerivativeX(uv);
+    const float2 dUvY  = GetScreenDerivativeY(uv);
+    const float2 screenExtent = viewDataPtr->extent;
 
+    payload.color = textures[albedoID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
 }
