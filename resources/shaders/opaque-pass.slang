@@ -1,6 +1,7 @@
 import common.common;
 import common.g_pass;
 import common.camera;
+import common.mesh_common;
 
 [[vk::push_constant]]
 cbuffer PushConstants

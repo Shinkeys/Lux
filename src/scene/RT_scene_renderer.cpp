@@ -197,6 +197,35 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 
 		_viewDataBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
 	}
+
+	// All scene meshes buffer
+	{
+		constexpr u32 size = sizeof(Vertex) * 1024 * 1024; // about 1 million vertices
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::VERTEX_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = size;
+
+		_meshDeviceBuffer.vertexBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+
+		spec.usage = BufferUsage::INDEX_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		_meshDeviceBuffer.indexBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+	}
+
+	// Common meshes data: material, alpha cutoff for rt. transforms are not needed
+	{
+		constexpr u32 size = sizeof(MaterialTexturesDesc) * 512;
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = size;
+
+		_meshesData.buffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+	}
 }
 
 
@@ -265,6 +294,9 @@ void RTSceneRenderer::Draw()
 	// Opaque objects
 	RTPassPushConst* rtPassPushConst = new RTPassPushConst;
 	rtPassPushConst->viewDataAddress = _viewDataBuffer->GetBufferAddress();
+	rtPassPushConst->vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
+	rtPassPushConst->indexAddress  = _meshDeviceBuffer.indexBuffer->GetBufferAddress();
+	rtPassPushConst->meshesDataAddress = _meshesData.buffer->GetBufferAddress();
 
 	PushConsts rtPushConstants;
 	rtPushConstants.data = (byte*)rtPassPushConst;
@@ -363,12 +395,12 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 				verticesBufferSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 				verticesBufferSpec.allocCmdBuff = true;
 
-				std::unique_ptr<Buffer> vertexBuffer;
-				std::unique_ptr<Buffer> indexBuffer;
+				std::unique_ptr<Buffer> BLASVertexBuffer;
+				std::unique_ptr<Buffer> BLASIndexBuffer;
 
 
-				vertexBuffer = _engineBase.GetBufferManager().CreateBuffer(verticesBufferSpec);
-				vertexBuffer->UploadData(0, submeshIt->vertexDesc.vertexPtr, submeshIt->vertexDesc.vertexCount * sizeof(Vertex));
+				BLASVertexBuffer = _engineBase.GetBufferManager().CreateBuffer(verticesBufferSpec);
+				BLASVertexBuffer->UploadData(0, submeshIt->vertexDesc.vertexPtr, submeshIt->vertexDesc.vertexCount * sizeof(Vertex));
 
 				BufferSpecification indicesBufferSpec{};
 				indicesBufferSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY |
@@ -379,15 +411,15 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 				indicesBufferSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 				indicesBufferSpec.allocCmdBuff = true; // otherwise order of execution inside cmd buff will be broken
 
-				indexBuffer = _engineBase.GetBufferManager().CreateBuffer(indicesBufferSpec);
-				indexBuffer->UploadData(0, submeshIt->vertexDesc.indicesPtr, submeshIt->vertexDesc.indexCount * sizeof(u32));
+				BLASIndexBuffer = _engineBase.GetBufferManager().CreateBuffer(indicesBufferSpec);
+				BLASIndexBuffer->UploadData(0, submeshIt->vertexDesc.indicesPtr, submeshIt->vertexDesc.indexCount * sizeof(u32));
 
 
 				BLASContainer blasContainer{};
 
 				BLASSpecification blasSpec{};
-				blasSpec.vertexAddress = vertexBuffer->GetBufferAddress();
-				blasSpec.indexAddress = indexBuffer->GetBufferAddress();
+				blasSpec.vertexAddress = BLASVertexBuffer->GetBufferAddress();
+				blasSpec.indexAddress = BLASIndexBuffer->GetBufferAddress();
 				blasSpec.verticesCount = submeshIt->vertexDesc.vertexCount;
 				blasSpec.indicesCount = submeshIt->vertexDesc.indexCount;
 				blasSpec.vertexStride = sizeof(Vertex);
@@ -402,6 +434,8 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 
 				_sceneBLASes.push_back(std::move(blasContainer));
 
+				UpdateMeshDataBuffer(*submeshIt, _meshDeviceBuffer.currentVertexOffset, _meshDeviceBuffer.currentIndexOffset);
+				AddObjectToMeshSceneBuffer(*submeshIt);
 			}
 
 			_entityCreateQueue.pop();
@@ -410,6 +444,34 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 		else
 			std::cout << "Can't create a BLAS for mesh, mesh component is null\n";
 	}
+}
+
+void RTSceneRenderer::AddObjectToMeshSceneBuffer(const SubmeshDescription& desc)
+{
+	_meshDeviceBuffer.vertexBuffer->UploadData(_meshDeviceBuffer.currentVertexOffset * sizeof(Vertex), desc.vertexDesc.vertexPtr,
+		desc.vertexDesc.vertexCount * sizeof(Vertex));
+	_meshDeviceBuffer.indexBuffer->UploadData(_meshDeviceBuffer.currentIndexOffset * sizeof(u32), desc.vertexDesc.indicesPtr,
+		desc.vertexDesc.indexCount * sizeof(u32));
+
+	_meshDeviceBuffer.currentVertexOffset += desc.vertexDesc.vertexCount;
+	_meshDeviceBuffer.currentIndexOffset  += desc.vertexDesc.indexCount;
+}
+
+void RTSceneRenderer::UpdateMeshDataBuffer(const SubmeshDescription& desc, u32 vertexOffset, u32 indexOffset)
+{
+	RTMeshData meshData{};
+
+	meshData.materialsDesc = desc.materialDesc.materialTexturesPtr
+		? *desc.materialDesc.materialTexturesPtr : MaterialTexturesDesc{}; // every submesh has unique material
+
+	meshData.alphaCutoff = desc.alphaMode.alphaCutoff;
+
+	// Offsets to one common scene buffer
+	meshData.vertexBufferOffset = vertexOffset;
+	meshData.indexBufferOffset  = indexOffset;
+
+	_meshesData.buffer->UploadData(_meshesData.offsetBytes, &meshData, sizeof(RTMeshData));
+	_meshesData.offsetBytes += sizeof(RTMeshData);
 }
 
 void RTSceneRenderer::SubmitEntityToDraw(const Entity& entity)

@@ -1,4 +1,6 @@
 import common.camera;
+import common.RT_common;
+import common.mesh_common;
 
 [vk::binding(0, 0)]
 public RaytracingAccelerationStructure sceneBVH;
@@ -12,10 +14,24 @@ struct [raypayload] RayPayload
     float4 color : read(caller) : write(caller, closesthit, miss);
 };
 
+struct Attributes
+{
+    float2 barycentrics : SV_BaryCentrics;
+}
+
+struct Triangle
+{
+    Array<float2, 3> uv;
+}
+
 [[vk::push_constant]]
 cbuffer PushConstants
 {
-    ViewData *viewDataPtr;
+    ViewData     *viewDataPtr;
+    Vertex       *vertexDataPtr;
+    uint         *indexDataPtr;
+    RTMeshData   *commonDataPtr;
+
 }
 
 [shader("raygeneration")]
@@ -52,7 +68,30 @@ void MissMain(inout RayPayload payload)
 }
 
 [shader("closesthit")]
-void ClosestMain(inout RayPayload payload)
+void ClosestMain(inout RayPayload payload, in Attributes attr)
 {
-    payload.color = float4(1.0f, 0.0f, 0.0f, 1.0f);
+    Triangle triangle;
+    const float3 barycentricsCoords = float3(1.0f - attr.barycentrics.x - attr.barycentrics.y, 
+        attr.barycentrics.x, attr.barycentrics.y);
+
+    RTMeshData meshData = commonDataPtr[InstanceIndex()];
+        const uint primitiveIdx = PrimitiveIndex() * 3 + meshData.indexBufferOffset;
+    for (int i = 0; i < 3; ++i)
+    {
+        const uint index = indexDataPtr[primitiveIdx + i];
+        triangle.uv[i] = vertexDataPtr[meshData.vertexBufferOffset + index].UV;
+    }
+
+    triangle.uv[0].y = -triangle.uv[0].y;
+    triangle.uv[1].y = -triangle.uv[1].y;
+    triangle.uv[2].y = -triangle.uv[2].y;
+
+    const float2 uv = barycentricsCoords.x * triangle.uv[0] 
+                    + barycentricsCoords.y * triangle.uv[1] 
+                    + barycentricsCoords.z * triangle.uv[2];
+
+    const int albedoID = meshData.materialDesc.albedoID;
+
+    payload.color = textures[albedoID].SampleLevel(uv, 0.0);
+
 }
