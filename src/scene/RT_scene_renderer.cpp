@@ -13,6 +13,7 @@
 #include "../../../headers/constructed_types/blas_container.h"
 #include "../../../headers/util/camera_types.h"
 #include "../../headers/scene/entity.h"
+#include "../../headers/scene/lights.h"
 
 
 RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBase }
@@ -226,6 +227,37 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 
 		_meshesData.buffer = _engineBase.GetBufferManager().CreateBuffer(spec);
 	}
+
+	// Temporary initialize 5 point lights, would be enough for now
+	{
+		std::vector<PointLight> pointLights;
+
+		PointLight pointLight;
+		pointLight.radius = 3.0f;
+		pointLight.intenstity = 1.5f;
+		pointLight.position = glm::vec3(0.0f, 1.5f, 0.0f);
+		pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(0.0f, 1.5f, 5.0f);
+		pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(0.0f, 1.5f, -5.0f);
+		pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(-10.0f, 1.5f, 0.0f);
+		pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(5.0f, 1.5f, 0.0f);
+		pointLights.push_back(pointLight);
+		pointLight.position = glm::vec3(-5.0f, 1.5f, 0.0f);
+		pointLights.push_back(pointLight);
+
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = sizeof(PointLight) * pointLights.size();
+
+		_pointLightsBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+	}
+
 }
 
 
@@ -297,6 +329,8 @@ void RTSceneRenderer::Draw()
 	rtPassPushConst->vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
 	rtPassPushConst->indexAddress  = _meshDeviceBuffer.indexBuffer->GetBufferAddress();
 	rtPassPushConst->meshesDataAddress = _meshesData.buffer->GetBufferAddress();
+	rtPassPushConst->lightsAddress = _pointLightsBuffer->GetBufferAddress();
+	rtPassPushConst->maxRecursionDepth = 32;
 
 	PushConsts rtPushConstants;
 	rtPushConstants.data = (byte*)rtPassPushConst;

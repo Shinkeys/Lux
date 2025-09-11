@@ -10,6 +10,9 @@ struct RTPassPushConst
 	u64 vertexAddress{ 0 };
 	u64 indexAddress{ 0 };
 	u64 meshesDataAddress{ 0 };
+	u64 lightsAddress{ 0 };
+
+	u32 maxRecursionDepth{ 4 };
 };
 
 struct RTMeshData
@@ -53,6 +56,8 @@ private:
 
 	std::vector<BLASContainer> _sceneBLASes;
 	std::unique_ptr<RTAccelerationStructure> _sceneTLAS;
+
+	std::unique_ptr<Buffer> _pointLightsBuffer;
 
 	std::unique_ptr<Buffer> _viewDataBuffer;
 

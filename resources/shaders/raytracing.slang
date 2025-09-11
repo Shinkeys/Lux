@@ -1,6 +1,7 @@
 import common.camera;
 import common.RT_common;
 import common.mesh_common;
+import common.lights;
 
 [vk::binding(0, 0)]
 public RaytracingAccelerationStructure sceneBVH;
@@ -11,19 +12,17 @@ public Sampler2D textures[];
 
 struct [raypayload] RayPayload
 {
+    float3 dir   : read(caller);
     float4 color : read(caller) : write(caller, closesthit, miss);
+    float dot : read(caller) : write(closesthit);
+    float3 normal : read(caller) : write(closesthit);
+    float reflector : read(caller) : write(closesthit);
 };
 
-struct Attributes
+public struct Attributes
 {
-    float2 barycentrics : SV_BaryCentrics;
-    float2 anisotropy : ANISOTROPY;
-}
-
-struct Triangle
-{
-    Array<float2, 3> uv;
-}
+    public float2 barycentrics : SV_BaryCentrics;
+};
 
 [[vk::push_constant]]
 cbuffer PushConstants
@@ -31,8 +30,10 @@ cbuffer PushConstants
     ViewData     *viewDataPtr;
     Vertex       *vertexDataPtr;
     uint         *indexDataPtr;
-    RTMeshData   *commonDataPtr;
+    RTMeshData *commonDataPtr;
+    PointLight *pointLightsPtr;
 
+    uint maxRecursionDepth;
 }
 
 [shader("raygeneration")]
@@ -50,16 +51,42 @@ void RaygenMain()
 
     float3 dirWorld = normalize(pointWorldSpace.xyz);
 
+    float4 color = float4(0.0f);
+
     RayDesc ray;
     ray.Origin = originWorld;
     ray.Direction = dirWorld;
     ray.TMin = 0.001;
     ray.TMax = 10000.0;
-    RayPayload payload = { float4(0, 0, 0, 0) };
-    TraceRay(sceneBVH, RAY_FLAG_NONE, ~0, 0, 0, 0, ray, payload);
 
-    resultTexture.Store(rayIdx.xy, payload.color); 
- 
+    for (uint i = 0; i < maxRecursionDepth; ++i)
+    {
+        RayPayload payload = { dirWorld, float4(0, 0, 0, 0) };
+        TraceRay(sceneBVH, RAY_FLAG_NONE, ~0, 0, 0, 0, ray, payload);
+
+        float4 hitColor = payload.color;
+
+        // ray dir and normal dot is - meaning they're looking in a separate dirs
+        if (payload.dot < 0.0f)
+        {
+            color += 0.5f * hitColor;
+            break;
+        }
+        else if (payload.reflector == 1.0f)
+        {
+            const float3 hitPos = ray.Origin + ray.Direction + payload.dot;
+            ray.Origin = hitPos + payload.normal + 0.001f;
+            ray.Direction = reflect(ray.Direction, payload.normal);
+        }
+        else
+        {
+            color += 0.5f * hitColor;
+            break;
+        }
+    }
+
+
+    resultTexture.Store(rayIdx.xy, color); 
 }
 
 [shader("miss")]
@@ -91,11 +118,22 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
                     + barycentricsCoords.y * triangle.uv[1] 
                     + barycentricsCoords.z * triangle.uv[2];
 
+    const float3 pos = barycentricsCoords.x * HitTriangleVertexPosition(0) 
+                     + barycentricsCoords.y * HitTriangleVertexPosition(1) 
+                     + barycentricsCoords.z * HitTriangleVertexPosition(2);
+
     const int albedoID = meshData.materialDesc.albedoID;
+    const int normalID = meshData.materialDesc.normalID;
 
     const float2 dUvX  = GetScreenDerivativeX(uv);
     const float2 dUvY  = GetScreenDerivativeY(uv);
     const float2 screenExtent = viewDataPtr->extent;
 
-    payload.color = textures[albedoID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
+    const float4 normal = textures[normalID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
+    const float4 albedo = textures[albedoID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
+    payload.color = albedo;
+    payload.dot = dot(payload.dir, normal.xyz);
+    payload.normal = normal.xyz;
+    // if object is fully white we can reflect it
+    payload.reflector = (albedo.x == 1.0f && albedo.y == 1.0f && albedo.z == 1.0f) ? 1.0f : 0.0f;
 }
