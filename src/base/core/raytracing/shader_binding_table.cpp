@@ -73,6 +73,4 @@ ShaderBindingTable::ShaderBindingTable(const RTDeviceProperties& rtProperties, c
 		_buffer->UploadData(hitOffset, getHandle(handleIdx++), handleSize);
 		hitOffset += _closestTable.stride;
 	}
-
-
 }

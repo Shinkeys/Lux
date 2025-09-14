@@ -10,15 +10,6 @@ public RWTexture2D resultTexture;
 [vk::binding(2, 0)]
 public Sampler2D textures[];
 
-struct [raypayload] RayPayload
-{
-    float3 dir   : read(caller);
-    float4 color : read(caller) : write(caller, closesthit, miss);
-    float dot : read(caller) : write(closesthit);
-    float3 normal : read(caller) : write(closesthit);
-    float reflector : read(caller) : write(closesthit);
-};
-
 public struct Attributes
 {
     public float2 barycentrics : SV_BaryCentrics;
@@ -57,7 +48,7 @@ void RaygenMain()
     ray.Origin = originWorld;
     ray.Direction = dirWorld;
     ray.TMin = 0.001;
-    ray.TMax = 10000.0;
+    ray.TMax = 1000.0;
 
     for (uint i = 0; i < maxRecursionDepth; ++i)
     {
@@ -72,7 +63,7 @@ void RaygenMain()
             color += 0.5f * hitColor;
             break;
         }
-        else if (payload.reflector == 1.0f)
+        else if (payload.reflector)
         {
             const float3 hitPos = ray.Origin + ray.Direction + payload.dot;
             ray.Origin = hitPos + payload.normal + 0.001f;
@@ -131,9 +122,9 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
 
     const float4 normal = textures[normalID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
     const float4 albedo = textures[albedoID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
+
     payload.color = albedo;
     payload.dot = dot(payload.dir, normal.xyz);
     payload.normal = normal.xyz;
-    // if object is fully white we can reflect it
-    payload.reflector = (albedo.x == 1.0f && albedo.y == 1.0f && albedo.z == 1.0f) ? 1.0f : 0.0f;
+    payload.reflector = false;
 }

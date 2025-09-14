@@ -1,9 +1,10 @@
 ﻿cmake_minimum_required (VERSION 3.18)
 
+set(CMAKE_CXX_COMPILER "")
+
 include(${CMAKE_SOURCE_DIR}/CMakeScripts/slang-setup.cmake)
 
 project (Lux)
-
 
 
 # Collecting all headers/cpp/glsl files

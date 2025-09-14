@@ -6,7 +6,6 @@ namespace vkhelpers
 	VkShaderModule ReadShaderFile(const u32* data, size_t size, VkDevice device)
 	{
 		VkShaderModuleCreateInfo createInfo{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
-		// Should be in BYTES
 		createInfo.pCode = data;
 		createInfo.codeSize = size;
 

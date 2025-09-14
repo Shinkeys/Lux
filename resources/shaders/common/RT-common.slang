@@ -23,3 +23,12 @@ public float2 GetScreenDerivativeY(float2 position, float step = 1.0f /* 1 pixel
 {
     return position + float2(0.0f, step) - position / step;
 }
+
+public struct [raypayload] RayPayload
+{
+    public float3 dir : read(caller);
+    public float4 color : read(caller) : write(caller, closesthit, miss);
+    public float dot : read(caller) : write(closesthit);
+    public float3 normal : read(caller) : write(closesthit);
+    public bool reflector : read(caller) : write(closesthit);
+};

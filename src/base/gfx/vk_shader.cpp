@@ -81,7 +81,7 @@ VkShaderModule VulkanShader::CreateShaderModule(slang::IModule* slangModule, con
 		SlangResult result = entryPoint->link(linkedProgram.writeRef(), diagnosticsBlob.writeRef());
 		PrintDiagnosticBlob(diagnosticsBlob);
 
-		SLANG_CHECK(result);
+		SLANG_CHECK(result);	
 	}
 
 	ComPtr<slang::IBlob> spirv;
@@ -96,7 +96,6 @@ VkShaderModule VulkanShader::CreateShaderModule(slang::IModule* slangModule, con
 
 		SLANG_CHECK(result);
 	}
-	 
 
 	VkShaderModule shaderModule = vkhelpers::ReadShaderFile(static_cast<const u32*>(spirv->getBufferPointer()),
 		spirv->getBufferSize(), _deviceObj.GetDevice());
@@ -105,7 +104,7 @@ VkShaderModule VulkanShader::CreateShaderModule(slang::IModule* slangModule, con
 	return shaderModule;
 }
 
-slang::IModule* VulkanShader::LoadModule(const fs::path& shaderPath)
+slang::IModule* VulkanShader::LoadModule(const fs::path& shaderName)
 {
 	fs::path currentDir = fs::current_path();
 	while (!helpers::IsProjectRoot(currentDir))
@@ -113,19 +112,23 @@ slang::IModule* VulkanShader::LoadModule(const fs::path& shaderPath)
 		currentDir = currentDir.parent_path();
 	}
 
-	fs::path changedShaderPath = currentDir / "resources" / "shaders" / shaderPath;
+	fs::path changedShaderPath = currentDir / "resources" / "shaders" / shaderName;
+	const std::string shaderPathStr = changedShaderPath.string();
 
 	slang::IModule* slangModule = nullptr;
-  	if (_modulesStorage.find(shaderPath.string()) == _modulesStorage.end())
+  	if (_modulesStorage.find(shaderPathStr) == _modulesStorage.end())
 	{
 		ComPtr<slang::IBlob> diagnosticsBlob;
-		slangModule = _localSession->loadModule(changedShaderPath.string().c_str(), diagnosticsBlob.writeRef());
+		slangModule = _localSession->loadModule(shaderPathStr.c_str(), diagnosticsBlob.writeRef());
 		PrintDiagnosticBlob(diagnosticsBlob);
+
 		if (!slangModule)
-			assert(false);
+			std::abort();
+
+		_modulesStorage[shaderPathStr] = slangModule;
 	}
 	else
-		slangModule = _modulesStorage[changedShaderPath.string()];
+		slangModule = _modulesStorage[shaderPathStr];
 
 	return slangModule;
 }

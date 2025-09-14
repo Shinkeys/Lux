@@ -391,13 +391,13 @@ void VulkanRenderer::RenderRayTracing(const RTDrawCommand& drawCommand) const
 			drawCommand.pushConstants.size, drawCommand.pushConstants.data);
 	}
 
-	SBTRegion raygenTable = drawCommand.sbt->GetRaygenTable();
-	SBTRegion missTable = drawCommand.sbt->GetMissTable();
+	SBTRegion raygenTable  = drawCommand.sbt->GetRaygenTable();
+	SBTRegion missTable    = drawCommand.sbt->GetMissTable();
 	SBTRegion closestTable = drawCommand.sbt->GetClosestTable();
 
 	VkStridedDeviceAddressRegionKHR raygenSBT = { raygenTable.address, raygenTable.stride, raygenTable.size };
-	VkStridedDeviceAddressRegionKHR missSBT = { missTable.address, missTable.stride, missTable.size };
-	VkStridedDeviceAddressRegionKHR hitSBT = { closestTable.address, closestTable.stride, closestTable.size };
+	VkStridedDeviceAddressRegionKHR missSBT   = { missTable.address, missTable.stride, missTable.size };
+	VkStridedDeviceAddressRegionKHR hitSBT    = { closestTable.address, closestTable.stride, closestTable.size };
 	VkStridedDeviceAddressRegionKHR callableSBT = {}; // Empty(don't use call shaders as for now)
 
 	VkExtent2D screenExt = _vulkanBase.GetPresentationObj().GetSwapchainDesc().extent;

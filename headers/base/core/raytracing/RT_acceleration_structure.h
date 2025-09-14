@@ -14,6 +14,7 @@ struct BLASSpecification
 
 struct BLASInstance
 {
+	u32 instanceSBTOffset{ 0 };
 	glm::mat4 transform{glm::mat4(1.0f)};
 	u32 customIndex{ 0 };
 	u64 blasAddress{ 0 };
@@ -21,7 +22,7 @@ struct BLASInstance
 
 struct TLASSpecification
 {
-	std::vector<BLASInstance> instances;
+	std::deque<BLASInstance> instances;
 };
 
 

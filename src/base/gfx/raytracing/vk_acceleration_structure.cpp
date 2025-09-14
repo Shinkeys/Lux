@@ -155,7 +155,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 		instance.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR; // disable culling, otherwise would have a perf. penalty
 
 		instance.mask = 0xFF; // hit only if rayMask & instanceMask != 0
-		instance.instanceShaderBindingTableRecordOffset = 0; // TO DO
+		instance.instanceShaderBindingTableRecordOffset = blasInstance.instanceSBTOffset;
 
 		tlasInstances.push_back(instance);
 	}
@@ -165,7 +165,9 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 
 	// Create buffer
 	BufferSpecification instancesBuffSpec{};
-	instancesBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::SHADER_DEVICE_ADDRESS | BufferUsage::TRANSFER_DST;
+	instancesBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::SHADER_DEVICE_ADDRESS | 
+							  BufferUsage::TRANSFER_DST;
+
 	instancesBuffSpec.size = tlasInstances.size() * sizeof(VkAccelerationStructureInstanceKHR);
 	instancesBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 	instancesBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;                     // Rework staging dealloc

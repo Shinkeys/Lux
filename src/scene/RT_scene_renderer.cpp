@@ -14,7 +14,9 @@
 #include "../../../headers/util/camera_types.h"
 #include "../../headers/scene/entity.h"
 #include "../../headers/scene/lights.h"
+#include "../../headers/util/math_helpers.h"
 
+#include <glm/gtc/matrix_transform.hpp>
 
 RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBase }
 {
@@ -150,10 +152,16 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		closestShader.entryPoint = "ClosestMain";
 		closestShader.shaderGroup = RTShaderGroup::SHADER_STAGE_CLOSEST_HIT;
 
+		RTShaderSpec closestLightsShader{};
+		closestLightsShader.name = "RT-lights";
+		closestLightsShader.entryPoint = "LightsClosestMain";
+		closestLightsShader.shaderGroup = RTShaderGroup::SHADER_STAGE_CLOSEST_HIT;
+
 
 		shadersSpec.push_back(raygenShader);
 		shadersSpec.push_back(missShader);
 		shadersSpec.push_back(closestShader);
+		shadersSpec.push_back(closestLightsShader);
 
 		pipelineSpec.shaders = shadersSpec;
 
@@ -164,9 +172,9 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	// SBT
 	SBTSpecification sbtSpec{};
 	sbtSpec.missCount = 1;
-	sbtSpec.hitCount = 1;
+	sbtSpec.hitCount = 2;
 
-	constexpr u32 handleCount = 3; // 1 raygen + 1 miss + 1 hit
+	constexpr u32 handleCount = 4; // 1 raygen + 1 miss + 2 hit
 	const u32 handleSize = rtManager.GetRTDeviceProperties().shaderGroupHandleSize;
 	const u32 dataSize = handleCount * handleSize;
 	sbtSpec.handles.resize(dataSize);
@@ -232,30 +240,73 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	{
 		std::vector<PointLight> pointLights;
 
+		const glm::vec3 lightPos = glm::vec3(0.0f, 1.5f, 0.0f);
+
 		PointLight pointLight;
 		pointLight.radius = 3.0f;
 		pointLight.intenstity = 1.5f;
-		pointLight.position = glm::vec3(0.0f, 1.5f, 0.0f);
-		pointLights.push_back(pointLight);
-		pointLight.position = glm::vec3(0.0f, 1.5f, 5.0f);
-		pointLights.push_back(pointLight);
-		pointLight.position = glm::vec3(0.0f, 1.5f, -5.0f);
-		pointLights.push_back(pointLight);
-		pointLight.position = glm::vec3(-10.0f, 1.5f, 0.0f);
-		pointLights.push_back(pointLight);
-		pointLight.position = glm::vec3(5.0f, 1.5f, 0.0f);
-		pointLights.push_back(pointLight);
-		pointLight.position = glm::vec3(-5.0f, 1.5f, 0.0f);
+		pointLight.position = lightPos;
 		pointLights.push_back(pointLight);
 
+		const Icosphere icosphere = mathhelpers::GenerateIcosphere(5);
+		DeviceIndexedBuffer lightsMeshBuffers;
+
+		// Lights mesh buffer
+		const u32 size = sizeof(glm::vec3) * icosphere.vertices.size();
 		BufferSpecification spec{};
-		spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::VERTEX_BUFFER | 
+					 BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+
 		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
 		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
-		spec.size = sizeof(PointLight) * pointLights.size();
+		spec.size = size;
+		spec.allocCmdBuff = true;
 
-		_pointLightsBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+
+		// Upload lights icosphere vertices and ind to the buffer
+		lightsMeshBuffers.vertexBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+		lightsMeshBuffers.vertexBuffer->UploadData(0, icosphere.vertices.data(), sizeof(glm::vec3) * icosphere.vertices.size());
+
+		spec.size = sizeof(u32) * icosphere.indices.size();
+		spec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY | BufferUsage::INDEX_BUFFER | 
+					 BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		lightsMeshBuffers.indexBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+		lightsMeshBuffers.indexBuffer->UploadData(0, icosphere.indices.data(), sizeof(u32) * icosphere.indices.size());
+			
+
+		BLASContainer blasContainer{};
+
+		BLASSpecification blasSpec{};
+		blasSpec.vertexAddress = lightsMeshBuffers.vertexBuffer->GetBufferAddress();
+		blasSpec.indexAddress  = lightsMeshBuffers.indexBuffer->GetBufferAddress();
+		blasSpec.verticesCount = icosphere.vertices.size();
+		blasSpec.indicesCount  = icosphere.indices.size();
+		blasSpec.vertexStride  = sizeof(glm::vec3);
+
+		blasContainer.accel = _engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
+
+		// temporary solution
+		BLASInstance blasInstance{};
+		blasInstance.blasAddress = blasContainer.accel->GetAccelerationAddress();
+		blasInstance.customIndex = 0;
+		glm::mat4 lightTransform = glm::mat4(1.0f);
+		lightTransform = glm::scale(lightTransform, glm::vec3(0.5f));
+		lightTransform = glm::translate(lightTransform, lightPos);
+		blasInstance.transform = lightTransform;
+		blasInstance.instanceSBTOffset = 1; // offset 1 for closest hit;
+ 		blasContainer.instance = blasInstance;
+
+		_sceneBLASes.push_back(std::move(blasContainer));
+
+		BufferSpecification lightsPropsSpec{};
+		lightsPropsSpec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		lightsPropsSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		lightsPropsSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		lightsPropsSpec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		lightsPropsSpec.size = sizeof(PointLight) * pointLights.size();
+
+		_pointLightsBuffer = _engineBase.GetBufferManager().CreateBuffer(lightsPropsSpec);
 	}
 
 }
@@ -272,6 +323,12 @@ void RTSceneRenderer::Update(const Camera& camera)
 	
 	for (u32 i = 0; i < _sceneBLASes.size(); ++i)
 		tlasSpec.instances.push_back(_sceneBLASes[i].instance);
+	
+	// They MUST be sorted by the offset into SBT
+	std::sort(tlasSpec.instances.begin(), tlasSpec.instances.end(), [](const auto& lhs, const auto& rhs)
+		{
+			return lhs.instanceSBTOffset < rhs.instanceSBTOffset;
+		});
 
 	_sceneTLAS = _engineBase.GetRayTracingManager().CreateTLAS(tlasSpec);
 
