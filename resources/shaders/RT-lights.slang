@@ -7,7 +7,7 @@ import common.lights;
 [shader("closesthit")]
 void LightsClosestMain(inout RayPayload payload)
 {
-    payload.color = float4(1.0f, 0.7f, 0.85f, 1.0f);
-    payload.dot = 1.0f;
-    payload.reflector = false;
+    payload.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    payload.hitLight = true;
+    payload.distance = -1.0f;
 }

@@ -174,7 +174,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	sbtSpec.missCount = 1;
 	sbtSpec.hitCount = 2;
 
-	constexpr u32 handleCount = 4; // 1 raygen + 1 miss + 2 hit
+	const u32 handleCount = 1 + sbtSpec.missCount + sbtSpec.hitCount; // 1 raygen
 	const u32 handleSize = rtManager.GetRTDeviceProperties().shaderGroupHandleSize;
 	const u32 dataSize = handleCount * handleSize;
 	sbtSpec.handles.resize(dataSize);
@@ -240,7 +240,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	{
 		std::vector<PointLight> pointLights;
 
-		const glm::vec3 lightPos = glm::vec3(0.0f, 1.5f, 0.0f);
+		const glm::vec3 lightPos = glm::vec3(0.0f);
 
 		PointLight pointLight;
 		pointLight.radius = 3.0f;
@@ -291,7 +291,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		blasInstance.blasAddress = blasContainer.accel->GetAccelerationAddress();
 		blasInstance.customIndex = 0;
 		glm::mat4 lightTransform = glm::mat4(1.0f);
-		lightTransform = glm::scale(lightTransform, glm::vec3(0.5f));
+		lightTransform = glm::scale(lightTransform, glm::vec3(0.2f));
 		lightTransform = glm::translate(lightTransform, lightPos);
 		blasInstance.transform = lightTransform;
 		blasInstance.instanceSBTOffset = 1; // offset 1 for closest hit;
@@ -305,8 +305,10 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		lightsPropsSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
 		lightsPropsSpec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
 		lightsPropsSpec.size = sizeof(PointLight) * pointLights.size();
+		lightsPropsSpec.allocCmdBuff = true;
 
 		_pointLightsBuffer = _engineBase.GetBufferManager().CreateBuffer(lightsPropsSpec);
+		_pointLightsBuffer->UploadData(0, pointLights.data(), sizeof(PointLight)* pointLights.size());
 	}
 
 }
@@ -387,7 +389,7 @@ void RTSceneRenderer::Draw()
 	rtPassPushConst->indexAddress  = _meshDeviceBuffer.indexBuffer->GetBufferAddress();
 	rtPassPushConst->meshesDataAddress = _meshesData.buffer->GetBufferAddress();
 	rtPassPushConst->lightsAddress = _pointLightsBuffer->GetBufferAddress();
-	rtPassPushConst->maxRecursionDepth = 32;
+	rtPassPushConst->maxRecursionDepth = 16;
 
 	PushConsts rtPushConstants;
 	rtPushConstants.data = (byte*)rtPassPushConst;

@@ -2,6 +2,7 @@ import common.camera;
 import common.RT_common;
 import common.mesh_common;
 import common.lights;
+import common.random;
 
 [vk::binding(0, 0)]
 public RaytracingAccelerationStructure sceneBVH;
@@ -47,43 +48,39 @@ void RaygenMain()
     RayDesc ray;
     ray.Origin = originWorld;
     ray.Direction = dirWorld;
-    ray.TMin = 0.001;
-    ray.TMax = 1000.0;
+    ray.TMin = 0.001f;
+    ray.TMax = viewDataPtr->farPlane;
 
+    float g_Seed = BaseHash(rayIdx.xy) / float(0xffffffffU);
     for (uint i = 0; i < maxRecursionDepth; ++i)
     {
-        RayPayload payload = { dirWorld, float4(0, 0, 0, 0) };
+        RayPayload payload = { dirWorld, float4(0, 0, 0, 1.0f), float3(0.0f), 0.0f, false, false  };
         TraceRay(sceneBVH, RAY_FLAG_NONE, ~0, 0, 0, 0, ray, payload);
 
-        float4 hitColor = payload.color;
+        // To remove this bs
+        if (i == 0 && payload.hitLight)
+        {
+            color += payload.color;
+            break;
+        }
 
-        // ray dir and normal dot is - meaning they're looking in a separate dirs
-        if (payload.dot < 0.0f)
+        if (payload.hitLight)
+            break;
+
+        // Miss
+        if (payload.distance == -1.0f)
         {
-            color += 0.5f * hitColor;
+            color += payload.color;
             break;
         }
-        else if (payload.reflector)
-        {
-            const float3 hitPos = ray.Origin + ray.Direction + payload.dot;
-            ray.Origin = hitPos + payload.normal + 0.001f;
-            ray.Direction = reflect(ray.Direction, payload.normal);
-        }
-        else
-        {
-            color += 0.5f * hitColor;
-            break;
-        }
+
+        color += payload.color;
     }
 
+    color = color / (color + float4(1.0f));
+    color = pow(color, float4(1.0f / 2.2f));
 
     resultTexture.Store(rayIdx.xy, color); 
-}
-
-[shader("miss")]
-void MissMain(inout RayPayload payload)
-{
-    payload.color = float4(0.0f, 0.3f, 0.3f, 1.0f);
 }
 
 [shader("closesthit")]
@@ -94,7 +91,8 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
         attr.barycentrics.x, attr.barycentrics.y);
 
     RTMeshData meshData = commonDataPtr[InstanceIndex()];
-        const uint primitiveIdx = PrimitiveIndex() * 3 + meshData.indexBufferOffset;
+
+    const uint primitiveIdx = PrimitiveIndex() * 3 + meshData.indexBufferOffset;
     for (int i = 0; i < 3; ++i)
     {
         const uint index = indexDataPtr[primitiveIdx + i];
@@ -115,16 +113,45 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
 
     const int albedoID = meshData.materialDesc.albedoID;
     const int normalID = meshData.materialDesc.normalID;
+    const int metalRoughnessID = meshData.materialDesc.metalRoughnessID;
 
-    const float2 dUvX  = GetScreenDerivativeX(uv);
-    const float2 dUvY  = GetScreenDerivativeY(uv);
+    const float2 dUvX = GetScreenDerivativeX(uv);
+    const float2 dUvY = GetScreenDerivativeY(uv);
     const float2 screenExtent = viewDataPtr->extent;
 
     const float4 normal = textures[normalID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
     const float4 albedo = textures[albedoID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
+    const float4 metallicRoughness = textures[metalRoughnessID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
 
-    payload.color = albedo;
-    payload.dot = dot(payload.dir, normal.xyz);
+
+    // To make importance sampling
+    const float3 lightPos = pointLightsPtr[0].position;
+    const float3 hitPoint = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    const float NdotL = dot(normalize(lightPos - hitPoint), normal.xyz);
+
+    const float diffuse = max(NdotL, 0.0f);
+
     payload.normal = normal.xyz;
-    payload.reflector = false;
+    payload.distance = RayTCurrent();
+    payload.metallic = metallicRoughness.y * meshData.materialDesc.metallicFactor == 1.0f ? true : false;
+    payload.color = float4(0.0f);
+    payload.hitLight = false;
+
+
+    RayDesc shadowRay;
+    shadowRay.Origin = hitPoint + normal.xyz * 0.0001f;
+    shadowRay.Direction = normalize(lightPos - shadowRay.Origin);
+    shadowRay.TMin = 0.001f;
+    const float distanceToLight = distance(lightPos, shadowRay.Origin);
+    shadowRay.TMax = distanceToLight - 0.001f;
+
+   if (NoObstaclesRay(sceneBVH, shadowRay, 0xFF))
+       payload.color = albedo;
+}
+
+[shader("miss")]
+void MissMain(inout RayPayload payload)
+{
+    payload.color = float4(0.0f, 0.0f, 0.0f, 1.0f);
+    payload.distance = -1.0f;
 }

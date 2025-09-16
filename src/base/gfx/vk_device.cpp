@@ -83,8 +83,10 @@ VkBool32 VulkanDevice::FamilySupportsPresentation(VkPhysicalDevice physDevice, u
 // To rework or remove
 bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice)
 {
+	VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeature = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };
 	VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeature = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR };
 	VkPhysicalDeviceRayTracingValidationFeaturesNV validationFeatures = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_VALIDATION_FEATURES_NV };
+	rayQueryFeature.pNext = &validationFeatures;
 	validationFeatures.pNext = &positionFetchFeature;
 
 	VkPhysicalDeviceVulkan11Features queryVulkan11Features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES };
@@ -96,7 +98,7 @@ bool VulkanDevice::QueryPhysDeviceFeatures(VkPhysicalDevice physDevice)
 	queryVulkan12Features.pNext = &queryVulkan13Features;
 
 	VkPhysicalDeviceFeatures2 features2{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
-	features2.pNext = &validationFeatures;
+	features2.pNext = &rayQueryFeature;
 
 	vkGetPhysicalDeviceFeatures2(physDevice, &features2);
 
@@ -284,9 +286,12 @@ void VulkanDevice::CreateLogicalDevice()
 		qCreateInfos.push_back(qCreateInfo);
 	}
 
+	VkPhysicalDeviceRayQueryFeaturesKHR rayQueryFeature = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR };
+	rayQueryFeature.rayQuery = VK_TRUE;
+
 	VkPhysicalDeviceRayTracingPositionFetchFeaturesKHR positionFetchFeature = { VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_POSITION_FETCH_FEATURES_KHR };
 	positionFetchFeature.rayTracingPositionFetch = VK_TRUE;
-
+	rayQueryFeature.pNext = &positionFetchFeature;
 	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
 	accelerationFeature.accelerationStructure = VK_TRUE;
 	// Works only in debug
@@ -300,7 +305,7 @@ void VulkanDevice::CreateLogicalDevice()
 	}
 #endif
 
-	accelerationFeature.pNext = &positionFetchFeature;
+	accelerationFeature.pNext = &rayQueryFeature;
 	accelerationFeature.descriptorBindingAccelerationStructureUpdateAfterBind = VK_TRUE; // to remove eventually
 	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR };
 	rtPipelineFeature.pNext = &accelerationFeature;

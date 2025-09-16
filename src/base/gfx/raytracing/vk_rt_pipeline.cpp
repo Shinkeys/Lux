@@ -129,7 +129,7 @@ VulkanRTPipeline::VulkanRTPipeline(const RTPipelineSpecification& spec, VulkanDe
 	pipelineInfo.pGroups = shaderGroups.data();
 	pipelineInfo.pStages = shaderStages.data();
 	pipelineInfo.stageCount = static_cast<u32>(shaderStages.size());
-	pipelineInfo.maxPipelineRayRecursionDepth = 1; // better to do GPU-side recursion as it will give HUGE performance boost
+	pipelineInfo.maxPipelineRayRecursionDepth = 2; // better to do GPU-side recursion as it will give HUGE performance boost
 	pipelineInfo.layout = _layout;
 
 	VK_CHECK(vkCreateRayTracingPipelinesKHR(deviceObj.GetDevice(), {}, {}, 1, & pipelineInfo, nullptr, &_pipeline));
