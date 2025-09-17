@@ -32,6 +32,13 @@ struct RTMeshDataBuffer
 	size_t offsetBytes{ 0 };
 };
 
+struct UpdateMeshBuffInfo
+{
+	const SubmeshDescription& submesh;
+	u32 vertexOffset{0};
+	u32 indexOffset{0};
+};
+
 class EngineBase;
 class Descriptor;
 class Pipeline;
@@ -72,7 +79,7 @@ private:
 
 	void ExecuteEntityCreateQueue();
 	void AddObjectToMeshSceneBuffer(const SubmeshDescription& desc);
-	void UpdateMeshDataBuffer(const SubmeshDescription& desc, u32 vertexOffset, u32 indexOffset);
+	void UpdateMeshDataBuffer(const UpdateMeshBuffInfo& updateInfo);
 public:
 	void Update(const Camera& camera) override;
 	void Draw() override;

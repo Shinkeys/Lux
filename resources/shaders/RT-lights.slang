@@ -8,6 +8,6 @@ import common.lights;
 void LightsClosestMain(inout RayPayload payload)
 {
     payload.color = float4(1.0f, 1.0f, 1.0f, 1.0f);
-    payload.hitLight = true;
     payload.distance = -1.0f;
+    payload.hitLight = true;
 }

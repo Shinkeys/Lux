@@ -51,30 +51,23 @@ void RaygenMain()
     ray.TMin = 0.001f;
     ray.TMax = viewDataPtr->farPlane;
 
-    float g_Seed = BaseHash(rayIdx.xy) / float(0xffffffffU);
+    float seed = BaseHash(rayIdx.xy) / float(0xffffffffU);
+
     for (uint i = 0; i < maxRecursionDepth; ++i)
     {
-        RayPayload payload = { dirWorld, float4(0, 0, 0, 1.0f), float3(0.0f), 0.0f, false, false  };
+        RayPayload payload = { float4(0, 0, 0, 1.0f), 0.0f, ray, seed, false};
         TraceRay(sceneBVH, RAY_FLAG_NONE, ~0, 0, 0, 0, ray, payload);
 
-        // To remove this bs
-        if (i == 0 && payload.hitLight)
-        {
-            color += payload.color;
-            break;
-        }
-
-        if (payload.hitLight)
-            break;
-
-        // Miss
-        if (payload.distance == -1.0f)
+        if (payload.distance < 0.0f)
         {
             color += payload.color;
             break;
         }
 
         color += payload.color;
+
+        if (payload.hitLight)
+            break;
     }
 
     color = color / (color + float4(1.0f));
@@ -97,6 +90,7 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
     {
         const uint index = indexDataPtr[primitiveIdx + i];
         triangle.uv[i] = vertexDataPtr[meshData.vertexBufferOffset + index].UV;
+        triangle.tangent[i] = vertexDataPtr[meshData.vertexBufferOffset + index].tangent;
     }
 
     triangle.uv[0].y = -triangle.uv[0].y;
@@ -129,13 +123,10 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
     const float3 hitPoint = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
     const float NdotL = dot(normalize(lightPos - hitPoint), normal.xyz);
 
-    const float diffuse = max(NdotL, 0.0f);
+    const float diffuse = max(abs(NdotL), 0.0f);
 
-    payload.normal = normal.xyz;
     payload.distance = RayTCurrent();
-    payload.metallic = metallicRoughness.y * meshData.materialDesc.metallicFactor == 1.0f ? true : false;
     payload.color = float4(0.0f);
-    payload.hitLight = false;
 
 
     RayDesc shadowRay;
@@ -143,10 +134,29 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
     shadowRay.Direction = normalize(lightPos - shadowRay.Origin);
     shadowRay.TMin = 0.001f;
     const float distanceToLight = distance(lightPos, shadowRay.Origin);
-    shadowRay.TMax = distanceToLight - 0.001f;
+    shadowRay.TMax = distanceToLight - pointLightsPtr[0].radius;
 
    if (NoObstaclesRay(sceneBVH, shadowRay, 0xFF))
-       payload.color = albedo;
+       payload.color = diffuse * albedo;
+
+   const float3 tangent = barycentricsCoords.x * triangle.tangent[0] 
+                        + barycentricsCoords.y * triangle.tangent[1] 
+                        + barycentricsCoords.z * triangle.tangent[2];
+
+   const float3 bitangent = normalize(cross(tangent, normal.xyz));
+
+   float3 T = normalize(mul(ObjectToWorld(), float4(tangent, 0.0)).xyz);
+   float3 N = normalize(mul(ObjectToWorld(), float4(normal.xyz, 0.0)).xyz);
+
+   // Gram-Schmidt process to make vectors orthogonal back
+   T = normalize(T - dot(T, N) * N);
+   float3 B = normalize(cross(T, N));
+   float3x3 TBN = float3x3(T, B, N);
+   TBN = transpose(TBN); // important in slang
+
+   const float3 hitPos = payload.ray.Origin + payload.ray.Direction * RayTCurrent();
+   payload.ray.Origin = hitPos + normal.xyz * 0.001f;
+   payload.ray.Direction = mul(TBN, RandomOnHemisphere(payload.seed, normal.xyz)) - hitPos;
 }
 
 [shader("miss")]

@@ -243,7 +243,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		const glm::vec3 lightPos = glm::vec3(0.0f);
 
 		PointLight pointLight;
-		pointLight.radius = 3.0f;
+		pointLight.radius = 1.0f;
 		pointLight.intenstity = 1.5f;
 		pointLight.position = lightPos;
 		pointLights.push_back(pointLight);
@@ -527,7 +527,9 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 
 				_sceneBLASes.push_back(std::move(blasContainer));
 
-				UpdateMeshDataBuffer(*submeshIt, _meshDeviceBuffer.currentVertexOffset, _meshDeviceBuffer.currentIndexOffset);
+				UpdateMeshBuffInfo updateInfo{ *submeshIt, _meshDeviceBuffer.currentVertexOffset, _meshDeviceBuffer.currentIndexOffset };
+
+				UpdateMeshDataBuffer(updateInfo);
 				AddObjectToMeshSceneBuffer(*submeshIt);
 			}
 
@@ -550,18 +552,18 @@ void RTSceneRenderer::AddObjectToMeshSceneBuffer(const SubmeshDescription& desc)
 	_meshDeviceBuffer.currentIndexOffset  += desc.vertexDesc.indexCount;
 }
 
-void RTSceneRenderer::UpdateMeshDataBuffer(const SubmeshDescription& desc, u32 vertexOffset, u32 indexOffset)
+void RTSceneRenderer::UpdateMeshDataBuffer(const UpdateMeshBuffInfo& updateInfo)
 {
 	RTMeshData meshData{};
 
-	meshData.materialsDesc = desc.materialDesc.materialTexturesPtr
-		? *desc.materialDesc.materialTexturesPtr : MaterialTexturesDesc{}; // every submesh has unique material
+	meshData.materialsDesc = updateInfo.submesh.materialDesc.materialTexturesPtr
+		? *updateInfo.submesh.materialDesc.materialTexturesPtr : MaterialTexturesDesc{}; // every submesh has unique material
 
-	meshData.alphaCutoff = desc.alphaMode.alphaCutoff;
+	meshData.alphaCutoff = updateInfo.submesh.alphaMode.alphaCutoff;
 
 	// Offsets to one common scene buffer
-	meshData.vertexBufferOffset = vertexOffset;
-	meshData.indexBufferOffset  = indexOffset;
+	meshData.vertexBufferOffset = updateInfo.vertexOffset;
+	meshData.indexBufferOffset  = updateInfo.indexOffset;
 
 	_meshesData.buffer->UploadData(_meshesData.offsetBytes, &meshData, sizeof(RTMeshData));
 	_meshesData.offsetBytes += sizeof(RTMeshData);
