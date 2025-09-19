@@ -389,7 +389,7 @@ void RTSceneRenderer::Draw()
 	rtPassPushConst->indexAddress  = _meshDeviceBuffer.indexBuffer->GetBufferAddress();
 	rtPassPushConst->meshesDataAddress = _meshesData.buffer->GetBufferAddress();
 	rtPassPushConst->lightsAddress = _pointLightsBuffer->GetBufferAddress();
-	rtPassPushConst->maxRecursionDepth = 16;
+	rtPassPushConst->maxRecursionDepth = 6;
 
 	PushConsts rtPushConstants;
 	rtPushConstants.data = (byte*)rtPassPushConst;

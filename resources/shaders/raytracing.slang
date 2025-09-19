@@ -51,11 +51,11 @@ void RaygenMain()
     ray.TMin = 0.001f;
     ray.TMax = viewDataPtr->farPlane;
 
-    float seed = BaseHash(rayIdx.xy) / float(0xffffffffU);
+    float seed = BaseHash(rayIdx.xy);
 
     for (uint i = 0; i < maxRecursionDepth; ++i)
     {
-        RayPayload payload = { float4(0, 0, 0, 1.0f), 0.0f, ray, seed, false};
+        RayPayload payload = { float4(0, 0, 0, 1.0f), 0.0f, ray, seed, false };
         TraceRay(sceneBVH, RAY_FLAG_NONE, ~0, 0, 0, 0, ray, payload);
 
         if (payload.distance < 0.0f)
@@ -68,6 +68,10 @@ void RaygenMain()
 
         if (payload.hitLight)
             break;
+            
+        // Can't update it just inside of closest hit shader, so need to apply these changes here
+        ray.Origin = payload.ray.Origin;
+        ray.Direction = payload.ray.Direction;
     }
 
     color = color / (color + float4(1.0f));
@@ -156,7 +160,7 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
 
    const float3 hitPos = payload.ray.Origin + payload.ray.Direction * RayTCurrent();
    payload.ray.Origin = hitPos + normal.xyz * 0.001f;
-   payload.ray.Direction = mul(TBN, RandomOnHemisphere(payload.seed, normal.xyz)) - hitPos;
+   payload.ray.Direction = normalize(mul(TBN, RandomOnHemisphere(payload.seed, normal.xyz)));
 }
 
 [shader("miss")]

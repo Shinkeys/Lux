@@ -3,6 +3,8 @@
 // https://www.shadertoy.com/view/Xt3cDn
 //
 
+import common;
+
 public uint BaseHash(uint2 p) {
     p = 1103515245U * ((p >> 1U) ^ (p.yx));
     uint h32 = 1103515245U * ((p.x) ^ (p.y >> 3U));
@@ -23,8 +25,13 @@ public float3 RandomOnHemisphere(inout float seed, float3 normal)
 {
     float3 random = Hash3(seed);
 
-    if (dot(random, normal) <= 0.0f)
-        return -random;
+    random = random * float3(Two_Pi, 1.0f, 1.0f);
+    float theta = random.x; // polar
+    float sinP = sqrt(1.0f - random.y * random.y); // azimuth
+    float r = pow(random.z, 0.3333333334); // cube root  
 
-    return random;
+    float3 res = r * float3(cos(theta) * sinP, random.y, sin(theta) * sinP);
+    if (dot(res, normal) < 0.0f)
+        return -res;
+    return res;
 }

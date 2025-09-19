@@ -2,6 +2,9 @@
 
 set(CMAKE_CXX_COMPILER "")
 
+# Enable compile commands generation for IntelliSense
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 include(${CMAKE_SOURCE_DIR}/CMakeScripts/slang-setup.cmake)
 
 project (Lux)
