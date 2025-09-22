@@ -23,13 +23,13 @@ public float AttenuatePointLight(float3 lightPos, float3 fragPos, float intensit
     return maxIntensity * Square(1 - sqrS) / (1 + decaySpeed * sqrS);
 }
 
-public float3 CalculateLight(PointLight light, float3 albedo, float3 metallicRoughness, float3 normal, float3 cameraPos, float3 fragPos)
+public float3 CalculateBRDF(PointLight light, float3 albedo, float3 metallicRoughness, float3 normal, float3 cameraPos, float3 fragPos)
 {
-    float attenuation = AttenuatePointLight(light.position, fragPos, light.intensity, light.radius);
+    //float attenuation = AttenuatePointLight(light.position, fragPos, light.intensity, light.radius);
 
     float3 wi = normalize(light.position - fragPos); // wi is basically a current light direction incoming to the surf.
     float cosTheta = max(dot(normal, wi), 0.0);
-    float3 L = light.color * attenuation * light.intensity; // L is basically a radiance of the rendering equation, cosTheta is the angle between
+    float3 L = light.color /** attenuation*/ * light.intensity; // L is basically a radiance of the rendering equation, cosTheta is the angle between
     float3 V = normalize(cameraPos - fragPos); // view vector(WORLD SPACE)
     // incoming ray and the surface normal
     float3 halfway = normalize(V + wi);

@@ -387,7 +387,11 @@ void VulkanRenderer::RenderRayTracing(const RTDrawCommand& drawCommand) const
 	
 	if (drawCommand.pushConstants.data)
 	{
-		vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR, 0,
+		vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR | 
+																   VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | 
+			                                                       VK_SHADER_STAGE_MISS_BIT_KHR |
+																   VK_SHADER_STAGE_ANY_HIT_BIT_KHR,
+			0,
 			drawCommand.pushConstants.size, drawCommand.pushConstants.data);
 	}
 

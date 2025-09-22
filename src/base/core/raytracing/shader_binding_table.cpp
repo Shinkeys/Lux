@@ -24,11 +24,14 @@ ShaderBindingTable::ShaderBindingTable(const RTDeviceProperties& rtProperties, c
 	_closestTable.stride = handleSizeAligned;
 	_closestTable.size = AlignUp(createInfo.hitCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
 
-	const u32 totalHandleCount = 1 + createInfo.missCount + createInfo.hitCount; // 1 for raygen
+	_anyHitTable.stride = handleSizeAligned;
+	_anyHitTable.size = AlignUp(createInfo.anyHitCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+
+	const u32 totalHandleCount = 1 + createInfo.missCount + createInfo.hitCount + createInfo.anyHitCount; // 1 for raygen
 
 	const u32 dataSize = totalHandleCount * rtProperties.shaderGroupHandleSize;
 	
-	const u64 sbtSize = _raygenTable.size + _missTable.size + _closestTable.size;
+	const u64 sbtSize = _raygenTable.size + _missTable.size + _closestTable.size + _anyHitTable.size;
 
 	{
 		BufferSpecification spec{};
@@ -48,6 +51,7 @@ ShaderBindingTable::ShaderBindingTable(const RTDeviceProperties& rtProperties, c
 	_raygenTable.address = bufferAddress;
 	_missTable.address = bufferAddress + _raygenTable.size;
 	_closestTable.address = bufferAddress + _raygenTable.size + _missTable.size;
+	_anyHitTable.address = bufferAddress + _raygenTable.size + _missTable.size + _closestTable.size;
 
 	const u32 handleSize = rtProperties.shaderGroupHandleSize;
 	// Helper function to retrieve data by index
@@ -72,5 +76,13 @@ ShaderBindingTable::ShaderBindingTable(const RTDeviceProperties& rtProperties, c
 	{
 		_buffer->UploadData(hitOffset, getHandle(handleIdx++), handleSize);
 		hitOffset += _closestTable.stride;
+	}
+
+	// Any hit
+	u32 anyHitOffset = _raygenTable.size + _missTable.size + _closestTable.size;
+	for (u32 i = 0; i < createInfo.anyHitCount; ++i)
+	{
+		_buffer->UploadData(anyHitOffset, getHandle(handleIdx++), handleSize);
+		anyHitOffset += _anyHitTable.stride;
 	}
 }

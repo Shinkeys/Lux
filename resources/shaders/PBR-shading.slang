@@ -114,7 +114,7 @@ FragmentOutput FragmentMain(VertexOutput input)
         uint lightIndex = lightIndicesPtr[i + startIndex];
         PointLight pointLight = lightsPtr[lightIndex];
 
-        Lo += CalculateLight(pointLight, albedoColor, metallicRoughnessColor, normals, viewDataPtr.position, positions);
+        Lo += CalculateBRDF(pointLight, albedoColor, metallicRoughnessColor, normals, viewDataPtr.position, positions);
     }
 
     float3 ambient = float3(0.001) * albedoColor;

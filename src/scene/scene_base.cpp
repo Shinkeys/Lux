@@ -26,16 +26,16 @@ void SceneBase::Initialize()
 {
 	constexpr bool cameraIsActive = true;
 
-	//const Entity& sponza = _storageInstance.CreateEntityInRegistry(this);
-	//sponza.AddComponent<TagComponent>("Sponza");
-	//sponza.AddComponent<CameraComponent>(_camera, cameraIsActive);
-	//sponza.AddComponent<MeshComponent>();
-	////sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f), glm::vec3(0.0f), glm::vec3(0.01f));
-	//glm::mat4 transform = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
-	//sponza.AddComponent<TransformComponent>(transform);
-	//sponza.GetComponent<MeshComponent>()->folderName = "Sponza";
+	const Entity& sponza = _storageInstance.CreateEntityInRegistry(this);
+	sponza.AddComponent<TagComponent>("Sponza");
+	sponza.AddComponent<CameraComponent>(_camera, cameraIsActive);
+	sponza.AddComponent<MeshComponent>();
+	//sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f), glm::vec3(0.0f), glm::vec3(0.01f));
+	glm::mat4 transform = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
+	sponza.AddComponent<TransformComponent>(transform);
+	sponza.GetComponent<MeshComponent>()->folderName = "Sponza";
 
-	const Entity& wall1 = _storageInstance.CreateEntityInRegistry(this);
+	/*const Entity& wall1 = _storageInstance.CreateEntityInRegistry(this);
 	wall1.AddComponent<TagComponent>("Wall1");
 	wall1.AddComponent<CameraComponent>(_camera, cameraIsActive);
 	wall1.AddComponent<MeshComponent>();
@@ -52,12 +52,12 @@ void SceneBase::Initialize()
 	glm::mat4 wall2Transform = glm::scale(glm::mat4(1.0f), glm::vec3(0.4f));
 	wall2Transform = glm::translate(wall2Transform, glm::vec3(0.0f, -0.5f, -5.0f));
 	wall2.AddComponent<TransformComponent>(wall2Transform);
-	wall2.GetComponent<MeshComponent>()->folderName = "Wall2";
+	wall2.GetComponent<MeshComponent>()->folderName = "Wall2";*/
 
 
-	//_rendererInstance.SubmitEntityToDraw(sponza);
-	_rtRendererInstance.SubmitEntityToDraw(wall1);
-	_rtRendererInstance.SubmitEntityToDraw(wall2);
+	_rtRendererInstance.SubmitEntityToDraw(sponza);
+	//_rtRendererInstance.SubmitEntityToDraw(wall1);
+	//_rtRendererInstance.SubmitEntityToDraw(wall2);
 }
 
 

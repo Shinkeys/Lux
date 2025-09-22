@@ -2,11 +2,13 @@ module PBR_common;
 
 import common;
 
-public float3 FresnelSchlick(float3 F0, float cosTheta) // angle between halfway and viewdir
+// Computes the Fresnel reflectance term using the Schlick approximation
+public float3 FresnelSchlick(float3 F0, float cosTheta)
 {
 	return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0); // clamp is needed just in case if some floating point error would happen
 }
 
+// Computes the normal distribution function (NDF) for microfacet surfaces using the GGX (Trowbridge-Reitz) model
 public float DistributionGGX(float3 halfway, float3 normal, float roughness)
 {
 	float a = roughness * roughness; 
@@ -20,6 +22,7 @@ public float DistributionGGX(float3 halfway, float3 normal, float roughness)
 	return aSq / denom;
 }
 
+// Computes the geometric attenuation (shadowing-masking) term for a single direction using the Schlick-GGX approximation.
 public float GeometrySchlickGGX(float NdotV, float roughness)
 {
 	float r = (roughness + 1.0);
@@ -30,6 +33,7 @@ public float GeometrySchlickGGX(float NdotV, float roughness)
 	return NdotV / denom;
 }
 
+// Computes the combined geometric attenuation (shadowing-masking) term for both view and light directions using the Smith method with Schlick-GGX approximation.
 public float GeometrySmith(float3 N, float3 V, float3 wi, float roughness)
 {
 	float NdotV = max(dot(N, V), 0.0);

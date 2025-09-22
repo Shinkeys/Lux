@@ -9,6 +9,11 @@ VulkanRTPipeline::VulkanRTPipeline(const RTPipelineSpecification& spec, VulkanDe
 {
 	std::vector<VkRayTracingShaderGroupCreateInfoKHR> shaderGroups;
 	std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
+	
+	// Store stage indices for any hit and closest hit shaders to combine them
+	std::vector<u32> anyHitStageIndices;
+	std::vector<u32> closestHitStageIndices;
+	
 	for (u32 i = 0; i < spec.shaders.size(); ++i)
 	{
 		fs::path shaderPath = spec.shaders[i].name;
@@ -27,11 +32,21 @@ VulkanRTPipeline::VulkanRTPipeline(const RTPipelineSpecification& spec, VulkanDe
 
 
 
+		const u32 stageIndex = static_cast<u32>(shaderStages.size());
+		
+		// Create the shader stage first
+		VkPipelineShaderStageCreateInfo stage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
+		stage.pName = "main";
+		stage.module = shaderModule;
+		
 		switch (spec.shaders[i].shaderGroup)
 		{
 		case RTShaderGroup::SHADER_STAGE_RAYGEN:
 		{
-			const u32 stageIndex = static_cast<u32>(shaderStages.size());
+			stage.stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+			shaderStages.push_back(stage);
+			
+			// Create raygen group immediately
 			VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
 			group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
 			group.generalShader = stageIndex;
@@ -39,19 +54,15 @@ VulkanRTPipeline::VulkanRTPipeline(const RTPipelineSpecification& spec, VulkanDe
 			group.closestHitShader = VK_SHADER_UNUSED_KHR;
 			group.intersectionShader = VK_SHADER_UNUSED_KHR;
 			shaderGroups.push_back(group);
-
-
-			VkPipelineShaderStageCreateInfo              stage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
-			stage.pName = "main";
-			stage.module = shaderModule;
-			stage.stage = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-			shaderStages.push_back(stage);
 			break;
 		}
 
 		case RTShaderGroup::SHADER_STAGE_MISS:
 		{
-			const u32 stageIndex = static_cast<u32>(shaderStages.size());
+			stage.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
+			shaderStages.push_back(stage);
+			
+			// Create miss group immediately
 			VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
 			group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
 			group.generalShader = stageIndex;
@@ -59,32 +70,37 @@ VulkanRTPipeline::VulkanRTPipeline(const RTPipelineSpecification& spec, VulkanDe
 			group.closestHitShader = VK_SHADER_UNUSED_KHR;
 			group.intersectionShader = VK_SHADER_UNUSED_KHR;
 			shaderGroups.push_back(group);
-
-
-			VkPipelineShaderStageCreateInfo              stage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
-			stage.pName = "main";
-			stage.module = shaderModule;
-			stage.stage = VK_SHADER_STAGE_MISS_BIT_KHR;
-			shaderStages.push_back(stage);
 			break;
 		}
 
 		case RTShaderGroup::SHADER_STAGE_CLOSEST_HIT:
 		{
-			const u32 stageIndex = static_cast<u32>(shaderStages.size());
-			VkRayTracingShaderGroupCreateInfoKHR group{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
-			group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
-			group.anyHitShader = VK_SHADER_UNUSED_KHR;
-			group.intersectionShader = VK_SHADER_UNUSED_KHR;
-			group.generalShader = VK_SHADER_UNUSED_KHR;
-			group.closestHitShader = stageIndex;
-			shaderGroups.push_back(group);
-
-			VkPipelineShaderStageCreateInfo              stage{ VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO };
-			stage.pName = "main";
-			stage.module = shaderModule;
 			stage.stage = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
+			/*VkRayTracingShaderGroupCreateInfoKHR hitsGroup{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
+			hitsGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+			hitsGroup.generalShader = VK_SHADER_UNUSED_KHR;
+			hitsGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+			hitsGroup.closestHitShader = stageIndex;
+			hitsGroup.intersectionShader = VK_SHADER_UNUSED_KHR;*/
+
 			shaderStages.push_back(stage);
+			//shaderGroups.push_back(hitsGroup);
+			closestHitStageIndices.push_back(stageIndex);
+			break;
+		}
+
+		case RTShaderGroup::SHADER_STAGE_ANY_HIT:
+		{
+			stage.stage = VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+			/*VkRayTracingShaderGroupCreateInfoKHR hitsGroup{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
+			hitsGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+			hitsGroup.generalShader = VK_SHADER_UNUSED_KHR;
+			hitsGroup.anyHitShader = stageIndex;
+			hitsGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+			hitsGroup.intersectionShader = VK_SHADER_UNUSED_KHR;*/
+			shaderStages.push_back(stage);
+			//shaderGroups.push_back(hitsGroup);
+			anyHitStageIndices.push_back(stageIndex);
 			break;
 		}
 
@@ -93,9 +109,30 @@ VulkanRTPipeline::VulkanRTPipeline(const RTPipelineSpecification& spec, VulkanDe
 		}
 
 	}
+	
+	const u32 count = std::max(static_cast<u32>(closestHitStageIndices.size()), static_cast<u32>(anyHitStageIndices.size()));
+	for (u32 i = 0; i < count; ++i)
+	{
+		VkRayTracingShaderGroupCreateInfoKHR hitsGroup{ VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR };
+		hitsGroup.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+		hitsGroup.generalShader = VK_SHADER_UNUSED_KHR;
+		hitsGroup.anyHitShader = VK_SHADER_UNUSED_KHR;
+		hitsGroup.closestHitShader = VK_SHADER_UNUSED_KHR;
+		hitsGroup.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+		if (i < closestHitStageIndices.size())
+			hitsGroup.closestHitShader = closestHitStageIndices[i];
+
+		if (i < anyHitStageIndices.size())
+			hitsGroup.anyHitShader = anyHitStageIndices[i];
+
+		shaderGroups.push_back(hitsGroup);
+	}
+
 
 	VkPushConstantRange pcRange;
-	pcRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR; // To Do: other st.
+	pcRange.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR; 
+	// To Do: other st.
 	pcRange.size = spec.pushConstantSizeBytes;
 	pcRange.offset = spec.pushConstantOffset;
 

@@ -36,7 +36,7 @@ VulkanAccelerationStructure::VulkanAccelerationStructure(VulkanDevice& deviceObj
 	// Identify above data as containing triangles
 	VkAccelerationStructureGeometryKHR geometry{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR };
 	geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-	geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	geometry.flags = blasSpec.isOpaque ? VK_GEOMETRY_OPAQUE_BIT_KHR : 0;
 	geometry.geometry.triangles = triangles;
 
 

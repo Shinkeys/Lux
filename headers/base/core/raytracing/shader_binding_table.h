@@ -20,6 +20,7 @@ private:
 	SBTRegion _raygenTable;
 	SBTRegion _missTable;
 	SBTRegion _closestTable;
+	SBTRegion _anyHitTable;
 
 	std::unique_ptr<Buffer> _buffer;
 public:
@@ -29,6 +30,7 @@ public:
 	SBTRegion GetRaygenTable() const { return _raygenTable; }
 	SBTRegion GetMissTable() const   { return _missTable; }
 	SBTRegion GetClosestTable() const { return _closestTable; }
+	SBTRegion GetAnyHitTable() const { return _anyHitTable; }
 
 	
 };

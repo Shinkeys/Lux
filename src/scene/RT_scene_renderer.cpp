@@ -157,11 +157,17 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		closestLightsShader.entryPoint = "LightsClosestMain";
 		closestLightsShader.shaderGroup = RTShaderGroup::SHADER_STAGE_CLOSEST_HIT;
 
+		RTShaderSpec anyhitShader{};
+		anyhitShader.name = "raytracing";
+		anyhitShader.entryPoint = "AnyhitMain";
+		anyhitShader.shaderGroup = RTShaderGroup::SHADER_STAGE_ANY_HIT;
+
 
 		shadersSpec.push_back(raygenShader);
 		shadersSpec.push_back(missShader);
 		shadersSpec.push_back(closestShader);
 		shadersSpec.push_back(closestLightsShader);
+		shadersSpec.push_back(anyhitShader);
 
 		pipelineSpec.shaders = shadersSpec;
 
@@ -172,9 +178,10 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	// SBT
 	SBTSpecification sbtSpec{};
 	sbtSpec.missCount = 1;
-	sbtSpec.hitCount = 2;
+	sbtSpec.hitCount = 2; // 2 hit groups (each can have both closest hit and any hit shaders)
+	sbtSpec.anyHitCount = 1; // Any hit shaders are now combined with closest hit groups
 
-	const u32 handleCount = 1 + sbtSpec.missCount + sbtSpec.hitCount; // 1 raygen
+	const u32 handleCount = 1 + sbtSpec.missCount + sbtSpec.hitCount; // 1 raygen + 1 miss + 2 hit groups(anyhit and closest are bound together)
 	const u32 handleSize = rtManager.GetRTDeviceProperties().shaderGroupHandleSize;
 	const u32 dataSize = handleCount * handleSize;
 	sbtSpec.handles.resize(dataSize);
@@ -516,6 +523,8 @@ void RTSceneRenderer::ExecuteEntityCreateQueue()
 				blasSpec.verticesCount = submeshIt->vertexDesc.vertexCount;
 				blasSpec.indicesCount = submeshIt->vertexDesc.indexCount;
 				blasSpec.vertexStride = sizeof(Vertex);
+				if (submeshIt->alphaMode.type == AlphaMode::AlphaType::ALPHA_OPAQUE)
+					blasSpec.isOpaque = true;
 
 				blasContainer.accel = _engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
 

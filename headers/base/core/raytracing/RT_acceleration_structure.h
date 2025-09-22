@@ -10,6 +10,8 @@ struct BLASSpecification
 	u32 verticesCount{ 0 };
 	u32 indicesCount{ 0 };
 	u32 vertexStride{ 0 };
+
+	bool isOpaque{ false };
 };
 
 struct BLASInstance

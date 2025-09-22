@@ -80,6 +80,8 @@ void RaygenMain()
     resultTexture.Store(rayIdx.xy, color); 
 }
 
+
+
 [shader("closesthit")]
 void ClosestMain(inout RayPayload payload, in Attributes attr)
 {
@@ -125,9 +127,6 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
     // To make importance sampling
     const float3 lightPos = pointLightsPtr[0].position;
     const float3 hitPoint = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
-    const float NdotL = dot(normalize(lightPos - hitPoint), normal.xyz);
-
-    const float diffuse = max(abs(NdotL), 0.0f);
 
     payload.distance = RayTCurrent();
     payload.color = float4(0.0f);
@@ -140,8 +139,8 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
     const float distanceToLight = distance(lightPos, shadowRay.Origin);
     shadowRay.TMax = distanceToLight - pointLightsPtr[0].radius;
 
-   if (NoObstaclesRay(sceneBVH, shadowRay, 0xFF))
-       payload.color = diffuse * albedo;
+    if (NoObstaclesRay(sceneBVH, shadowRay, 0xFF))
+        payload.color = float4(CalculateColor(pointLightsPtr[0], albedo, normal, metallicRoughness, shadowRay.Origin, pos), 1.0f);
 
    const float3 tangent = barycentricsCoords.x * triangle.tangent[0] 
                         + barycentricsCoords.y * triangle.tangent[1] 
@@ -163,9 +162,56 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
    payload.ray.Direction = normalize(mul(TBN, RandomOnHemisphere(payload.seed, normal.xyz)));
 }
 
+float3 CalculateColor(PointLight light, float4 albedo, float4 normal, float4 metrou, float3 rayOrigin, float3 fragPos)
+{
+    return CalculateBRDF(light, albedo.xyz, metrou.xyz, normal.xyz, rayOrigin, fragPos);
+}
+
+
+
 [shader("miss")]
 void MissMain(inout RayPayload payload)
 {
     payload.color = float4(0.0f, 0.0f, 0.0f, 1.0f);
     payload.distance = -1.0f;
+}
+
+[shader("anyhit")]
+void AnyhitMain(inout RayPayload payload, in Attributes attr)
+{
+    Triangle triangle;
+    const float3 barycentricsCoords = float3(1.0f - attr.barycentrics.x - attr.barycentrics.y, 
+        attr.barycentrics.x, attr.barycentrics.y);
+    
+    RTMeshData meshData = commonDataPtr[InstanceIndex()];
+    
+    const uint primitiveIdx = PrimitiveIndex() * 3 + meshData.indexBufferOffset;
+    for (int i = 0; i < 3; ++i)
+    {
+        const uint index = indexDataPtr[primitiveIdx + i];
+        triangle.uv[i] = vertexDataPtr[meshData.vertexBufferOffset + index].UV;
+    }
+    
+    triangle.uv[0].y = -triangle.uv[0].y;
+    triangle.uv[1].y = -triangle.uv[1].y;
+    triangle.uv[2].y = -triangle.uv[2].y;
+    
+    const float2 uv = barycentricsCoords.x * triangle.uv[0] 
+                    + barycentricsCoords.y * triangle.uv[1] 
+                    + barycentricsCoords.z * triangle.uv[2];
+    
+    const float2 dUvX = GetScreenDerivativeX(uv);
+    const float2 dUvY = GetScreenDerivativeY(uv);
+    const float2 screenExtent = viewDataPtr->extent;
+    
+    
+    float4 albedoColor = float4(meshData.materialDesc.baseColorFactor, 1.0);
+    if (meshData.materialDesc.albedoID > 0)
+    {
+        albedoColor = textures[meshData.materialDesc.albedoID].SampleGrad(uv, dUvX / screenExtent.x, dUvY / screenExtent.y);
+    }
+    if (albedoColor.w < meshData.alphaCutoff)
+    {
+        IgnoreHit();
+    }
 }

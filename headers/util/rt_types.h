@@ -17,6 +17,7 @@ struct SBTSpecification
 {
 	u32 missCount{ 0 };
 	u32 hitCount{ 0 };
+	u32 anyHitCount{ 0 };
 
 	std::vector<byte> handles;
 };
