@@ -3,30 +3,8 @@ import common.RT_common;
 import common.mesh_common;
 import common.lights;
 import common.random;
-
-[vk::binding(0, 0)]
-public RaytracingAccelerationStructure sceneBVH;
-[vk::binding(1, 0)]
-public RWTexture2D resultTexture;
-[vk::binding(2, 0)]
-public Sampler2D textures[];
-
-public struct Attributes
-{
-    public float2 barycentrics : SV_BaryCentrics;
-};
-
-[[vk::push_constant]]
-cbuffer PushConstants
-{
-    ViewData     *viewDataPtr;
-    Vertex       *vertexDataPtr;
-    uint         *indexDataPtr;
-    RTMeshData *commonDataPtr;
-    PointLight *pointLightsPtr;
-
-    uint maxRecursionDepth;
-}
+import common.RT_input;
+import common.sampler;
 
 [shader("raygeneration")]
 void RaygenMain()
@@ -50,34 +28,36 @@ void RaygenMain()
     ray.Direction = dirWorld;
     ray.TMin = 0.001f;
     ray.TMax = viewDataPtr->farPlane;
-
-    float seed = BaseHash(rayIdx.xy);
+    RayPayload payload = { float4(0, 0, 0, 1.0f), 0.0f, ray, inputPtr->randomSeed, false };
 
     for (uint i = 0; i < maxRecursionDepth; ++i)
     {
-        RayPayload payload = { float4(0, 0, 0, 1.0f), 0.0f, ray, seed, false };
         TraceRay(sceneBVH, RAY_FLAG_NONE, ~0, 0, 0, 0, ray, payload);
-
-        if (payload.distance < 0.0f)
-        {
-            color += payload.color;
-            break;
-        }
-
-        color += payload.color;
 
         if (payload.hitLight)
             break;
-            
+
         // Can't update it just inside of closest hit shader, so need to apply these changes here
         ray.Origin = payload.ray.Origin;
         ray.Direction = payload.ray.Direction;
     }
 
+    color = payload.radiance;
+
     color = color / (color + float4(1.0f));
     color = pow(color, float4(1.0f / 2.2f));
 
-    resultTexture.Store(rayIdx.xy, color); 
+    if(inputPtr->accumulatedFrames == 1)
+    {
+        resultTexture.Store(rayIdx.xy, color);
+    }
+    else if(payload.hitLight)
+    {
+        const float3 stored = resultTexture.Load(rayIdx.xy).xyz;
+        const float3 result = lerp(stored, color.xyz, 1.0f / inputPtr->accumulatedFrames);
+        resultTexture.Store(rayIdx.xy, float4(result, 1.0f));
+    }
+
 }
 
 
@@ -125,22 +105,18 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
 
 
     // To make importance sampling
-    const float3 lightPos = pointLightsPtr[0].position;
-    const float3 hitPoint = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
-
-    payload.distance = RayTCurrent();
-    payload.color = float4(0.0f);
-
-
-    RayDesc shadowRay;
-    shadowRay.Origin = hitPoint + normal.xyz * 0.0001f;
-    shadowRay.Direction = normalize(lightPos - shadowRay.Origin);
-    shadowRay.TMin = 0.001f;
-    const float distanceToLight = distance(lightPos, shadowRay.Origin);
-    shadowRay.TMax = distanceToLight - pointLightsPtr[0].radius;
-
-    if (NoObstaclesRay(sceneBVH, shadowRay, 0xFF))
-        payload.color = float4(CalculateColor(pointLightsPtr[0], albedo, normal, metallicRoughness, shadowRay.Origin, pos), 1.0f);
+    // const float3 lightPos = pointLightsPtr[0].position;
+    // const float3 hitPoint = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    // 
+    // payload.distance = RayTCurrent();
+    // 
+    // 
+    // RayDesc shadowRay;
+    // shadowRay.Origin = hitPoint + normal.xyz * 0.0001f;
+    // shadowRay.Direction = normalize(lightPos - shadowRay.Origin);
+    // shadowRay.TMin = 0.001f;
+    // const float distanceToLight = distance(lightPos, shadowRay.Origin);
+    // shadowRay.TMax = distanceToLight - pointLightsPtr[0].radius;
 
    const float3 tangent = barycentricsCoords.x * triangle.tangent[0] 
                         + barycentricsCoords.y * triangle.tangent[1] 
@@ -157,22 +133,18 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
    float3x3 TBN = float3x3(T, B, N);
    TBN = transpose(TBN); // important in slang
 
+   UniformSampler uniSampler;
+
    const float3 hitPos = payload.ray.Origin + payload.ray.Direction * RayTCurrent();
-   payload.ray.Origin = hitPos + normal.xyz * 0.001f;
-   payload.ray.Direction = normalize(mul(TBN, RandomOnHemisphere(payload.seed, normal.xyz)));
+   payload.ray.Origin = hitPos + normal.xyz * 0.0001f;
+   payload.ray.Direction = normalize(mul(TBN, uniSampler.UniformOnHemisphere(payload.seed)));
+   payload.radiance;
 }
-
-float3 CalculateColor(PointLight light, float4 albedo, float4 normal, float4 metrou, float3 rayOrigin, float3 fragPos)
-{
-    return CalculateBRDF(light, albedo.xyz, metrou.xyz, normal.xyz, rayOrigin, fragPos);
-}
-
-
 
 [shader("miss")]
 void MissMain(inout RayPayload payload)
 {
-    payload.color = float4(0.0f, 0.0f, 0.0f, 1.0f);
+    payload.radiance += float4(0.0f, 0.0f, 0.0f, 1.0f);
     payload.distance = -1.0f;
 }
 

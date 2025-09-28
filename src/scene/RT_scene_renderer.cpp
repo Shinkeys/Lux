@@ -20,66 +20,6 @@
 
 RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBase }
 {
-	//std::vector<glm::vec3> triangleVertices
-	//{
-	//	{.5f,  -.5f, 0.0f},
-	//	{0.0f,  .5f,  0.0f},
-	//	{-.5f, -.5f, 0.0f},
-	//};
-
-	//std::vector<u32> triangleIndices
-	//{
-	//	0, 1, 2
-	//};
-
-	//BufferSpecification triangleBuffSpec{};
-	//triangleBuffSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY |
-	//	BufferUsage::SHADER_DEVICE_ADDRESS |
-	//	BufferUsage::TRANSFER_DST;
-	//triangleBuffSpec.size = triangleVertices.size() * sizeof(glm::vec3);
-	//triangleBuffSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
-	//triangleBuffSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
-	//triangleBuffSpec.allocCmdBuff = true;
-
-	//std::unique_ptr<Buffer> triangleBuffer;
-	//std::unique_ptr<Buffer> indexBuffer;
-
-	//triangleBuffer = engineBase.GetBufferManager().CreateBuffer(triangleBuffSpec);
-	//triangleBuffer->UploadData(0, triangleVertices.data(), triangleVertices.size() * sizeof(glm::vec3));
-
-	//BufferSpecification triangleIndicesSpec{};
-	//triangleIndicesSpec.usage = BufferUsage::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY |
-	//	BufferUsage::SHADER_DEVICE_ADDRESS |
-	//	BufferUsage::TRANSFER_DST;
-	//triangleIndicesSpec.size = triangleIndices.size() * sizeof(u32);
-	//triangleIndicesSpec.memoryProp = MemoryProperty::DEVICE_LOCAL;
-	//triangleIndicesSpec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
-	//triangleIndicesSpec.allocCmdBuff = true;
-
-	//indexBuffer = engineBase.GetBufferManager().CreateBuffer(triangleIndicesSpec);
-	//indexBuffer->UploadData(0, triangleIndices.data(), triangleIndices.size() * sizeof(u32));
-
-
-
-	//BLASSpecification blasSpec{};
-	//blasSpec.vertexAddress = triangleBuffer->GetBufferAddress();
-	//blasSpec.indexAddress = indexBuffer->GetBufferAddress();
-	//blasSpec.verticesCount = triangleVertices.size();
-	//blasSpec.indicesCount = triangleIndices.size();
-	//blasSpec.vertexStride = sizeof(glm::vec3);
-
-
-	//BLASContainer blasContainer{};
-	//blasContainer.accel = engineBase.GetRayTracingManager().CreateBLAS(blasSpec);
-
-	//BLASInstance blasInstance{};
-	//blasInstance.blasAddress = blasContainer.accel->GetAccelerationAddress();
-	//blasInstance.customIndex = 0;
-	//blasInstance.transform = glm::mat4(1.0f);
-	//blasContainer.instance = blasInstance;
-
-	//_sceneBLASes.push_back(std::move(blasContainer));
-
 	// Descriptor
 	// Create descriptor for every frame
 	for (u32 i = 0; i < VulkanFrame::FramesInFlight; ++i)
@@ -96,10 +36,10 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		sceneDescSpec.bindings[1].descriptorCount = 1;
 		sceneDescSpec.bindings[1].descriptorType = DescriptorType::STORAGE_IMAGE;
 
-		// Just an image where rt pipeline would store it's result
 		sceneDescSpec.bindings[2].binding = 2;
 		sceneDescSpec.bindings[2].descriptorCount = 1024;
 		sceneDescSpec.bindings[2].descriptorType = DescriptorType::COMBINED_IMAGE_SAMPLER;
+
 
 
 		_sceneDescriptorSets.emplace_back(_engineBase.GetDescriptorManager().CreateDescriptorSet(sceneDescSpec));
@@ -196,10 +136,21 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		imageSpec.mipLevels = 1;
 		imageSpec.aspect = ImageAspect::IMAGE_ASPECT_COLOR;
 		imageSpec.extent = { windowWidth, windowHeight, 1 };
-		imageSpec.format = ImageFormat::IMAGE_FORMAT_B8G8R8A8_UNORM;
+		imageSpec.format = ImageFormat::IMAGE_FORMAT_R32G32B32A32_SFLOAT;
 		imageSpec.type = ImageType::IMAGE_TYPE_RENDER_TARGET;
 
 		_outputTarget = _engineBase.GetImageManager().CreateImage(imageSpec);
+	}
+	{
+		ImageSpecification imageSpec;
+		imageSpec.usage = ImageUsage::IMAGE_USAGE_STORAGE_BIT;
+		imageSpec.mipLevels = 1;
+		imageSpec.aspect = ImageAspect::IMAGE_ASPECT_COLOR;
+		imageSpec.extent = { windowWidth, windowHeight, 1 };
+		imageSpec.format = ImageFormat::IMAGE_FORMAT_B8G8R8A8_UNORM;
+		imageSpec.type = ImageType::IMAGE_TYPE_RENDER_TARGET;
+
+		_accumulationTarget = _engineBase.GetImageManager().CreateImage(imageSpec);
 	}
 
 	// Camera buffer
@@ -247,7 +198,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 	{
 		std::vector<PointLight> pointLights;
 
-		const glm::vec3 lightPos = glm::vec3(0.0f);
+		const glm::vec3 lightPos = glm::vec3(0.0f, 3.0f, 0.0f);
 
 		PointLight pointLight;
 		pointLight.radius = 1.0f;
@@ -318,6 +269,19 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		_pointLightsBuffer->UploadData(0, pointLights.data(), sizeof(PointLight)* pointLights.size());
 	}
 
+	// Path tracing input
+	{
+		constexpr u32 size = sizeof(PathTracingInput);
+		BufferSpecification spec{};
+		spec.usage = BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST | BufferUsage::SHADER_DEVICE_ADDRESS;
+		spec.memoryUsage = MemoryUsage::AUTO_PREFER_DEVICE;
+		spec.memoryProp = MemoryProperty::DEVICE_LOCAL;
+		spec.sharingMode = SharingMode::SHARING_EXCLUSIVE;
+		spec.size = size;
+
+		_inputBuffer = _engineBase.GetBufferManager().CreateBuffer(spec);
+	}
+
 }
 
 
@@ -355,7 +319,18 @@ void RTSceneRenderer::Update(const Camera& camera)
 
 	_viewDataBuffer->UploadData(0, &viewData, sizeof(ViewData));
 
+	constexpr u32 maxAccumulatedFrames = 16384;
+	PathTracingInput input{};
+	input.randomSeed = _accumulatedFrames * 10.0f / 32768.0f;
+	if (memcmp(&_previousViewData, &viewData, sizeof(ViewData)) == 0)
+		++_accumulatedFrames;
+	else
+		_accumulatedFrames = 1;
 
+	input.accumulatedFrames = std::min(_accumulatedFrames, maxAccumulatedFrames);
+	_inputBuffer->UploadData(0, &input, sizeof(PathTracingInput));
+
+	_previousViewData = std::move(viewData);
 
 	for (u32 descInd = 0; descInd < VulkanFrame::FramesInFlight; ++descInd)
 	{
@@ -396,7 +371,8 @@ void RTSceneRenderer::Draw()
 	rtPassPushConst->indexAddress  = _meshDeviceBuffer.indexBuffer->GetBufferAddress();
 	rtPassPushConst->meshesDataAddress = _meshesData.buffer->GetBufferAddress();
 	rtPassPushConst->lightsAddress = _pointLightsBuffer->GetBufferAddress();
-	rtPassPushConst->maxRecursionDepth = 6;
+	rtPassPushConst->inputAddress  = _inputBuffer->GetBufferAddress();
+	rtPassPushConst->maxRecursionDepth = 3;
 
 	PushConsts rtPushConstants;
 	rtPushConstants.data = (byte*)rtPassPushConst;

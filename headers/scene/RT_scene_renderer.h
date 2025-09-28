@@ -2,6 +2,7 @@
 #include "iscene_renderer.h"
 #include "../constructed_types/device_indexed_buffer.h"
 #include "../asset/asset_types.h"
+#include "../util/camera_types.h"
 
 
 struct RTPassPushConst
@@ -11,6 +12,7 @@ struct RTPassPushConst
 	u64 indexAddress{ 0 };
 	u64 meshesDataAddress{ 0 };
 	u64 lightsAddress{ 0 };
+	u64 inputAddress{ 0 };
 
 	u32 maxRecursionDepth{ 4 };
 };
@@ -37,6 +39,12 @@ struct UpdateMeshBuffInfo
 	const SubmeshDescription& submesh;
 	u32 vertexOffset{0};
 	u32 indexOffset{0};
+};
+
+struct PathTracingInput
+{
+	float randomSeed{ 0.0f };
+	u32 accumulatedFrames{ 1 };
 };
 
 class EngineBase;
@@ -68,9 +76,16 @@ private:
 
 	std::unique_ptr<Buffer> _viewDataBuffer;
 
+	std::unique_ptr<Buffer> _inputBuffer;
+
 	std::unique_ptr<Sampler> _samplerLinear;
 
 	std::unique_ptr<Image> _outputTarget;
+	std::unique_ptr<Image> _accumulationTarget;
+
+	ViewData _previousViewData{};
+
+	u32 _accumulatedFrames{ 1 };
 
 	RTMeshDataBuffer _meshesData;
 	DeviceIndexedBuffer _meshDeviceBuffer; // All scene meshes in the buffer

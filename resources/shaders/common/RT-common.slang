@@ -1,19 +1,5 @@
 import mesh_common;
 
-public struct RTMeshData
-{
-    public Material materialDesc;
-    public uint vertexBufferOffset;
-    public uint indexBufferOffset;
-    public float alphaCutoff;
-};
-
-public struct Triangle
-{
-    public Array<float3, 3> pos;
-    public Array<float3, 3> tangent;
-    public Array<float2, 3> uv;
-}
 
 public float2 GetScreenDerivativeX(float2 position, float step = 1.0f /* 1 pixel */)
 {
@@ -27,7 +13,7 @@ public float2 GetScreenDerivativeY(float2 position, float step = 1.0f /* 1 pixel
 
 public struct [raypayload] RayPayload
 {
-    public float4 color : read(caller) : write(caller, closesthit, miss);
+    public float4 radiance : read(caller) : write(caller, closesthit, miss);
     public float distance : read(caller) : write(closesthit);
     public RayDesc ray : read(caller) : write(caller, closesthit);
     public float seed : read(closesthit) : write(caller, closesthit);

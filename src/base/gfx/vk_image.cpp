@@ -393,15 +393,27 @@ void VulkanImage::CopyToImage(Image* dst)
 	VulkanImage* rawDst = static_cast<VulkanImage*>(dst);
 	const ImageSpecification& dstSpec = dst->GetSpecification();
 
-	VkImageCopy copyRegion{};
+	/*VkImageCopy copyRegion{};
 	copyRegion.srcSubresource = { ToVkAspectFlags(_specification.aspect), 0, 0, 1};
 	copyRegion.dstSubresource = { ToVkAspectFlags(dstSpec.aspect), 0, 0, 1};
 	copyRegion.extent = ToVkExtent3D(_specification.extent);
 	copyRegion.srcOffset = { 0,0,0 };
-	copyRegion.dstOffset = { 0,0,0 };
+	copyRegion.dstOffset = { 0,0,0 };*/
 
-	vkCmdCopyImage(_frameObject->GetCommandBuffer(), _image, ToVkImageLayout(_specification.layout),
-		rawDst->GetRawImage(), ToVkImageLayout(dstSpec.layout), 1, &copyRegion);
+	VkImageBlit blitRegion{};
+	blitRegion.srcSubresource = { ToVkAspectFlags(_specification.aspect), 0, 0, 1 };
+	blitRegion.dstSubresource = { ToVkAspectFlags(dstSpec.aspect), 0, 0, 1 };
+
+	blitRegion.srcOffsets[0] = VkOffset3D(0, 0, 0);
+	blitRegion.srcOffsets[1] = VkOffset3D(_specification.extent.x, _specification.extent.y, 1);
+	blitRegion.dstOffsets[0] = VkOffset3D(0, 0, 0);
+	blitRegion.dstOffsets[1] = VkOffset3D(dst->GetSpecification().extent.x, dst->GetSpecification().extent.y, 1);
+
+	vkCmdBlitImage(_frameObject->GetCommandBuffer(), _image, ToVkImageLayout(_specification.layout),
+		rawDst->GetRawImage(), ToVkImageLayout(dstSpec.layout), 1, &blitRegion, VK_FILTER_NEAREST);
+
+	/*vkCmdCopyImage(_frameObject->GetCommandBuffer(), _image, ToVkImageLayout(_specification.layout),
+		rawDst->GetRawImage(), ToVkImageLayout(dstSpec.layout), 1, &copyRegion);*/
 }
 
 // TO REWORK THIS CLASS TO RETURN SHARED PTRS WITH CUSTOM ALLOCATOR
@@ -490,9 +502,10 @@ namespace vkconversions
 		switch (format) {
 		case ImageFormat::IMAGE_FORMAT_R8G8B8A8_SRGB:           return VK_FORMAT_R8G8B8A8_SRGB;
 		case ImageFormat::IMAGE_FORMAT_B8G8R8A8_SRGB:           return VK_FORMAT_B8G8R8A8_SRGB;
-		case ImageFormat::IMAGE_FORMAT_B8G8R8A8_UNORM:           return VK_FORMAT_B8G8R8A8_UNORM;
+		case ImageFormat::IMAGE_FORMAT_B8G8R8A8_UNORM:          return VK_FORMAT_B8G8R8A8_UNORM;
 		case ImageFormat::IMAGE_FORMAT_D32_SFLOAT:              return VK_FORMAT_D32_SFLOAT;
 		case ImageFormat::IMAGE_FORMAT_R16G16B16A16_SFLOAT:     return VK_FORMAT_R16G16B16A16_SFLOAT;
+		case ImageFormat::IMAGE_FORMAT_R32G32B32A32_SFLOAT:     return VK_FORMAT_R32G32B32A32_SFLOAT;
 		case ImageFormat::IMAGE_FORMAT_R32G32_UINT:             return VK_FORMAT_R32G32_UINT;
 		default: std::unreachable();
 		}
