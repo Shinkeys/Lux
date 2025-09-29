@@ -138,7 +138,7 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
    UniformSampler uniSampler;
 
    const float3 hitPos = payload.ray.Origin + payload.ray.Direction * RayTCurrent();
-   payload.ray.Origin = hitPos + N * 0.001f;
+   payload.ray.Origin = hitPos + normal.xyz * 0.001f;
    payload.ray.Direction = normalize(mul(uniSampler.UniformOnHemisphere(payload.seed), TBN));
    payload.radiance;
 }
@@ -146,7 +146,7 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
 [shader("miss")]
 void MissMain(inout RayPayload payload)
 {
-    payload.radiance += float4(0.0f, 0.0f, 0.0f, 1.0f);
+    payload.radiance = float4(0.0f, 0.0f, 0.0f, 1.0f);
     payload.distance = -1.0f;
 }
 
