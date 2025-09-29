@@ -30,7 +30,7 @@ void RaygenMain()
     ray.TMax = viewDataPtr->farPlane;
     RayPayload payload = { float4(0, 0, 0, 1.0f), 0.0f, ray, inputPtr->randomSeed, false };
 
-    for (uint i = 0; i < 2; ++i)
+    for (uint i = 0; i < maxRecursionDepth; ++i)
     {
         TraceRay(sceneBVH, RAY_FLAG_NONE, ~0, 0, 0, 0, ray, payload);
 
