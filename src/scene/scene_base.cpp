@@ -54,10 +54,20 @@ void SceneBase::Initialize()
 	wall2.AddComponent<TransformComponent>(wall2Transform);
 	wall2.GetComponent<MeshComponent>()->folderName = "Wall2";
 
+	const Entity& wall3 = _storageInstance.CreateEntityInRegistry(this);
+	wall3.AddComponent<TagComponent>("Wall3");
+	wall3.AddComponent<CameraComponent>(_camera, cameraIsActive);
+	wall3.AddComponent<MeshComponent>();
+	glm::mat4 transformWall3 = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
+	transformWall3 = glm::translate(transformWall3, glm::vec3(0.0f, 0.0f, 0.0f));
+	wall3.AddComponent<TransformComponent>(transformWall3);
+	wall3.GetComponent<MeshComponent>()->folderName = "Wall1";
+
 
 	//_rtRendererInstance.SubmitEntityToDraw(sponza);
 	_rtRendererInstance.SubmitEntityToDraw(wall1);
 	_rtRendererInstance.SubmitEntityToDraw(wall2);
+	_rtRendererInstance.SubmitEntityToDraw(wall3);
 }
 
 

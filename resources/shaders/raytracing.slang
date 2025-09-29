@@ -30,7 +30,7 @@ void RaygenMain()
     ray.TMax = viewDataPtr->farPlane;
     RayPayload payload = { float4(0, 0, 0, 1.0f), 0.0f, ray, inputPtr->randomSeed, false };
 
-    for (uint i = 0; i < maxRecursionDepth; ++i)
+    for (uint i = 0; i < 2; ++i)
     {
         TraceRay(sceneBVH, RAY_FLAG_NONE, ~0, 0, 0, 0, ray, payload);
 
@@ -124,20 +124,22 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
 
    const float3 bitangent = normalize(cross(tangent, normal.xyz));
 
-   float3 T = normalize(mul(ObjectToWorld(), float4(tangent, 0.0)).xyz);
-   float3 N = normalize(mul(ObjectToWorld(), float4(normal.xyz, 0.0)).xyz);
+   float3x3 world = float3x3(ObjectToWorld());
 
+   float3 T = normalize(mul(tangent, world));
+   float3 N = normalize(mul(normal.xyz, world));
+                                        
+   
    // Gram-Schmidt process to make vectors orthogonal back
    T = normalize(T - dot(T, N) * N);
    float3 B = normalize(cross(T, N));
    float3x3 TBN = float3x3(T, B, N);
-   TBN = transpose(TBN); // important in slang
 
    UniformSampler uniSampler;
 
    const float3 hitPos = payload.ray.Origin + payload.ray.Direction * RayTCurrent();
-   payload.ray.Origin = hitPos + normal.xyz * 0.0001f;
-   payload.ray.Direction = normalize(mul(TBN, uniSampler.UniformOnHemisphere(payload.seed)));
+   payload.ray.Origin = hitPos + N * 0.001f;
+   payload.ray.Direction = normalize(mul(uniSampler.UniformOnHemisphere(payload.seed), TBN));
    payload.radiance;
 }
 
