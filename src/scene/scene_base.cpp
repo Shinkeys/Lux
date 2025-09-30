@@ -26,16 +26,16 @@ void SceneBase::Initialize()
 {
 	constexpr bool cameraIsActive = true;
 
-	//const Entity& sponza = _storageInstance.CreateEntityInRegistry(this);
-	//sponza.AddComponent<TagComponent>("Sponza");
-	//sponza.AddComponent<CameraComponent>(_camera, cameraIsActive);
-	//sponza.AddComponent<MeshComponent>();
-	////sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f), glm::vec3(0.0f), glm::vec3(0.01f));
-	//glm::mat4 transform = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
-	//sponza.AddComponent<TransformComponent>(transform);
-	//sponza.GetComponent<MeshComponent>()->folderName = "Sponza";
+	const Entity& sponza = _storageInstance.CreateEntityInRegistry(this);
+	sponza.AddComponent<TagComponent>("Sponza");
+	sponza.AddComponent<CameraComponent>(_camera, cameraIsActive);
+	sponza.AddComponent<MeshComponent>();
+	//sponza.AddComponent<TranslationComponent>(glm::mat4(1.0f), glm::vec3(0.0f), glm::vec3(0.01f));
+	glm::mat4 transform = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
+	sponza.AddComponent<TransformComponent>(transform);
+	sponza.GetComponent<MeshComponent>()->folderName = "Sponza";
 
-	const Entity& wall1 = _storageInstance.CreateEntityInRegistry(this);
+	/*const Entity& wall1 = _storageInstance.CreateEntityInRegistry(this);
 	wall1.AddComponent<TagComponent>("Wall1");
 	wall1.AddComponent<CameraComponent>(_camera, cameraIsActive);
 	wall1.AddComponent<MeshComponent>();
@@ -44,7 +44,7 @@ void SceneBase::Initialize()
 	transform = glm::translate(transform, glm::vec3(0.0f, 200.0f, 0.0f));
 	wall1.AddComponent<TransformComponent>(transform);
 	wall1.GetComponent<MeshComponent>()->folderName = "Wall1";
-	 
+
 	const Entity& wall2 = _storageInstance.CreateEntityInRegistry(this);
 	wall2.AddComponent<TagComponent>("Wall2");
 	wall2.AddComponent<CameraComponent>(_camera, cameraIsActive);
@@ -61,13 +61,13 @@ void SceneBase::Initialize()
 	glm::mat4 transformWall3 = glm::scale(glm::mat4(1.0f), glm::vec3(0.01f));
 	transformWall3 = glm::translate(transformWall3, glm::vec3(0.0f, 0.0f, 0.0f));
 	wall3.AddComponent<TransformComponent>(transformWall3);
-	wall3.GetComponent<MeshComponent>()->folderName = "Wall1";
+	wall3.GetComponent<MeshComponent>()->folderName = "Wall1";*/
 
 
-	//_rtRendererInstance.SubmitEntityToDraw(sponza);
-	_rtRendererInstance.SubmitEntityToDraw(wall1);
+	_rtRendererInstance.SubmitEntityToDraw(sponza);
+	/*_rtRendererInstance.SubmitEntityToDraw(wall1);
 	_rtRendererInstance.SubmitEntityToDraw(wall2);
-	_rtRendererInstance.SubmitEntityToDraw(wall3);
+	_rtRendererInstance.SubmitEntityToDraw(wall3);*/
 }
 
 

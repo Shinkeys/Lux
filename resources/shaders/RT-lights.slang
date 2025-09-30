@@ -7,7 +7,7 @@ import common.lights;
 [shader("closesthit")]
 void LightsClosestMain(inout RayPayload payload)
 {
-    payload.radiance = float4(1.0f, 1.0f, 1.0f, 1.0f);
+    payload.radiance = float4(3.0f, 3.0f,3.0f, 1.0f);
     payload.distance = -1.0f;
     payload.hitLight = true;
 }

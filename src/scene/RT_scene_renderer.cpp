@@ -206,7 +206,7 @@ RTSceneRenderer::RTSceneRenderer(EngineBase& engineBase) : _engineBase{ engineBa
 		pointLight.position = lightPos;
 		pointLights.push_back(pointLight);
 
-		const Icosphere icosphere = mathhelpers::GenerateIcosphere(5);
+		const Icosphere icosphere = mathhelpers::GenerateIcosphere(7);
 		DeviceIndexedBuffer lightsMeshBuffers;
 
 		// Lights mesh buffer

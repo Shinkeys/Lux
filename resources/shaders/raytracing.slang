@@ -124,16 +124,16 @@ void ClosestMain(inout RayPayload payload, in Attributes attr)
 
    const float3 bitangent = normalize(cross(tangent, normal.xyz));
 
-   float3x3 world = float3x3(ObjectToWorld());
+   const float3x3 world = float3x3(ObjectToWorld());
 
-   float3 T = normalize(mul(tangent, world));
+   float3 T = normalize(mul(tangent,    world));
    float3 N = normalize(mul(normal.xyz, world));
                                         
    
    // Gram-Schmidt process to make vectors orthogonal back
    T = normalize(T - dot(T, N) * N);
    float3 B = normalize(cross(T, N));
-   float3x3 TBN = float3x3(T, B, N);
+   float3x3 TBN = float3x3(N, B, T);
 
    UniformSampler uniSampler;
 
