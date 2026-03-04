@@ -1,3 +1,5 @@
+<img width="2559" height="1422" alt="image" src="https://github.com/user-attachments/assets/61199df8-b760-4423-ad0a-3c2f3184e506" />
+
 # Lux
 Lux — Vulkan Engine / Project
 
