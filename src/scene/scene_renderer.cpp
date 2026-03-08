@@ -1,4 +1,4 @@
-﻿#include "../../headers/scene/scene_renderer.h"
+#include "../../headers/scene/scene_renderer.h"
 #include "../../headers/scene/entity.h"
 #include "../../headers/base/core/frame_manager.h"
 #include "../../headers/base/core/presentation_manager.h"
@@ -406,15 +406,15 @@ void SceneRenderer::Draw()
 			glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
 
 		// Opaque objects
-		IndirectPushConst* opaqPushConst = new IndirectPushConst;
-		opaqPushConst->vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
-		opaqPushConst->commonMeshDataAddress = _indirectBuffer.commonOpaqueData->GetBufferAddress();
-		opaqPushConst->viewDataAddress = _viewDataBuffer->GetBufferAddress();
-		opaqPushConst->baseDrawOffset = 0;
+        IndirectPushConst opaqPushConst{};
+		opaqPushConst.vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
+		opaqPushConst.commonMeshDataAddress = _indirectBuffer.commonOpaqueData->GetBufferAddress();
+		opaqPushConst.viewDataAddress = _viewDataBuffer->GetBufferAddress();
+		opaqPushConst.baseDrawOffset = 0;
 
 
 		PushConsts opaqPushConstants;
-		opaqPushConstants.data = (byte*)opaqPushConst;
+		opaqPushConstants.data = (byte*)&opaqPushConst;
 		opaqPushConstants.size = sizeof(IndirectPushConst);
 
 		RenderIndirectCountCommand opaqueCommand;
@@ -431,14 +431,14 @@ void SceneRenderer::Draw()
 
 
 		// Masked objects
-		IndirectPushConst* maskedPushConst = new IndirectPushConst;
-		maskedPushConst->vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
-		maskedPushConst->commonMeshDataAddress = _indirectBuffer.commonMaskedData->GetBufferAddress();
-		maskedPushConst->viewDataAddress = _viewDataBuffer->GetBufferAddress();
-		maskedPushConst->baseDrawOffset  = _indirectBuffer.currentOpaqueSize;
+        IndirectPushConst maskedPushConst{};
+		maskedPushConst.vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
+		maskedPushConst.commonMeshDataAddress = _indirectBuffer.commonMaskedData->GetBufferAddress();
+		maskedPushConst.viewDataAddress = _viewDataBuffer->GetBufferAddress();
+		maskedPushConst.baseDrawOffset  = _indirectBuffer.currentOpaqueSize;
 
 		PushConsts maskedPushConstants;
-		maskedPushConstants.data = (byte*)maskedPushConst;
+		maskedPushConstants.data = (byte*)&maskedPushConst;
 		maskedPushConstants.size = sizeof(IndirectPushConst);
 
 		RenderIndirectCountCommand maskedCommand;
@@ -478,16 +478,16 @@ void SceneRenderer::Draw()
 
 
 
-	LightCullPushConst* lightCullPushConst = new LightCullPushConst;
-	lightCullPushConst->lightsListAddress = _pointLightsBuffer->GetBufferAddress();
-	lightCullPushConst->lightsCount = _pointLights.size();
-	lightCullPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer->GetBufferAddress();
-	lightCullPushConst->cameraDataAddress = _viewDataBuffer->GetBufferAddress();
-	lightCullPushConst->maxLightsPerCluster = _lightCullStructures.maxLightsPerCluster;
-	lightCullPushConst->tileSize = _lightCullStructures.tileSize;
+    LightCullPushConst lightCullPushConst{};
+	lightCullPushConst.lightsListAddress = _pointLightsBuffer->GetBufferAddress();
+	lightCullPushConst.lightsCount = _pointLights.size();
+	lightCullPushConst.lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer->GetBufferAddress();
+	lightCullPushConst.cameraDataAddress = _viewDataBuffer->GetBufferAddress();
+	lightCullPushConst.maxLightsPerCluster = _lightCullStructures.maxLightsPerCluster;
+	lightCullPushConst.tileSize = _lightCullStructures.tileSize;
 
 	PushConsts lightCullPushConstants;
-	lightCullPushConstants.data = (byte*)lightCullPushConst;
+	lightCullPushConstants.data = (byte*)&lightCullPushConst;
 	lightCullPushConstants.size = sizeof(LightCullPushConst);
 
 
@@ -535,20 +535,20 @@ void SceneRenderer::Draw()
 	Renderer::ExecuteBarriers(pipelineBarriers);
 
 
-	PBRPassPushConst* pbrPassPushConst = new PBRPassPushConst;
-	pbrPassPushConst->lightAddress = _pointLightsBuffer->GetBufferAddress();
-	pbrPassPushConst->lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer->GetBufferAddress();
-	pbrPassPushConst->cameraDataAddress = _viewDataBuffer->GetBufferAddress();
-	pbrPassPushConst->positionTextureIdx = _gBuffer.posIndex;
-	pbrPassPushConst->normalsTextureIdx = _gBuffer.normalIndex;
-	pbrPassPushConst->baseColorTextureIdx = _gBuffer.baseIndex;
-	pbrPassPushConst->metallicRoughnessTextureIdx = _gBuffer.metallicRoughnessIndex;
-	pbrPassPushConst->pointLightsCount = _pointLights.size();
-	pbrPassPushConst->tileSize = _lightCullStructures.tileSize;
+    PBRPassPushConst pbrPassPushConst{};
+	pbrPassPushConst.lightAddress = _pointLightsBuffer->GetBufferAddress();
+	pbrPassPushConst.lightsIndicesAddress = _lightCullStructures.lightIndicesBuffer->GetBufferAddress();
+	pbrPassPushConst.cameraDataAddress = _viewDataBuffer->GetBufferAddress();
+	pbrPassPushConst.positionTextureIdx = _gBuffer.posIndex;
+	pbrPassPushConst.normalsTextureIdx = _gBuffer.normalIndex;
+	pbrPassPushConst.baseColorTextureIdx = _gBuffer.baseIndex;
+	pbrPassPushConst.metallicRoughnessTextureIdx = _gBuffer.metallicRoughnessIndex;
+	pbrPassPushConst.pointLightsCount = _pointLights.size();
+	pbrPassPushConst.tileSize = _lightCullStructures.tileSize;
 
 
 	PushConsts pushConstants;
-	pushConstants.data = (byte*)pbrPassPushConst;
+	pushConstants.data = (byte*)&pbrPassPushConst;
 	pushConstants.size = sizeof(PBRPassPushConst);
 
 	// LIGHT PASS

@@ -365,17 +365,17 @@ void RTSceneRenderer::Draw()
 	_sceneDescriptorSets[currentFrameIdx]->Write(1, 0, nullptr, _outputTarget.get());
 
 	// Opaque objects
-	RTPassPushConst* rtPassPushConst = new RTPassPushConst;
-	rtPassPushConst->viewDataAddress = _viewDataBuffer->GetBufferAddress();
-	rtPassPushConst->vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
-	rtPassPushConst->indexAddress  = _meshDeviceBuffer.indexBuffer->GetBufferAddress();
-	rtPassPushConst->meshesDataAddress = _meshesData.buffer->GetBufferAddress();
-	rtPassPushConst->lightsAddress = _pointLightsBuffer->GetBufferAddress();
-	rtPassPushConst->inputAddress  = _inputBuffer->GetBufferAddress();
-	rtPassPushConst->maxRecursionDepth = 3;
+    RTPassPushConst rtPassPushConst{};
+	rtPassPushConst.viewDataAddress = _viewDataBuffer->GetBufferAddress();
+	rtPassPushConst.vertexAddress = _meshDeviceBuffer.vertexBuffer->GetBufferAddress();
+	rtPassPushConst.indexAddress  = _meshDeviceBuffer.indexBuffer->GetBufferAddress();
+	rtPassPushConst.meshesDataAddress = _meshesData.buffer->GetBufferAddress();
+	rtPassPushConst.lightsAddress = _pointLightsBuffer->GetBufferAddress();
+	rtPassPushConst.inputAddress  = _inputBuffer->GetBufferAddress();
+	rtPassPushConst.maxRecursionDepth = 3;
 
 	PushConsts rtPushConstants;
-	rtPushConstants.data = (byte*)rtPassPushConst;
+	rtPushConstants.data = (byte*)&rtPassPushConst;
 	rtPushConstants.size = sizeof(RTPassPushConst);
 
 
