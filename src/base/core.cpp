@@ -3,7 +3,6 @@
 
 bool Core::Initialize()
 {
-
 	return true;
 }
 

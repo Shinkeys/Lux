@@ -97,7 +97,6 @@ void VulkanFrame::BeginFrame()
 
 	VulkanDeleter::ExecuteDeletion();
 
-
 	VkResult swapchainResultImageStage = vkAcquireNextImageKHR(device, swapchainDesc.swapchain,
 		UINT64_MAX, GetImageAvailableSemaphore(), VK_NULL_HANDLE, &_currentImage);
 

@@ -188,9 +188,6 @@ void VulkanRenderer::RenderMesh(const DrawCommand& drawCommand) const
 	if(drawCommand.pushConstants.data)
 		vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
 	vkCmdDrawIndexed(cmdBuffer, drawCommand.indexCount, 1, 0, 0, 0);
-
-	if (drawCommand.pushConstants.data)
-		delete[] drawCommand.pushConstants.data;
 }
 
 // WOULD FLUSH THIS STRUCTURE
@@ -222,12 +219,6 @@ void VulkanRenderer::ExecuteBarriers(PipelineBarrierStorage& barriers) const
 	{
 		if (barrierSpecification.image == nullptr)
 			continue;
-
-		VkAccessFlags srcAccess = vkconversions::ToVkAccessFlags2(barrierSpecification.srcAccessMask);
-		VkAccessFlags dstAccess = vkconversions::ToVkAccessFlags2(barrierSpecification.dstAccessMask);
-
-		VkPipelineStageFlags2 srcStage = vkconversions::ToVkPipelineStageFlags2(barrierSpecification.srcStageMask);
-		VkPipelineStageFlags2 dstStage = vkconversions::ToVkPipelineStageFlags2(barrierSpecification.dstStageMask);
 
 		VkImageMemoryBarrier2 barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
 		barrier.oldLayout = vkconversions::ToVkImageLayout(barrierSpecification.image->GetSpecification().layout);
@@ -292,9 +283,6 @@ void VulkanRenderer::DispatchCompute(const DispatchCommand& dispatchCommand) con
 	if(dispatchCommand.pushConstants.data)
 		vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, dispatchCommand.pushConstants.size, dispatchCommand.pushConstants.data);
 	vkCmdDispatch(cmdBuffer, dispatchCommand.numWorkgroups.x, dispatchCommand.numWorkgroups.y, dispatchCommand.numWorkgroups.z);
-
-	if (dispatchCommand.pushConstants.data)
-		delete[] dispatchCommand.pushConstants.data;
 }
 
 void VulkanRenderer::EndRender() const
@@ -315,16 +303,15 @@ void VulkanRenderer::RenderQuad(const DrawCommand& drawCommand) const
 
 	VkDescriptorSet descriptor = rawDescriptorSet->GetRawSet();
 
-	vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
+    if (drawCommand.pushConstants.data)
+    {
+        vkCmdPushConstants(cmdBuffer, rawPipeline->GetRawLayout(), VK_SHADER_STAGE_ALL, 0, drawCommand.pushConstants.size, drawCommand.pushConstants.data);
+    }
+    
 	vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawPipeline());
 	vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rawPipeline->GetRawLayout(), 0, 1, &descriptor, 0, nullptr);
 
 	vkCmdDraw(cmdBuffer, 6, 1, 0, 0);
-
-	if (drawCommand.pushConstants.data)
-	{
-		delete[] drawCommand.pushConstants.data;
-	}
 }
 
 void VulkanRenderer::RenderIndirect(const RenderIndirectCountCommand& command) const
@@ -357,11 +344,6 @@ void VulkanRenderer::RenderIndirect(const RenderIndirectCountCommand& command) c
 		rawIndirectBuffer->GetRawBuffer(), 
 		command.countBufferOffsetBytes, // count buffer is the same buffer, but in the end
 		command.maxDrawCount, sizeof(VkDrawIndexedIndirectCommand));
-
-	if (command.pushConstants.data)
-	{
-		delete[] command.pushConstants.data;
-	}
 }
 
 
@@ -399,12 +381,6 @@ void VulkanRenderer::RenderRayTracing(const RTDrawCommand& drawCommand) const
 	VkExtent2D screenExt = _vulkanBase.GetPresentationObj().GetSwapchainDesc().extent;
 
 	vkCmdTraceRaysKHR(cmdBuffer, &raygenSBT, &missSBT, &hitSBT, &callableSBT, screenExt.width, screenExt.height, 1);
-
-
-	if (drawCommand.pushConstants.data)
-	{
-		delete[] drawCommand.pushConstants.data;
-	}
 }
 
 
